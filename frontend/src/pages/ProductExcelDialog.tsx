@@ -1,3 +1,4 @@
+import { useDataLoading } from '../utils/useDataLoading.ts';
 import { useEffect, useRef, useState } from 'react';
 import { Download, X } from 'lucide-react';
 import './CategoryPage.css';
@@ -10,6 +11,7 @@ export function ProductExcelDialog({ outletId, token, onCancel, onComplete, onSe
   const dialog = useRef<HTMLDialogElement>(null);
   const pending = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState(false);
+  useDataLoading(busy, 'Product Export');
   const [error, setError] = useState('');
   useEffect(() => { dialog.current?.showModal(); return () => pending.current?.abort(); }, []);
   const exportProducts = async () => {

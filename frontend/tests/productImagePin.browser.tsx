@@ -48,27 +48,33 @@ void (async () => {
       const before = verifications;
       const pinInput = document.querySelector<HTMLInputElement>('#image-quick-pin')!;
       assert(pinInput.maxLength === 4 && pinInput.minLength === 4 && pinInput.pattern === '[0-9]{4}', `${action}: exactly four login PIN digits required`);
+      const modal = document.querySelector('dialog.quick-pin-modal')!;
+      assert(modal.querySelector('h2')?.textContent === 'Verify Quick PIN' && modal.textContent?.includes('Enter your 4-digit security PIN')
+        && modal.querySelector('.quick-pin-lock svg') && !modal.textContent?.includes(label), `${action}: shared Quick PIN design with lock icon and no action text`);
       await enter('123'); assert(button('Verify').disabled, `${action}: three digits rejected`);
+      const boxes = [...modal.querySelectorAll('.quick-pin-box')];
+      assert(boxes.length === 4 && boxes.map(box => box.textContent).join('') === '●●●' && boxes[3]!.classList.contains('active'),
+        `${action}: four masked boxes fill with bullets and focus advances`);
       await enter('');
       assert(button('Verify').disabled, `${action}: empty PIN disabled`); submit(); await pause();
       assert(verifications === before && mutations === 0, `${action}: empty PIN rejected`);
       await enter('9999'); submit(); await wait(() => document.querySelector('[role="alert"]')?.textContent === 'Incorrect Quick PIN');
-      assert(!document.querySelector('.product-image-batch') && !button('Confirm remove all images') && mutations === 0, `${action}: wrong PIN blocks action`);
+      assert(!document.querySelector('.product-image-batch') && !button('Remove') && mutations === 0, `${action}: wrong PIN blocks action`);
       assert((document.querySelector('#image-quick-pin') as HTMLInputElement).value === '', 'PIN cleared after request');
       button('Cancel').click(); await wait(() => !document.querySelector('dialog'));
       await open(label); await enter('1234'); hold = true;
       const count = verifications; submit(); submit(); await wait(() => verifications > count);
       assert(verifications === count + 1, `${action}: repeated submissions verify once`);
       button('Cancel').click(); await wait(() => !document.querySelector('dialog')); release!(); await pause(); hold = false;
-      assert(!document.querySelector('.product-image-batch') && !button('Confirm remove all images'), `${action}: cancelled request cannot open workflow`);
+      assert(!document.querySelector('.product-image-batch') && !button('Remove'), `${action}: cancelled request cannot open workflow`);
       for (const denied of [401, 403]) {
         status = denied; await open(label); await enter('1234'); submit();
         await wait(() => denied === 401 ? logouts > 0 : document.querySelector('[role="alert"]')?.textContent === 'Access denied');
-        assert(!document.querySelector('.product-image-batch') && !button('Confirm remove all images'), `${action}: unauthorized user blocked`);
+        assert(!document.querySelector('.product-image-batch') && !button('Remove'), `${action}: unauthorized user blocked`);
         button('Cancel').click(); await wait(() => !document.querySelector('dialog')); logouts = 0;
       }
       status = 200; await open(label); await enter('1234'); submit();
-      await wait(() => action === 'remove' ? button('Confirm remove all images') : document.querySelector('.product-image-batch'));
+      await wait(() => action === 'remove' ? button('Remove') : document.querySelector('.product-image-batch'));
       assert(mutations === 0, `${action}: correct PIN opens intended workflow before mutations`);
       if (action === 'remove') button('Cancel').click(); else button('Back to Products').click();
       await wait(() => document.querySelector('section[aria-label="Products"]'));

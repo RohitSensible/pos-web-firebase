@@ -13,7 +13,7 @@ const store = new Map(Object.entries({
 }) as [string, Record<string, unknown>][]);
 const untouched = structuredClone([...store]);
 const list = () => [...store].map(([documentId, fields]) => ({ documentId, fields: { ...fields } }));
-window.confirm = () => { confirms++; return confirmAnswer; };
+
 window.fetch = async (url, init) => {
   const path = String(url);
   if (path === '/api/outlets/outlet/products' && !init?.method) { listLoads++; return Response.json({ success: true, data: list() }); }
@@ -36,7 +36,12 @@ const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement
 const box = (label: string) => document.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
 const header = (column: 'Stock' | 'Weighable') => box(`Select ${column} for all products`);
 const column = (column: 'Stock' | 'Weighable') => ['Apple', 'Banana', 'Cherry'].map(name => box(`${column} for ${name}`).checked);
-const click = async (element: HTMLElement) => { element.click(); await pause(); };
+const click = async (element: HTMLElement) => {
+  const label = element.textContent?.trim(); element.click(); await pause();
+  const prompt = document.querySelector('.action-popup-question')?.textContent ?? '';
+  if (label === 'Update' && prompt.includes('update')) { document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click(); await pause(); }
+  if (label === 'Cancel' && prompt.includes('discard')) { confirms++; document.querySelector<HTMLButtonElement>(confirmAnswer ? '.action-confirm-button' : '.delete-confirmation-cancel')!.click(); await pause(); }
+};
 const search = async (value: string) => {
   const input = box('Search Product');
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
@@ -114,10 +119,10 @@ void (async () => {
   await click(button('Update'));
   await waitFor(() => document.querySelector('[aria-label="More options"]'), 'return to Products');
   await waitFor(() => document.querySelector('dialog[open].category-updated-popup'), 'centered success popup');
-  assert(document.querySelector('dialog[open]')!.textContent!.includes('Stockable & Weighable updated successfully'), 'Completed flag update shows success popup');
+  assert(document.querySelector('dialog[open]')!.textContent!.includes('Updated successfully.'), 'Completed flag update shows success popup');
   const rect = document.querySelector('dialog[open]')!.getBoundingClientRect();
   assert(Math.abs(rect.left + rect.width / 2 - (window.visualViewport?.width ?? document.documentElement.clientWidth) / 2) < 3 && Math.abs(rect.top + rect.height / 2 - (window.visualViewport?.height ?? innerHeight) / 2) < 3, 'Success popup is centered on the visible screen');
-  await click(button('OK'));
+  await click(button('Done'));
   assert(JSON.stringify(patches) === JSON.stringify([{ id: 'p2', body: { weighable: false } }]), 'retry resends only failed product');
   assert(listLoads === 1, 'Saved product responses update the list without an unnecessary reload');
   for (const [id, fields] of untouched) {

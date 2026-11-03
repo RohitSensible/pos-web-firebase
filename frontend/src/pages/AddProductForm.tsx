@@ -1,4 +1,8 @@
+import { requestUnsavedNavigation, useUnsavedChanges } from '../utils/unsavedChanges.tsx';
+import { beginDataLoading } from '../utils/dataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useRef, useState } from 'react';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { X } from 'lucide-react';
 import { createRequestId } from '../utils/requestId.ts';
 import { productFormErrors, productFormPayload, productDraftFromFields, productUpdatePayload, type ProductDraft } from './productForm.ts';
@@ -21,27 +25,37 @@ interface Props {
   outletId: string; token: string; initialCategory: string | null; product?: CreatedProduct;
   onCancel: () => void; onCreated: (product: CreatedProduct) => void; onSessionExpired: () => void;
 }
-export function AddProductForm({ outletId, token, initialCategory, onCancel, onCreated, onSessionExpired, product }: Props) {
+export function AddProductForm(props: Props) {
+  return <ScopedProductForm key={JSON.stringify([props.outletId, props.token, props.product?.documentId])} {...props} />;
+}
+
+function ScopedProductForm({ outletId, token, initialCategory, onCancel, onCreated, onSessionExpired, product }: Props) {
   const nameRef = useRef<HTMLInputElement>(null);
   const savingRef = useRef(false);
   const createdForImageRetry = useRef<CreatedProduct | null>(null);
   const [requestId] = useState(createRequestId);
   const [options, setOptions] = useState<Options | null>(null);
   const originalDraft = useRef(product ? productDraftFromFields(product.fields) : null);
+  const { confirmAction, confirmation } = useActionConfirmation();
   const [draft, setDraft] = useState<ProductDraft>(product ? productDraftFromFields(product.fields) : { name: '', price: '', mrpPrice: '0', costPrice: '0',
     category: initialCategory ?? '', regionalName: '', discount: '0', shortName: '', taxIndex: '',
     hsnCode: '', unitId: '', weighable: false, stockable: false, wholeSaleAmount: '0', onlinePrice: '0' });
+  const baseline = useRef(draft);
+  const imageBaseline = useRef<{ selectedImage: File | null; removeImage: boolean }>({ selectedImage: null, removeImage: false });
   const [storedProduct, setStoredProduct] = useState(product);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  useWorkspaceBack(true, () => { if (!saving) onCancel(); });
   const [retry, setRetry] = useState(0);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [removeImage, setRemoveImage] = useState(false);
+  useUnsavedChanges(JSON.stringify(draft) !== JSON.stringify(baseline.current) || selectedImage !== imageBaseline.current.selectedImage || removeImage !== imageBaseline.current.removeImage, saving);
+  const cancel = () => requestUnsavedNavigation(onCancel);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !savingRef.current) onCancel();
+      if (event.key === 'Escape' && !savingRef.current && !document.querySelector('dialog[open]')) requestUnsavedNavigation(onCancel);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => window.removeEventListener('keydown', closeOnEscape);
@@ -49,6 +63,7 @@ export function AddProductForm({ outletId, token, initialCategory, onCancel, onC
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
+      const finishLoading = beginDataLoading('Product Details', controller.signal);
       try {
         const response = await fetch(`/api/outlets/${encodeURIComponent(outletId)}/products/${product ? `${encodeURIComponent(product.documentId)}/edit-options` : 'create-options'}`, {
           headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
@@ -72,13 +87,18 @@ export function AddProductForm({ outletId, token, initialCategory, onCancel, onC
         if (product && config.product) {
           setStoredProduct(config.product);
           originalDraft.current = productDraftFromFields(config.product.fields);
+          baseline.current = originalDraft.current;
           setDraft(originalDraft.current);
-        } else setDraft(current => ({ ...current,
-          taxIndex: current.taxIndex || '1',
-          unitId: current.unitId || (config.units.some(unit => unit.id === 2) ? '2' : config.units.length === 1 ? String(config.units[0]!.id) : ''),
-        }));
+        } else {
+          const defaults = (current: ProductDraft): ProductDraft => ({ ...current,
+            taxIndex: current.taxIndex || '1',
+            unitId: current.unitId || (config.units.some(unit => unit.id === 2) ? '2' : config.units.length === 1 ? String(config.units[0]!.id) : ''),
+          });
+          baseline.current = defaults(baseline.current);
+          setDraft(defaults);
+        }
         nameRef.current?.focus();
-      } catch (error) { if (!controller.signal.aborted) setError((error as Error).message); }
+      } catch (error) { if (!controller.signal.aborted) setError((error as Error).message); } finally { finishLoading(); }
     })();
     return () => controller.abort();
   }, [outletId, token, onSessionExpired, retry, product]);
@@ -93,6 +113,7 @@ export function AddProductForm({ outletId, token, initialCategory, onCancel, onC
     const invalid = productFormErrors(draft);
     setErrors(invalid); setError('');
     if (Object.keys(invalid).length) return;
+    if (!await confirmAction(product ? 'update' : 'add', draft.name.trim())) return;
     savingRef.current = true; setSaving(true);
     try {
       let saved: CreatedProduct;
@@ -134,6 +155,8 @@ export function AddProductForm({ outletId, token, initialCategory, onCancel, onC
         saved = { ...saved, fields };
       }
       createdForImageRetry.current = null;
+      baseline.current = draft;
+      imageBaseline.current = { selectedImage, removeImage };
       onCreated(saved);
     } catch (error) { setError((error as Error).message); }
     finally { savingRef.current = false; setSaving(false); }
@@ -164,13 +187,13 @@ export function AddProductForm({ outletId, token, initialCategory, onCancel, onC
   const discountAmount = Number(draft.price) * Number(draft.discount) / 100;
   return (
     <section className="category-modal add-product-modal" aria-labelledby="add-product-title">
-      <form noValidate onSubmit={event => void save(event)}>
+      <form noValidate onSubmit={event => void save(event)}>{confirmation}
         <div className="modal-header"><h3 id="add-product-title">{product ? 'Edit Product' : 'Add New Product'}</h3>
-          <button type="button" className="modal-close-btn" aria-label={product ? 'Close edit product' : 'Close add product'} disabled={saving} onClick={onCancel}><X size={18} /></button></div>
+          <button type="button" className="modal-close-btn" aria-label={product ? 'Close edit product' : 'Close add product'} disabled={saving} onClick={cancel}><X size={18} /></button></div>
         <div className="modal-body">
           <h4 className="product-section-heading">Product Details</h4>
           {error && <p className="category-form-error" role="alert">{error}</p>}
-          {!options && <p role="status">{error ? <button type="button" className="btn-secondary" onClick={() => { setError(''); setOptions(null); setRetry(value => value + 1); }}>Retry loading options</button> : 'Loading product options…'}</p>}
+          {!options && <p role="status" data-inline-loading={!error ? '' : undefined}>{error ? <button type="button" className="btn-secondary" onClick={() => { setError(''); setOptions(null); setRetry(value => value + 1); }}>Retry loading options</button> : 'Loading product options…'}</p>}
           {text('name', 'Product Name')}
           {text('regionalName', 'Regional Name')}
           <div className="product-pricing-fields">
@@ -227,7 +250,6 @@ export function AddProductForm({ outletId, token, initialCategory, onCancel, onC
           </div>
           <div className="form-field"><label htmlFor="product-variant">Variant</label><input id="product-variant" disabled value="" placeholder="Not configured" /></div>
           <div className="form-field"><label htmlFor="product-addon">Addon</label><input id="product-addon" disabled value="" placeholder="Not configured" /></div>
-          <div className="form-field product-wide"><label htmlFor="product-recipeId">Select Recipe</label><div className="product-recipe-field"><input id="product-recipeId" readOnly value={storedText('recipeId')} placeholder="No recipe selected" /><button type="button" className="btn-secondary" disabled>Add Recipe</button></div></div>
           <h4 className="product-section-heading product-section-heading-more">More Details</h4>
           {text('hsnCode', 'HSN Code')}
           <div className="product-flag-fields">
@@ -244,7 +266,7 @@ export function AddProductForm({ outletId, token, initialCategory, onCancel, onC
             token={token} onSelectedFile={setSelectedImage} onRemoveExisting={setRemoveImage} onSessionExpired={onSessionExpired}
             disabled={saving || (!!product && !options)} />
         </div>
-        <div className="modal-footer"><button type="button" className="btn-secondary" disabled={saving} onClick={onCancel}>Cancel</button>
+        <div className="modal-footer"><button type="button" className="btn-secondary" disabled={saving} onClick={cancel}>Cancel</button>
           <button type="submit" className="btn-primary-add" disabled={saving || !options || !options.categories.length}>{saving ? (product ? 'Updating…' : 'Saving…') : !product && createdForImageRetry.current ? 'Retry Image Save' : product ? 'Update' : 'Save Product'}</button></div>
       </form>
     </section>

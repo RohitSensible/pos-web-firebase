@@ -53,15 +53,21 @@
 .bill-pagination button { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #d8e0e7; border-radius: 6px; color: #465e71; background: #fff; cursor: pointer; }
 .bill-pagination button:disabled { cursor: not-allowed; opacity: .4; }
 .bill-pagination button svg { width: 14px; }
-.bill-detail-backdrop { position: fixed; z-index: 80; inset: 0; display: flex; justify-content: flex-end; background: rgba(7,18,28,.55); backdrop-filter: blur(3px); }
-.bill-detail-modal { width: min(620px, 100%); height: 100%; display: flex; flex-direction: column; background: #f7f9fb; box-shadow: -18px 0 45px rgba(9,25,38,.2); }
-.bill-detail-modal > header { display: flex; justify-content: space-between; padding: 24px; color: #fff; background: #153f58; }
+.bill-detail-backdrop { position: fixed; z-index: 80; inset: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: transparent; color: var(--dialog-text); }
+/* Most reports use an overlay; bill printing uses a native dialog in the top layer.
+   Both shells need the same right-aligned sheet layout. */
+.bill-detail-backdrop:not(dialog) { display: flex; justify-content: flex-end; background: var(--dialog-backdrop); backdrop-filter: blur(var(--dialog-backdrop-blur)); }
+dialog.bill-detail-backdrop[open] { display: flex; justify-content: flex-end; }
+.bill-detail-backdrop::backdrop { background: var(--dialog-backdrop); backdrop-filter: blur(var(--dialog-backdrop-blur)); }
+.bill-detail-backdrop button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.bill-detail-modal { flex-shrink: 0; width: min(var(--dialog-sheet-width), 100%); height: 100%; display: flex; flex-direction: column; background: var(--dialog-surface); box-shadow: var(--dialog-shadow); border-radius: var(--dialog-radius) 0 0 var(--dialog-radius); overflow: hidden; }
+.bill-detail-modal > header { display: flex; justify-content: space-between; padding: var(--dialog-padding); color: #fff; background: #153f58; }
 .bill-detail-modal > header span { color: #ffb0b3; font-size: 9px; font-weight: 800; letter-spacing: .1em; }
 .bill-detail-modal > header h2 { margin: 5px 0; font-size: 23px; }
 .bill-detail-modal > header p { color: #c9d9e3; font-size: 10px; }
 .bill-detail-modal > header button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; color: #fff; background: transparent; cursor: pointer; }
 .bill-detail-modal > header button svg { width: 17px; }
-.bill-detail-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.bill-detail-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--dialog-padding); }
 .bill-detail-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .bill-detail-meta div { min-width: 0; display: grid; gap: 3px; padding: 10px; border: 1px solid #e0e6eb; border-radius: 8px; background: #fff; }
 .bill-detail-meta span { color: #8594a2; font-size: 8px; font-weight: 800; text-transform: uppercase; }
@@ -76,7 +82,7 @@
 .bill-payment-detail h3 { margin: 0 0 7px; }
 .bill-payment-detail div, .bill-total-detail div { display: flex; justify-content: space-between; padding: 6px 0; color: #65798b; font-size: 10px; }
 .bill-total-detail .grand-total { margin-top: 7px; padding-top: 11px; border-top: 1px solid #e2e7eb; color: #173b53; font-size: 14px; }
-.bill-detail-modal > footer { padding: 14px 24px; border-top: 1px solid #dce3e8; background: #fff; }
+.bill-detail-modal > footer { padding: var(--dialog-footer-padding); border-top: 1px solid var(--dialog-border); background: var(--dialog-surface); }
 .bill-detail-modal > footer button { width: 100%; height: 40px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 8px; color: #fff; background: #ed3036; font-size: 10px; font-weight: 800; cursor: pointer; }
 .bill-detail-modal > footer svg { width: 15px; }
 
@@ -140,4 +146,24 @@
   .bill-report-page .stock-count { font-size: 12px; }
   .bill-report-page .stock-status, .bill-report-page .shift-status { font-size: 10px; font-weight: 600; }
   .bill-report-page .shift-times small { font-size: 10px; }
+}
+
+.bill-print-outlet { display: block; margin-bottom: 8px; font-size: 17px; overflow-wrap: anywhere; }
+.bill-print-error { margin-bottom: 10px; color: #b52c32; font-size: 12px; }
+.bill-detail-modal > footer button:disabled { opacity: .6; cursor: wait; }
+
+/* An individual receipt lives in its own document, outside the report overlay. */
+@media print {
+  html:has(body.print-document), body.print-document { min-height: 0; height: auto; background: #fff; color: #000; color-scheme: light; }
+  .print-document .bill-detail-modal { display: block; width: 100%; max-width: none; height: auto; background: #fff; box-shadow: none; }
+  .print-document .bill-detail-modal > header { display: block; padding: 0 0 16px; color: #000; background: #fff; border-bottom: 1px solid #bbb; break-inside: avoid; }
+  .print-document .bill-detail-modal > header span, .print-document .bill-detail-modal > header p { color: #333; }
+  .print-document .bill-print-outlet { font-size: 24px; }
+  .print-document .bill-detail-body { overflow: visible; padding: 16px 0 0; }
+  .print-document .bill-detail-meta strong { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .print-document .bill-items-table { overflow: visible; }
+  .print-document .bill-items-table th, .print-document .bill-items-table td { font-size: 11px; overflow-wrap: anywhere; }
+  .print-document .bill-items-table thead { display: table-header-group; }
+  .print-document .bill-items-table tr, .print-document .bill-detail-meta > div,
+  .print-document .bill-payment-detail, .print-document .bill-total-detail { break-inside: avoid; }
 }

@@ -11,7 +11,7 @@ import { issueTransferAuthorization, transferOutletMasters } from "./masterTrans
 import { listOutletDevices } from "./devices.js";
 import { listOutletCustomers, createOutletCustomer, updateOutletCustomer } from "./customers.js";
 import { deleteOutletMaster } from './outletMasterDeletion.js';
-import { listOutletEmployees, createOutletEmployee } from "./employees.js";
+import { listOutletEmployees, createOutletEmployee, updateOutletEmployee } from "./employees.js";
 import { readUserAccount, updateUserAccount, UserAccountError } from "./userAccount.js";
 import { updateOutletProduct } from "./productUpdate.js";
 import { updateProductPrices } from "./productPriceUpdate.js";
@@ -520,15 +520,28 @@ app.get("/api/outlets/:outletId/dashboard", async (req, res) => {
     }
 });
 function datesBetween(startDate, endDate) {
+    const valid = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value)
+        && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
+        && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!valid(startDate) || !valid(endDate) || startDate > endDate)
+        return [];
     const dates = [];
     const cursor = new Date(`${startDate}T00:00:00Z`);
     const end = new Date(`${endDate}T00:00:00Z`);
-    while (cursor <= end && dates.length < 31) {
+    while (cursor <= end) {
         dates.push(cursor.toISOString().slice(0, 10));
         cursor.setUTCDate(cursor.getUTCDate() + 1);
     }
     return dates;
 }
+async function readReportDays(days, read) {
+    const results = [];
+    for (let offset = 0; offset < days.length; offset += 16) {
+        results.push(...await Promise.all(days.slice(offset, offset + 16).map(read)));
+    }
+    return results;
+}
+
 function parsePayment(value) {
     if (value && typeof value === "object" && !Array.isArray(value)) {
         return Object.fromEntries(Object.entries(value).map(([key, amount]) => [key, numberValue(amount)]));
@@ -563,7 +576,7 @@ app.get("/api/outlets/:outletId/reports/stock-transfers", async (req, res) => {
     }
     const days = datesBetween(startDate, endDate);
     if (days.at(-1) !== endDate) {
-        res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+        res.status(400).json({ success: false, message: "Choose valid start and end dates." });
         return;
     }
     const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
@@ -580,7 +593,7 @@ app.get("/api/outlets/:outletId/reports/stock-transfers", async (req, res) => {
             return;
         }
         const goods = db.collection("OUTLET").doc(outletId).collection("GOODS_RECEIVED");
-        const snapshots = await Promise.all(days.map(day => goods.where("dayID", "==", day).get()));
+        const snapshots = await readReportDays(days, day => goods.where("dayID", "==", day).get());
         const transfers = snapshots.flatMap(snapshot => snapshot.docs)
             .filter(document => isStockTransfer(document.data()))
             .map(document => stockTransferRecord(document.id, document.data()))
@@ -624,7 +637,7 @@ app.get("/api/outlets/:outletId/reports/stock-movements", async (req, res) => {
     }
     const days = datesBetween(startDate, endDate);
     if (days.at(-1) !== endDate) {
-        res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+        res.status(400).json({ success: false, message: "Choose valid start and end dates." });
         return;
     }
     const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
@@ -646,7 +659,7 @@ app.get("/api/outlets/:outletId/reports/stock-movements", async (req, res) => {
             return;
         }
         const goods = db.collection("OUTLET").doc(outletId).collection("GOODS_RECEIVED");
-        const snapshots = await Promise.all(days.map(day => goods.where("dayID", "==", day).get()));
+        const snapshots = await readReportDays(days, day => goods.where("dayID", "==", day).get());
         const movements = snapshots.flatMap(snapshot => snapshot.docs)
             .filter(document => stockDirection(document.data()) !== null)
             .map(document => stockMovementRecord(document.id, document.data()))
@@ -691,8 +704,8 @@ app.get("/api/outlets/:outletId/reports/bills", async (req, res) => {
         return;
     }
     const dateIds = datesBetween(startDate, endDate);
-    if (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate)) {
-        res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+    if (dateIds.length === 0) {
+        res.status(400).json({ success: false, message: "Choose valid start and end dates." });
         return;
     }
     const shiftId = typeof req.query.shiftId === "string" ? req.query.shiftId.trim().toLowerCase() : "";
@@ -713,13 +726,13 @@ app.get("/api/outlets/:outletId/reports/bills", async (req, res) => {
             res.status(403).json({ success: false, message: "You do not have access to this outlet" });
             return;
         }
-        const snapshots = await Promise.all(dateIds.map(dayId => db
+        const snapshots = await readReportDays(dateIds, dayId => db
             .collection("OUTLET")
             .doc(outletId)
             .collection("BILL_SALE_SUMMARY")
             .where("dayId", "==", dayId)
             .where("inActive", "==", false)
-            .get()));
+            .get());
         const bills = snapshots
             .flatMap(snapshot => snapshot.docs)
             .map(document => {
@@ -820,8 +833,8 @@ app.get("/api/outlets/:outletId/reports/categories", async (req, res) => {
         return;
     }
     const dateIds = datesBetween(startDate, endDate);
-    if (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate)) {
-        res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+    if (dateIds.length === 0) {
+        res.status(400).json({ success: false, message: "Choose valid start and end dates." });
         return;
     }
     const shiftId = typeof req.query.shiftId === "string" ? req.query.shiftId.trim().toLowerCase() : "";
@@ -839,9 +852,9 @@ app.get("/api/outlets/:outletId/reports/categories", async (req, res) => {
             return;
         }
         const outletRef = db.collection("OUTLET").doc(outletId);
-        const [categorySnapshot, ...billSnapshots] = await Promise.all([
+        const [categorySnapshot, billSnapshots] = await Promise.all([
             outletRef.collection("CATEGORY").get(),
-            ...dateIds.map(dayId => outletRef
+            readReportDays(dateIds, dayId => outletRef
                 .collection("BILL_SALE_SUMMARY")
                 .where("dayId", "==", dayId)
                 .where("inActive", "==", false)
@@ -1460,6 +1473,21 @@ app.post("/api/outlets/:outletId/employees", async (req, res) => {
             message: error instanceof ProductCreationError ? error.message : 'Unable to confirm the employee save. Retry without changing the form to confirm the outcome.' });
     }
 });
+app.patch('/api/outlets/:outletId/employees/:documentId', async (req, res) => {
+    const token = readAccessToken(req);
+    if (!token) {
+        res.status(401).json({ success: false, message: 'Your session has expired. Please sign in again.' });
+        return;
+    }
+    try {
+        const data = await updateOutletEmployee(getFirestoreDb(), String(req.params.outletId ?? ''), String(req.params.documentId ?? ''), token.profileDocId, assignedOutletIds, req.body);
+        res.json({ success: true, data });
+    }
+    catch (error) {
+        res.status(error instanceof ProductCreationError ? error.status : 503).json({ success: false,
+            message: error instanceof ProductCreationError ? error.message : 'Unable to save employee changes. Please try again.' });
+    }
+});
 app.get('/api/outlets/:outletId/premises', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     const token = readAccessToken(req);
@@ -2002,8 +2030,8 @@ app.get("/api/outlets/:outletId/reports/gst", async (req, res) => {
         return;
     }
     const dateIds = datesBetween(startDate, endDate);
-    if (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate)) {
-        res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+    if (dateIds.length === 0) {
+        res.status(400).json({ success: false, message: "Choose valid start and end dates." });
         return;
     }
     const shiftId = typeof req.query.shiftId === "string" ? req.query.shiftId.trim().toLowerCase() : "";
@@ -2021,13 +2049,13 @@ app.get("/api/outlets/:outletId/reports/gst", async (req, res) => {
             res.status(403).json({ success: false, message: "You do not have access to this outlet" });
             return;
         }
-        const snapshots = await Promise.all(dateIds.map(dayId => db
+        const snapshots = await readReportDays(dateIds, dayId => db
             .collection("OUTLET")
             .doc(outletId)
             .collection("BILL_SALE_SUMMARY")
             .where("dayId", "==", dayId)
             .where("inActive", "==", false)
-            .get()));
+            .get());
         const emptyTotals = () => ({ taxable: 0, cgst: 0, sgst: 0, igst: 0, gst: 0, gross: 0 });
         const addTotals = (target, source) => {
             target.taxable += source.taxable;
@@ -2148,8 +2176,8 @@ app.get("/api/outlets/:outletId/reports/products", async (req, res) => {
         return;
     }
     const dateIds = datesBetween(startDate, endDate);
-    if (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate)) {
-        res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+    if (dateIds.length === 0) {
+        res.status(400).json({ success: false, message: "Choose valid start and end dates." });
         return;
     }
     const shiftId = typeof req.query.shiftId === "string" ? req.query.shiftId.trim().toLowerCase() : "";
@@ -2167,10 +2195,10 @@ app.get("/api/outlets/:outletId/reports/products", async (req, res) => {
             return;
         }
         const outletRef = db.collection("OUTLET").doc(outletId);
-        const [categorySnapshot, productSnapshot, ...billSnapshots] = await Promise.all([
+        const [categorySnapshot, productSnapshot, billSnapshots] = await Promise.all([
             outletRef.collection("CATEGORY").get(),
             outletRef.collection("PRODUCT").get(),
-            ...dateIds.map(dayId => outletRef
+            readReportDays(dateIds, dayId => outletRef
                 .collection("BILL_SALE_SUMMARY")
                 .where("dayId", "==", dayId)
                 .where("inActive", "==", false)
@@ -2275,9 +2303,9 @@ app.get("/api/outlets/:outletId/reports/shifts", async (req, res) => {
         return;
     }
     // A specific day ID takes precedence over the date range.
-    const dateIds = dayIdFilter ? [dayIdFilter] : datesBetween(startDate, endDate);
-    if (!dayIdFilter && (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate))) {
-        res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+    const dateIds = dayIdFilter ? datesBetween(dayIdFilter, dayIdFilter) : datesBetween(startDate, endDate);
+    if (dateIds.length === 0) {
+        res.status(400).json({ success: false, message: "Choose valid start and end dates." });
         return;
     }
     const shiftNo = typeof req.query.shiftNo === "string" ? Number.parseInt(req.query.shiftNo, 10) : Number.NaN;
@@ -2294,12 +2322,12 @@ app.get("/api/outlets/:outletId/reports/shifts", async (req, res) => {
             res.status(403).json({ success: false, message: "You do not have access to this outlet" });
             return;
         }
-        const snapshots = await Promise.all(dateIds.map(dayId => db
+        const snapshots = await readReportDays(dateIds, dayId => db
             .collection("OUTLET")
             .doc(outletId)
             .collection("SHIFT")
             .where("dayId", "==", dayId)
-            .get()));
+            .get());
         const shifts = snapshots
             .flatMap(snapshot => snapshot.docs)
             .map(document => {

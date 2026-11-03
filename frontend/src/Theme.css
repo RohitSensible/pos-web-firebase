@@ -3,6 +3,7 @@
   :root[data-theme="light"] { color-scheme: light; }
   :root[data-theme="dark"] {
     color-scheme: dark;
+    --dialog-success-indicator: #4ade80;
     --workspace: #101722;
     --card: #192331;
     --ink: #e5edf7;

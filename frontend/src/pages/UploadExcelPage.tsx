@@ -88,12 +88,12 @@ export function UploadExcelPage({ outletId, token, onSessionExpired }: { outletI
           <button type="button" className="upload-excel-close-icon" aria-label="Close information" onClick={() => closePreview()}><X size={18} /></button>
         </div>
         <p id="upload-excel-dialog-description">{selectedOption?.title === 'Upload Excel' ? 'Select a spreadsheet to validate and preview. Upload adds new products to the selected outlet.' : selectedOption?.message}</p>
-        {selectedOption?.title === 'Upload Excel' && <CsvUploadPreview key="standard" outletId={outletId} token={token} onSessionExpired={onSessionExpired} onSuccessAcknowledged={closePreview} />}
-        {selectedOption?.title === 'Upload with Premises' && <CsvUploadPreview key="premises" mode="premises" outletId={outletId} token={token} onSessionExpired={onSessionExpired} onSuccessAcknowledged={closePreview} />}
+        {selectedOption?.title === 'Upload Excel' && <CsvUploadPreview key="standard" outletId={outletId} token={token} onSessionExpired={onSessionExpired} onSuccessAcknowledged={closePreview} footerAction={<button type="button" className="csv-upload-secondary" onClick={() => closePreview()}>Close</button>} />}
+        {selectedOption?.title === 'Upload with Premises' && <CsvUploadPreview key="premises" mode="premises" outletId={outletId} token={token} onSessionExpired={onSessionExpired} onSuccessAcknowledged={closePreview} footerAction={<button type="button" className="csv-upload-secondary" onClick={() => closePreview()}>Close</button>} />}
         {selectedOption?.title === 'Excel Sheet Instructions' && <ExcelSheetInstructions />}
-        <div className="upload-excel-dialog-actions">
+        {selectedOption?.title !== 'Upload Excel' && selectedOption?.title !== 'Upload with Premises' && <div className="upload-excel-dialog-actions">
           <button type="button" onClick={() => closePreview()}>Close</button>
-        </div>
+        </div>}
       </dialog>
     </section>
   );

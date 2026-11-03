@@ -1,3 +1,4 @@
+import { beginDataLoading } from './dataLoading.ts';
 import type { ReportCell } from './reportExcel.ts';
 
 export interface GstExportBill {
@@ -82,28 +83,35 @@ export async function loadGstExportBills(
   startDate: string,
   endDate: string,
   onSessionExpired: () => void,
+  signal?: AbortSignal,
 ): Promise<GstExportBill[]> {
+  signal?.throwIfAborted();
   if (!selectedBills.length) return [];
-  const params = new URLSearchParams({ startDate, endDate });
-  const response = await fetch(`/api/outlets/${encodeURIComponent(outletId)}/reports/gst?${params}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (response.status === 401) {
-    onSessionExpired();
-    throw new Error('Your session has expired.');
-  }
-  const result = await response.json() as {
-    message?: string;
-    data?: { bills: (GstExportBill & { documentId: string })[] };
-  };
-  if (!response.ok || !result.data) throw new Error(result.message || 'Unable to load GST details for export.');
-  const gstBills = new Map(result.data.bills.map(bill => [bill.documentId, bill]));
-  return selectedBills.map(bill => {
-    const gstBill = gstBills.get(bill.documentId);
-    if (!gstBill) throw new Error('GST details are unavailable for a selected bill. Refresh the report and try again.');
-    // Sales reports already define their total after discounts and round-off.
-    return { ...gstBill, gross: bill.finalTotal };
-  });
+  const finishLoading = beginDataLoading('GST Export');
+  try {
+    const params = new URLSearchParams({ startDate, endDate });
+    const response = await fetch(`/api/outlets/${encodeURIComponent(outletId)}/reports/gst?${params}`, {
+      headers: { Authorization: `Bearer ${token}` }, signal,
+    });
+    signal?.throwIfAborted();
+    if (response.status === 401) {
+      onSessionExpired();
+      throw new Error('Your session has expired.');
+    }
+    const result = await response.json() as {
+      message?: string;
+      data?: { bills: (GstExportBill & { documentId: string })[] };
+    };
+    signal?.throwIfAborted();
+    if (!response.ok || !result.data) throw new Error(result.message || 'Unable to load GST details for export.');
+    const gstBills = new Map(result.data.bills.map(bill => [bill.documentId, bill]));
+    return selectedBills.map(bill => {
+      const gstBill = gstBills.get(bill.documentId);
+      if (!gstBill) throw new Error('GST details are unavailable for a selected bill. Refresh the report and try again.');
+      // Sales reports already define their total after discounts and round-off.
+      return { ...gstBill, gross: bill.finalTotal };
+    });
+  } finally { finishLoading(); }
 }
 
 export function gstBillSummary(bills: GstExportBill[]) {

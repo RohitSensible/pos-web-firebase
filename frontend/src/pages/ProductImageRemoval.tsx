@@ -1,8 +1,8 @@
+import { ActionPopup, ActionConfirmation } from './ActionPopup.tsx';
+import { SuccessPopup } from './SuccessPopup.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { removeMasterImage } from './imageApi.ts';
 import { runImageWorkers, type ImageProduct } from './productImageBatch.ts';
-import './CategoryPage.css';
-import './DeleteConfirmation.css';
 
 interface RemovalRow {
   documentId: string; name: string; image: string | null; imagePath: string | null;
@@ -18,9 +18,9 @@ export function ProductImageRemoval({ products, outletId, outletName, token, ima
     name: String(product.fields.name ?? product.documentId), image: typeof product.fields.image === 'string' && product.fields.image ? product.fields.image : null,
     imagePath: typeof product.fields.imagePath === 'string' && product.fields.imagePath ? product.fields.imagePath : null, status: 'pending', message: '' })));
   const [started, setStarted] = useState(false), [running, setRunning] = useState(false);
-  const busy = useRef(false), active = useRef(true), dialog = useRef<HTMLDialogElement>(null), cancel = useRef<HTMLButtonElement>(null);
+  const busy = useRef(false), active = useRef(true);
   useEffect(() => {
-    active.current = true; dialog.current?.showModal(); cancel.current?.focus();
+    active.current = true;
     return () => { active.current = false; };
   }, []);
   const removed = rows.filter(row => row.status === 'removed').length;
@@ -45,20 +45,12 @@ export function ProductImageRemoval({ products, outletId, outletName, token, ima
     busy.current = false; if (active.current) setRunning(false);
   };
   const close = () => { if (!busy.current) onClose(started ? { removed, failed } : undefined); };
-  return <dialog ref={dialog} className="category-modal delete-confirmation" aria-modal="true" aria-labelledby="remove-images-title" aria-describedby="remove-images-description"
-    onCancel={event => { event.preventDefault(); close(); }}>
-    <div className="modal-header"><h3 id="remove-images-title">{started ? 'Product image removal results' : 'Remove all product images?'}</h3></div>
-    <div className="modal-body">
-      <p id="remove-images-description">Remove images from <strong>{rows.length} products</strong> in <strong>{outletName}</strong>?
-      </p>
-      {started && <p className={!running && failed === 0 ? 'products-notice' : undefined} role="status">{running ? 'Removing product images…' : failed ? 'Removal finished with errors.' : 'Product images removed successfully.'}
-        {' '}{removed} removed; {failed} failed.</p>}
-      {failed > 0 && <ul>{rows.filter(row => row.status === 'failed').map(row => <li key={row.documentId}>{row.name}: {row.message}</li>)}</ul>}
-    </div>
-    <div className="modal-footer">
-      <button ref={cancel} type="button" className="btn-secondary" disabled={running} onClick={close}>{started ? 'Done' : 'Cancel'}</button>
-      {!started && <button type="button" className="btn-primary-add" disabled={running || !rows.length} onClick={() => void run()}>Confirm remove all images</button>}
-      {started && failed > 0 && <button type="button" className="btn-primary-add" disabled={running} onClick={() => void run()}>Retry failed removals</button>}
-    </div>
-  </dialog>;
+  if (started && !running && removed > 0 && failed === 0) return <SuccessPopup message="Removed successfully." onDismiss={close} />;
+  if (!started) return <ActionConfirmation action="remove" item={`images from ${rows.length} products in ${outletName}`} title="Remove product images?" onCancel={close} onConfirm={() => void run()} />;
+  return <ActionPopup title={running ? 'Removing product images…' : 'Image removal results'} onCancel={close} busy={running}
+    footer={<><button type="button" data-initial-focus className="btn-secondary" disabled={running} onClick={close}>Done</button>
+      {failed > 0 && <button type="button" className="btn-primary-add action-confirm-button" disabled={running} onClick={() => void run()}>Retry failed removals</button>}</>}>
+    <p role="status">{removed} removed; {failed} failed.</p>
+    {failed > 0 && <ul>{rows.filter(row => row.status === 'failed').map(row => <li key={row.documentId}>{row.name}: {row.message}</li>)}</ul>}
+  </ActionPopup>;
 }

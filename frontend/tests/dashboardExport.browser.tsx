@@ -47,7 +47,7 @@ void (async () => {
   const sheet = first.worksheets[0]!; const values = dataValues(sheet);
   assert(sheet.getCell('A1').value === 'Rohit Testing', 'selected outlet name is the main heading');
   assert(values.get('Total Sale') === 500 && values.get('Cash In Hand') === 430 && values.get('No. of Bills') === 5, 'workbook totals match the displayed dashboard');
-  assert(values.get('Branch') === 'Pune' && values.get('Cashier') === 'Test Cashier', 'export contains outlet and cashier context');
+  assert(values.get('Branch') === 'Pune' && values.get('Exported By') === 'Test Cashier', 'export identifies the outlet and export operator separately from shift creators');
   assert(values.get('Google Pay') === 100 && values.get('Total Tax') === 25 && values.get('Total Expenses') === 20, 'payment, tax and expense details are included');
   const today = new Date(); today.setDate(today.getDate() - 1);
   const picked = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;

@@ -1,4 +1,8 @@
+import { markDataLoadingBackground } from '../utils/dataLoading.ts';
+import { useDataLoading } from '../utils/useDataLoading.ts';
+import { ActionConfirmation } from './ActionPopup.tsx';
 import { useEffect, useRef, useState } from 'react';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Package, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { ProductListRequestError, streamProductList } from './productListApi.ts';
@@ -18,6 +22,7 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
   const [mode, setMode] = useState<'in' | 'out' | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  useDataLoading(loading, 'Stock Products');
   const [streaming, setStreaming] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [error, setError] = useState('');
@@ -31,7 +36,7 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
   const [uncertain, setUncertain] = useState(false);
   const pending = useRef<Payload | null>(null);
   const busy = useRef(false);
-  const dialog = useRef<HTMLDialogElement>(null);
+  useWorkspaceBack(!!mode, () => { if (!locked) { setMode(null); setError(''); } });
   const base = `/api/outlets/${encodeURIComponent(outlet.id)}`;
 
   useEffect(() => {
@@ -44,6 +49,7 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
     void streamProductList<Product>(`${base}/products`, token, controller.signal, loaded => {
       if (controller.signal.aborted || !loaded.length) return;
       setProducts(stockable(loaded)); setLoading(false);
+      if (loaded.length) markDataLoadingBackground(controller.signal);
     })
       .then(data => { if (!controller.signal.aborted) setProducts(stockable(data)); })
       .catch(failure => {
@@ -71,10 +77,7 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
     return () => controller.abort();
   }, [base, token, mode, onSessionExpired]);
 
-  useEffect(() => {
-    if (confirming) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [confirming]);
+
 
   const findProduct = (id: string) => products.find(product => product.documentId === id);
   const rowError = (row: Row) => {
@@ -133,7 +136,7 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
     </article>)}</div> : <>
       {success && <SuccessPopup message={success} onDismiss={() => setSuccess('')} />}
       {error && !confirming && <p role="alert" className="stock-error">{error}</p>}
-      {loading ? <div className="devices-state" role="status"><RefreshCw />Loading products…</div> : loadError ? <div className="devices-state"><p role="alert">{loadError}</p><button type="button" className="devices-refresh" disabled={locked} onClick={refresh}>Retry loading products</button></div> : <>
+      {loading ? <div data-inline-loading className="devices-state" role="status"><RefreshCw />Loading products…</div> : loadError ? <div className="devices-state"><p role="alert">{loadError}</p><button type="button" className="devices-refresh" disabled={locked} onClick={refresh}>Retry loading products</button></div> : <>
         {!products.length && !streaming && <p role="status">No stockable products are available. Mark a product Stockable in Products to adjust its stock.</p>}
         <div className="stock-workspace">
         <div className="stock-workspace-heading"><div><h2>{mode === 'in' ? 'Receive stock' : 'Issue stock'}</h2><p>Select a product to add it instantly to your list.</p></div></div>
@@ -157,9 +160,9 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
         <p className="stock-save-note"><ShieldCheck aria-hidden="true" />Review before saving. Stock changes only after you confirm.</p>
       </>}
     </>}
-    <dialog ref={dialog} className="stock-confirm-dialog" aria-labelledby="stock-confirm-title" onCancel={event => { if (locked) event.preventDefault(); else setConfirming(false); }}><h2 id="stock-confirm-title">Confirm Stock {mode === 'in' ? 'In' : 'Out'}</h2><p>{outlet.name} · Review the quantities before saving.</p><ul>{rows.map(row => <li key={row.productId}>{text(findProduct(row.productId)?.fields.name)}: {row.quantity}{mode === 'out' ? ` · ${row.remark}` : ''}</li>)}</ul>
-      {error && <p role="alert" className="stock-error">{error}</p>}{uncertain && <p>The save outcome is uncertain. Retry this confirmation to check it without applying stock twice.</p>}
-      <div><button type="button" className="devices-refresh" disabled={locked} onClick={() => setConfirming(false)}>Cancel</button><button type="button" className="stock-primary" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : uncertain ? 'Retry confirmation' : 'Confirm stock changes'}</button></div>
-    </dialog>
+    {confirming && <ActionConfirmation action={mode === 'in' ? 'add' : 'remove'} item="stock" busy={saving} cancelDisabled={uncertain} error={error}
+      onCancel={() => { if (!locked) setConfirming(false); }} onConfirm={() => void save()} confirmLabel={uncertain ? 'Retry confirmation' : mode === 'in' ? 'Add' : 'Remove'}>
+      {uncertain && <p role="status">Save unconfirmed. Retry to check the outcome.</p>}
+    </ActionConfirmation>}
   </section>;
 }

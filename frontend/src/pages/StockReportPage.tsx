@@ -1,6 +1,7 @@
+import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, Boxes, ChevronLeft, ChevronRight, Download, Filter, PackageSearch,
   PackageX, Printer, RefreshCw, Search, X,
@@ -71,39 +72,53 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
   const initialFilters = useMemo<StockFilters>(() => ({ categoryId: '', status: '', search: '' }), []);
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
-  const [report, setReport] = useState<StockReportResponse | null>(null);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const scope = useMemo(() => ({ outletId: outlet.id, token, reloadKey }), [outlet.id, token, reloadKey]);
+  const activeScope = useRef(scope);
+  const sessionExpired = useRef(onSessionExpired);
+  useLayoutEffect(() => {
+    activeScope.current = scope;
+    sessionExpired.current = onSessionExpired;
+  }, [scope, onSessionExpired]);
+  const [read, setRead] = useState<{
+    scope: typeof scope;
+    status: 'success' | 'error';
+    report?: StockReportResponse;
+    error?: string;
+  } | null>(null);
+  // A prop change invalidates data during render, before effect cleanup can run.
+  const currentRead = read?.scope === scope ? read : null;
+  const report = currentRead?.status === 'success' ? currentRead.report : undefined;
+  const loading = !currentRead;
+  const error = currentRead?.status === 'error' ? currentRead.error : '';
+  useDataLoading(loading, 'Stock Report');
 
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters, setPage);
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError('');
-    fetch(`/api/outlets/${encodeURIComponent(outlet.id)}/reports/stock`, {
-      headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal,
-    })
-      .then(async response => {
-        const result = await response.json() as { success: boolean; message?: string; data?: StockReportResponse };
-        if (controller.signal.aborted) return;
+    const isCurrent = () => !controller.signal.aborted && activeScope.current === scope;
+    void (async () => {
+      try {
+        const response = await fetch(`/api/outlets/${encodeURIComponent(scope.outletId)}/reports/stock`, {
+          headers: { Authorization: `Bearer ${scope.token}` }, cache: 'no-store', signal: controller.signal,
+        });
+        if (!isCurrent()) return;
         if (response.status === 401) {
-          onSessionExpired();
+          sessionExpired.current();
           throw new Error('Your session has expired.');
         }
+        const result = await response.json() as { success: boolean; message?: string; data?: StockReportResponse };
+        if (!isCurrent()) return;
         if (!response.ok || !result.data) throw new Error(result.message || 'Unable to load stock.');
-        setReport(result.data);
-      })
-      .catch(requestError => {
-        if ((requestError as Error).name !== 'AbortError') setError((requestError as Error).message);
-      })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+        setRead({ scope, status: 'success', report: result.data });
+      } catch (requestError) {
+        if (isCurrent()) setRead({ scope, status: 'error', error: requestError instanceof Error && requestError.message ? requestError.message : 'Unable to load stock.' });
+      }
+    })();
     return () => controller.abort();
-  // onSessionExpired is a stable callback from the parent.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outlet.id, token, reloadKey]);
+  }, [scope]);
 
   // Filtering is done in the browser because the full product list is already loaded.
   const rows = useMemo(() => {
@@ -133,7 +148,10 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
   }, { tracked: 0, totalStock: 0, stockValue: 0, low: 0, out: 0 }), [rows]);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const pagedRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  // Normalize the stored page too, so a later refresh cannot revive an old page.
+  if (page !== currentPage) setPage(currentPage);
+  const canOutput = !loading && !error && !!report && rows.length > 0;
 
   const applyFilters = () => {
     setPage(1);
@@ -147,6 +165,7 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
   };
 
   const exportExcel = async () => {
+    if (!canOutput) return;
     const csvRows: (string | number | Date)[][] = [
       ['Product Code', 'Product', 'Category', 'Stock Tracked', 'Current Stock', 'Reorder Level', 'Status', 'Price', 'Stock Value'],
       ...rows.map(product => [
@@ -167,8 +186,8 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
         <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Stock Report</h1><p>{outlet.name} · Current stock count for stockable products.</p></div>
         <div className="bill-report-actions">
           <button type="button" onClick={() => setReloadKey(value => value + 1)} disabled={loading}><RefreshCw /> Refresh</button>
-          <button type="button" onClick={exportExcel} disabled={!rows.length}><Download /> Export Excel</button>
-          <button type="button" onClick={() => window.print()}><Printer /> Print / PDF</button>
+          <button type="button" onClick={exportExcel} disabled={!canOutput}><Download /> Export Excel</button>
+          <button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / PDF</button>
         </div>
       </div>
 
@@ -186,14 +205,14 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
         <article><span><PackageX /></span><div><small>Out of Stock</small><strong>{summary.out}</strong></div></article>
       </div>
 
-      <div className="bill-table-card">
-        {loading && <div className="bill-report-state"><RefreshCw className="bill-report-spinner" /><strong>Loading stock…</strong></div>}
-        {!loading && error && <div className="bill-report-state error"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
-        {!loading && !error && report && rows.length === 0 && <div className="bill-report-state"><PackageSearch /><strong>No products found.</strong><p>{report.products.length ? 'Clear some filters to see more products.' : 'This outlet has no stockable products.'}</p></div>}
+      <div className="bill-table-card" aria-busy={loading}>
+        {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading stock…</strong></div>}
+        {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
+        {!loading && !error && report && rows.length === 0 && <div className="bill-report-state"><PackageSearch /><strong>No products found.</strong><p>{report.products.length ? 'Clear some filters to see more products.' : 'This outlet has no stockable products.'}</p>{report.products.length > 0 && <button type="button" onClick={resetFilters}>Clear filters</button>}</div>}
         {!loading && !error && report && rows.length > 0 && (
           <>
-            <div className="bill-table-scroll"><table><thead><tr><th>Code</th><th>Product</th><th>Category</th><th className="amount">Stock Count</th><th className="amount">Reorder Level</th><th>Status</th><th className="amount">Price</th><th className="amount">Stock Value</th></tr></thead><tbody>{pagedRows.map(product => <tr key={product.productId}><td className="product-code-cell"><span className="product-code">{product.code || '—'}</span></td><td><strong>{product.name}</strong></td><td>{product.category}</td><td className="amount"><strong className={product.tracked ? (product.currentStock <= 0 ? 'stock-count negative' : 'stock-count') : 'stock-count muted'}>{quantity(product.currentStock)}</strong></td><td className="amount">{product.reorderLevel ? quantity(product.reorderLevel) : '—'}</td><td><span className={`stock-status ${STATUS_CLASS[product.status]}`}>{product.status}</span></td><td className="amount">{money(product.price)}</td><td className="amount">{product.tracked ? money(product.stockValue) : '—'}</td></tr>)}</tbody><tfoot><tr><td /><td><strong>Total</strong></td><td>{rows.length} products</td><td className="amount">{quantity(summary.totalStock)}</td><td /><td /><td /><td className="amount"><strong>{money(summary.stockValue)}</strong></td></tr></tfoot></table></div>
-            <div className="bill-pagination"><span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, rows.length)} of {rows.length}</span><div><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}><ChevronLeft /></button><strong>Page {page} of {totalPages}</strong><button type="button" disabled={page >= totalPages} onClick={() => setPage(value => value + 1)}><ChevronRight /></button></div></div>
+            <div className="bill-table-scroll"><table><thead><tr><th>Code</th><th>Product</th><th>Category</th><th className="amount">Stock Count</th><th className="amount">Reorder Level</th><th>Status</th><th className="amount">Price</th><th className="amount">Stock Value</th></tr></thead><tbody>{rows.map((product, index) => <tr key={product.productId} className={index < (currentPage - 1) * PAGE_SIZE || index >= currentPage * PAGE_SIZE ? 'stock-print-only-row' : undefined}><td className="product-code-cell"><span className="product-code">{product.code || '—'}</span></td><td><strong>{product.name}</strong></td><td>{product.category}</td><td className="amount"><strong className={product.tracked ? (product.currentStock <= 0 ? 'stock-count negative' : 'stock-count') : 'stock-count muted'}>{quantity(product.currentStock)}</strong></td><td className="amount">{product.reorderLevel ? quantity(product.reorderLevel) : '—'}</td><td><span className={`stock-status ${STATUS_CLASS[product.status]}`}>{product.status}</span></td><td className="amount">{money(product.price)}</td><td className="amount">{product.tracked ? money(product.stockValue) : '—'}</td></tr>)}</tbody><tfoot><tr><td /><td><strong>Total</strong></td><td>{rows.length} products</td><td className="amount">{quantity(summary.totalStock)}</td><td /><td /><td /><td className="amount"><strong>{money(summary.stockValue)}</strong></td></tr></tfoot></table></div>
+            <div className="bill-pagination"><span>Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, rows.length)} of {rows.length}</span><div><button type="button" aria-label="Previous stock report page" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft /></button><strong aria-live="polite">Page {currentPage} of {totalPages}</strong><button type="button" aria-label="Next stock report page" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight /></button></div></div>
           </>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { useDataLoading } from '../utils/useDataLoading.ts';
 import { useEffect, useState } from 'react';
 import { Users, RefreshCw } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
@@ -10,6 +11,7 @@ export function MulticounterPage({ outlet, token, onSessionExpired }: {
 }) {
   const [data, setData] = useState<MulticounterConfiguration | null>(null);
   const [loading, setLoading] = useState(true);
+  useDataLoading(loading, 'Counters');
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
 
@@ -35,7 +37,7 @@ export function MulticounterPage({ outlet, token, onSessionExpired }: {
   return <section className="devices-page multicounter-page">
     <div className="devices-heading"><div><span>OPERATIONS</span><h1><Users size={24} /> Multicounter</h1><p>{data?.outletName || outlet.name} · Configured billing counters for this outlet.</p></div>
       <button type="button" className="devices-refresh" disabled={loading} onClick={() => setReload(value => value + 1)}><RefreshCw size={16} />{loading ? 'Loading…' : 'Refresh'}</button></div>
-    {loading ? <div className="devices-state" role="status"><RefreshCw size={24} /><p>Loading multicounter configuration…</p></div> : error ?
+    {loading ? <div data-inline-loading className="devices-state" role="status"><RefreshCw size={24} /><p>Loading multicounter configuration…</p></div> : error ?
       <div className="devices-state"><p role="alert">{error}</p><button type="button" className="devices-refresh" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : data &&
       <div className="devices-state"><Users size={32} />
         {data.multiCounter === false ? <><h2>Multicounter is not enabled</h2><p>Multiple counters are not enabled for this outlet.</p></> :

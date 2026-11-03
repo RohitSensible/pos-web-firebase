@@ -1,0 +1,21 @@
+.data-loading-overlay[data-loading-root] { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; padding: var(--dialog-gutter); margin: 0; background: var(--dialog-backdrop); backdrop-filter: blur(var(--dialog-backdrop-blur)); }
+.data-loading-modal { position: relative; display: flex; flex-direction: column; align-items: center; gap: var(--dialog-gap); width: min(360px, 100%); padding: var(--dialog-space-3xl) var(--dialog-padding) var(--dialog-padding); border: 1px solid var(--dialog-border); border-radius: var(--dialog-radius); background: var(--dialog-surface); color: var(--dialog-text); box-shadow: var(--dialog-shadow); text-align: center; }
+.data-loading-spinner { display: inline-block; flex: 0 0 auto; width: 32px; height: 32px; border: 3px solid color-mix(in srgb, var(--dialog-action-primary) 18%, transparent); border-top-color: var(--dialog-action-primary); border-radius: 50%; animation: data-loading-spin .85s linear infinite; }
+.data-loading-message { margin: 0; font-size: var(--dialog-body-size); font-weight: 600; line-height: var(--dialog-line-height); overflow-wrap: anywhere; }
+.data-loading-dismiss { position: absolute; top: var(--dialog-space-sm); right: var(--dialog-space-sm); display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: var(--dialog-control-radius); background: transparent; color: var(--dialog-muted); cursor: pointer; }
+.data-loading-dismiss:hover { background: var(--workspace, #f5f7f9); color: var(--dialog-text); }
+body:has(.dashboard-workspace) .data-loading-overlay[data-loading-root] { top: 68px; left: var(--sidebar-width, 270px); }
+@keyframes data-loading-spin { to { transform: rotate(360deg); } }
+@media (max-width: 820px) {
+  body:has(.dashboard-workspace) .data-loading-overlay[data-loading-root] { top: 62px; left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .data-loading-spinner { animation: none; } }
+
+/* Remove the complete inline placeholder, including its empty table row/panel. */
+body:has(.data-loading-overlay[data-loading-root]) [data-inline-loading],
+body:has(.data-loading-overlay[data-loading-root]) tr:has([data-inline-loading]) { display: none !important; }
+body:has(.data-loading-overlay[data-loading-root]) .bill-table-card:has([data-inline-loading]) { min-height: 0; }
+
+.data-loading-modal button:focus-visible { outline: 2px solid var(--dialog-action-primary); outline-offset: 3px; }
+body:has(.retail-dashboard-shell[aria-hidden="true"]) .data-loading-overlay[data-loading-root] { display: none; }
+@media print { .data-loading-overlay[data-loading-root] { display: none !important; } }

@@ -69,7 +69,7 @@ void (async () => {
   await click(button('Review & transfer'));
   assert(option('Prices').checked && option('Barcode').checked, 'Options survive cancelling review');
   fail = true; hold = true;
-  button('Continue Transfer').click(); button('Continue Transfer').click();
+  button('Transfer').click(); button('Transfer').click();
   await until(() => document.querySelector('.transfer-progress[open]') && release, 'transfer progress');
   assert(document.querySelector('#transfer-progress-title')?.textContent === 'Transferring products…', 'Progress explains the current action');
   const cancel = new Event('cancel', { cancelable: true }); document.querySelector('.transfer-progress')!.dispatchEvent(cancel);
@@ -83,10 +83,10 @@ void (async () => {
   assert(transfers[0]!.products.length === 4 && !transfers[0]!.products.find(product => product.sourceProductId === 'p4')!.fields.includes('category'), 'Uncategorized products are included without a made-up category');
   passed.push('One product flow, compact destination selector, automatic category inclusion, existing-category reuse and All fallback');
   fail = false;
-  await click(button('Review & transfer')); await click(button('Continue Transfer'));
-  await until(() => document.querySelector('#transfer-outcome-title')?.textContent === 'Transfer successful', 'successful retry');
+  await click(button('Review & transfer')); await click(button('Transfer'));
+  await until(() => document.querySelector('.action-success')?.textContent?.includes('Transferred successfully.'), 'successful retry');
   assert(transfers.length === 2 && JSON.stringify(transfers[0]) === JSON.stringify(transfers[1]), 'Retry retains the selected products, category mappings and options');
-  await click(button('OK'));
+  await click(button('Done'));
   await until(() => document.querySelector('[aria-label="Select outlet Outlet B"]'), 'return to destinations');
   passed.push('QuickPin verification, review cancellation, independent options, transfer progress, error recovery and successful confirmation');
   root.unmount(); document.getElementById('test-results')!.textContent = JSON.stringify({ passed });

@@ -50,19 +50,20 @@ const cancel = () => document.querySelector<HTMLButtonElement>('.delete-confirma
 async function setValue(id: string, value: string) { const input = document.getElementById(id) as HTMLInputElement; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); await pause(); }
 void (async () => {
   root.render(<CustomersPage key="customers" outlet={outlet} token="token" onSessionExpired={onSessionExpired} />);
-  await until(() => document.querySelector('.customers-table-scroll tbody tr'), 'customers');
-  document.querySelector<HTMLTableRowElement>('.customers-table-scroll tbody tr')!.click(); await pause();
+  await until(() => document.querySelector('.customers-list .master-row-main'), 'customers');
+  document.querySelector<HTMLButtonElement>('.customers-list .master-row-main')!.click(); await pause();
   assert(document.querySelector('#customer-form-title')?.textContent === 'Edit Customer' && (document.getElementById('customer-contact') as HTMLInputElement).value === '12345', 'Clicking a customer opens a prefilled editor');
   await setValue('customer-name', 'Discard'); button('Cancel').click(); await pause();
   assert(patches.length === 0, 'Cancelling edits does not write');
   document.querySelector<HTMLButtonElement>('[aria-label="Edit customer Customer"]')!.click(); await pause();
   await setValue('customer-name', 'Updated'); await setValue('customer-email', 'updated@example.com');
   customer.balance = 200;
-  button('Update Customer').click(); button('Update Customer').click();
+  button('Update Customer').click(); await until(() => document.querySelector('.action-confirm-button'), 'update confirmation'); const updateButton = confirm(); updateButton.click(); updateButton.click();
   await until(() => document.querySelector('[role="alert"]')?.textContent?.includes('Customer update failed'), 'failed edit');
   assert(patches.length === 1 && (document.getElementById('customer-name') as HTMLInputElement).value === 'Updated', 'Duplicate saves are guarded and failures retain the draft');
-  button('Update Customer').click(); await until(() => document.querySelector('[aria-label="Edit customer Updated"]'), 'saved edit');
+  button('Update Customer').click(); await until(() => document.querySelector('.action-confirm-button'), 'retry confirmation'); confirm().click(); await until(() => document.querySelector('[aria-label="Edit customer Updated"]'), 'saved edit');
   assert(JSON.stringify(patches[1]) === '{"name":"Updated","email":"updated@example.com"}' && customer.balance === 200, 'Only changed customer fields are sent; concurrent balance is retained');
+  button('Done').click(); await pause();
   document.querySelector<HTMLButtonElement>('[aria-label="Delete customer Updated"]')!.click(); await pause();
   assert(!document.querySelector('#customer-form-title'), 'Delete does not also open the row editor');
   cancel().click(); await pause(); assert(deletes.length === 0, 'Delete cancellation makes no request');
@@ -71,12 +72,12 @@ void (async () => {
   passed.push('Customer row editing, prefilled fields, changed-only updates, cancellation, failure retry, concurrency preservation and confirmed deletion');
 
   root.render(<EmployeesPage key="employees" outlet={outlet} token="token" onSessionExpired={onSessionExpired} />);
-  await until(() => document.querySelector('[aria-label="Select Employee"]'), 'employees');
-  assert([...document.querySelectorAll('#employee-selection-kind option')].map(node => node.textContent).join(',') === 'Employee,Salesman' && !document.body.textContent?.includes('Captain'), 'Only Employee and Salesman remain');
-  document.querySelector<HTMLInputElement>('[aria-label="Select Employee"]')!.click();
+  await until(() => document.querySelector('[aria-label="Edit employee Employee"]'), 'employees');
+  assert(!document.getElementById('employee-selection-kind') && !document.body.textContent?.includes('Captain'), 'No Employee/Salesman selector and no Captain option');
+  document.querySelector<HTMLInputElement>('[aria-label="Edit employee Employee"]')!.click(); await pause(); button('Cancel').click(); await pause();
   document.querySelector<HTMLButtonElement>('[aria-label="Delete employee Employee"]')!.click(); await pause(); confirm().click(); confirm().click();
   await until(() => document.querySelector('.delete-confirmation [role="alert"]'), 'lost delete response');
-  assert(document.querySelector('[aria-label="Select Employee"]') && deletes.filter(path => path.endsWith('/employees/e')).length === 1, 'Unconfirmed deletion retains the row and prevents duplicate clicks');
+  assert(document.querySelector('[aria-label="Edit employee Employee"]') && deletes.filter(path => path.endsWith('/employees/e')).length === 1, 'Unconfirmed deletion retains the row and prevents duplicate clicks');
   confirm().click(); await until(() => document.body.textContent?.includes('No employees found'), 'deletion retry');
   assert(!document.body.textContent?.includes('Selected employee:'), 'Deleting the employee clears the selection');
   passed.push('Employee/Salesman choices, selected employee deletion and idempotent retry after a lost response');

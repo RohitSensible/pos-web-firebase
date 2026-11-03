@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import './ReportDateInput.css';
@@ -40,17 +40,45 @@ export function ReportDateInput({ value, onChange, id, 'aria-label': label = 'Se
   const [position, setPosition] = useState({ top: 0, left: 0, width: 320 });
   const selected = parseDate(value);
   const today = dateId(new Date());
-  const allowed = (day: string) => (!min || day >= min) && (!max || day <= max);
+  const minimum = min && parseDate(min) ? min : undefined;
+  const maximum = max && parseDate(max) ? max : undefined;
+  const available = !disabled && !readOnly && !(minimum && maximum && minimum > maximum);
+  const allowed = (day: string) => (!minimum || day >= minimum) && (!maximum || day <= maximum);
+  const clamp = useCallback((date: Date) => {
+    const day = dateId(date);
+    if (minimum && day < minimum) return parseDate(minimum)!;
+    if (maximum && day > maximum) return parseDate(maximum)!;
+    return date;
+  }, [minimum, maximum]);
+  const monthAllowed = (date: Date) => {
+    const first = dateId(new Date(date.getFullYear(), date.getMonth(), 1, 12));
+    const last = dateId(new Date(date.getFullYear(), date.getMonth() + 1, 0, 12));
+    return (!minimum || last >= minimum) && (!maximum || first <= maximum);
+  };
   const display = selected ? selected.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Choose date';
   const close = (restoreFocus = false) => { setOpen(false); if (restoreFocus) triggerRef.current?.focus(); };
-  const choose = (day: string) => { onChange(day); close(true); };
+  const choose = (day: string) => { if (!available || (day ? !allowed(day) : required)) return; onChange(day); close(true); };
   const show = () => {
-    if (disabled || readOnly) return;
-    let date = parseDate(value) ?? new Date();
-    if (min && dateId(date) < min) date = parseDate(min) ?? date;
-    if (max && dateId(date) > max) date = parseDate(max) ?? date;
+    if (!available) return;
+    const date = clamp(parseDate(value) ?? new Date());
     setView(date); setFocusDate(dateId(date)); setOpen(true);
   };
+
+  // Synchronize the mounted popup and DOM focus before changed bounds can leave focus on a disabled day.
+  /* oxlint-disable react/set-state-in-effect */
+  useLayoutEffect(() => {
+    if (!open) return;
+    if (!available) {
+      setOpen(false);
+      if (!disabled && !readOnly) triggerRef.current?.focus();
+      return;
+    }
+    // Reconcile focus only: changing bounds must never select a value.
+    const date = clamp(parseDate(focusDate) ?? parseDate(value) ?? new Date());
+    setFocusDate(dateId(date));
+    setView(current => dateId(current) === dateId(date) ? current : date);
+  }, [open, clamp, focusDate, value, available, disabled, readOnly]);
+  /* oxlint-enable react/set-state-in-effect */
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -72,7 +100,7 @@ export function ReportDateInput({ value, onChange, id, 'aria-label': label = 'Se
   useEffect(() => {
     if (!open) return;
     if (calendarRef.current?.contains(document.activeElement) && document.activeElement?.tagName === 'SELECT') return;
-    calendarRef.current?.querySelector<HTMLButtonElement>(`[data-date="${focusDate}"]`)?.focus();
+    calendarRef.current?.querySelector<HTMLButtonElement>(`[data-date="${focusDate}"]:not(:disabled)`)?.focus();
   }, [open, focusDate, view]);
 
   useEffect(() => {
@@ -88,7 +116,7 @@ export function ReportDateInput({ value, onChange, id, 'aria-label': label = 'Se
   }, [open]);
 
   const navigate = (delta: number) => {
-    const next = moveMonth(view, delta);
+    const next = clamp(moveMonth(view, delta));
     setView(next); setFocusDate(dateId(next));
   };
   const onDayKey = (event: KeyboardEvent<HTMLButtonElement>, day: Date) => {
@@ -98,13 +126,15 @@ export function ReportDateInput({ value, onChange, id, 'aria-label': label = 'Se
     else if (event.key === 'PageUp' || event.key === 'PageDown') next = moveMonth(day, event.key === 'PageUp' ? -1 : 1);
     else return;
     event.preventDefault();
-    if (!allowed(dateId(next))) return;
+    next = clamp(next);
     setView(next); setFocusDate(dateId(next));
   };
   const first = new Date(view.getFullYear(), view.getMonth(), 1, 12);
   first.setDate(first.getDate() - (first.getDay() + 6) % 7);
   const years = Array.from({ length: 121 }, (_, index) => new Date().getFullYear() - 100 + index);
-  if (!years.includes(view.getFullYear())) years.push(view.getFullYear());
+  for (const year of [view.getFullYear(), minimum ? Number(minimum.slice(0, 4)) : null, maximum ? Number(maximum.slice(0, 4)) : null]) {
+    if (year !== null && !years.includes(year)) years.push(year);
+  }
 
   return <div className="report-date-control">
     {name && <input type="hidden" name={name} value={value} />}
@@ -113,16 +143,16 @@ export function ReportDateInput({ value, onChange, id, 'aria-label': label = 'Se
       onClick={() => open ? close() : show()} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); show(); } }}>
       <CalendarDays aria-hidden="true" /><span>{display}</span><ChevronDown aria-hidden="true" />
     </button>
-    {open && createPortal(<div ref={calendarRef} id={calendarId} className="report-date-calendar" role="dialog" aria-label={`${label} calendar`}
+    {open && available && createPortal(<div ref={calendarRef} id={calendarId} className="report-date-calendar" role="dialog" aria-label={`${label} calendar`}
       style={{ top: position.top, left: position.left, width: position.width }}>
       <div className="report-date-caption"><CalendarDays aria-hidden="true" /><span>{label}</span><small>DD MMM YYYY</small></div>
       <div className="report-date-navigation">
-        <button type="button" aria-label="Previous month" onClick={() => navigate(-1)}><ChevronLeft /></button>
+        <button type="button" aria-label="Previous month" disabled={!monthAllowed(moveMonth(view, -1))} onClick={() => navigate(-1)}><ChevronLeft /></button>
         <div className="report-date-month-selects">
-          <select aria-label="Month" value={view.getMonth()} onChange={event => { const next = moveMonth(view, Number(event.target.value) - view.getMonth()); setView(next); setFocusDate(dateId(next)); }}>{months.map((month, index) => <option key={month} value={index}>{month}</option>)}</select>
-          <select aria-label="Year" value={view.getFullYear()} onChange={event => { const next = moveMonth(view, (Number(event.target.value) - view.getFullYear()) * 12); setView(next); setFocusDate(dateId(next)); }}>{years.sort((a, b) => a - b).map(year => <option key={year} value={year}>{year}</option>)}</select>
+          <select aria-label="Month" value={view.getMonth()} onChange={event => { const next = clamp(moveMonth(view, Number(event.target.value) - view.getMonth())); setView(next); setFocusDate(dateId(next)); }}>{months.map((month, index) => <option key={month} value={index} disabled={!monthAllowed(moveMonth(view, index - view.getMonth()))}>{month}</option>)}</select>
+          <select aria-label="Year" value={view.getFullYear()} onChange={event => { const next = clamp(moveMonth(view, (Number(event.target.value) - view.getFullYear()) * 12)); setView(next); setFocusDate(dateId(next)); }}>{years.sort((a, b) => a - b).map(year => <option key={year} value={year} disabled={!!((minimum && year < Number(minimum.slice(0, 4))) || (maximum && year > Number(maximum.slice(0, 4))))}>{year}</option>)}</select>
         </div>
-        <button type="button" aria-label="Next month" onClick={() => navigate(1)}><ChevronRight /></button>
+        <button type="button" aria-label="Next month" disabled={!monthAllowed(moveMonth(view, 1))} onClick={() => navigate(1)}><ChevronRight /></button>
       </div>
       <div className="report-date-weekdays" aria-hidden="true">{weekdays.map(day => <span key={day}>{day}</span>)}</div>
       <div className="report-date-days" role="group" aria-label={view.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}>
@@ -132,7 +162,7 @@ export function ReportDateInput({ value, onChange, id, 'aria-label': label = 'Se
           return <button type="button" key={key} data-date={key} tabIndex={key === focusDate ? 0 : -1} disabled={!allowed(key)}
             className={[key === value ? 'is-selected' : '', key === today ? 'is-today' : '', day.getMonth() !== view.getMonth() ? 'is-other-month' : ''].join(' ')}
             aria-label={day.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} aria-pressed={key === value} aria-current={key === today ? 'date' : undefined}
-            onKeyDown={event => onDayKey(event, day)} onClick={() => choose(key)}>{day.getDate()}</button>;
+            onFocus={() => setFocusDate(key)} onKeyDown={event => onDayKey(event, day)} onClick={() => choose(key)}>{day.getDate()}</button>;
         })}
       </div>
       <div className="report-date-footer"><button type="button" disabled={required} onClick={() => choose('')}>Clear</button><span>{selected ? display : 'Select a date'}</span><button type="button" disabled={!allowed(today)} onClick={() => choose(today)}>Today</button></div>

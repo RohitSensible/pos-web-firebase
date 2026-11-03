@@ -1,0 +1,33 @@
+/* Shared master list rows (Premises, Customers): number circle, name and badge,
+   divider, two-line details, and neutral Edit / Delete actions on the right. */
+.master-row-list { --row-accent: #4F46E5; display: grid; padding: 4px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05); }
+.master-row { display: flex; align-items: center; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.master-row:last-child { border-bottom: 0; }
+.master-row-main { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; flex: 1; min-width: 0;
+  padding: 4px 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.master-row-main:focus-visible { outline: 2px solid var(--row-accent); outline-offset: 4px; border-radius: 8px; }
+.master-row-number { display: grid; place-items: center; min-width: 32px; height: 32px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--ink); font-size: 14px; }
+.master-row-title { display: grid; justify-items: start; gap: 6px; min-width: 0; }
+.master-row-title strong { color: var(--ink); font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
+.master-row-badge { padding: 2px 10px; border: 1px solid #a5b4fc; border-radius: 999px; background: #eef2ff; color: #475569; font-size: 12px; }
+.master-row-divider { align-self: stretch; width: 1px; min-height: 52px; background: var(--line); }
+.master-row-info { display: grid; gap: 4px; min-width: 0; color: var(--ink); font-size: 14px; }
+.master-row-info strong { font-weight: 700; }
+.master-row-info small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.master-row-actions { display: flex; flex: none; gap: 8px; }
+.master-row-actions > button, .master-row-actions .master-delete-button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 7px 14px;
+  border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  box-shadow: none; transition: background .15s ease, border-color .15s ease; }
+.master-row-actions > button:hover, .master-row-actions .master-delete-button:hover { background: var(--workspace); border-color: var(--muted); box-shadow: none; }
+.master-row-actions > button:focus-visible, .master-row-actions .master-delete-button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+:root[data-theme="dark"] .master-row-badge { border-color: rgba(129, 140, 248, 0.45); background: rgba(99, 102, 241, 0.16); color: #c7d2fe; }
+@media (max-width: 720px) {
+  .master-row-list { padding: 4px 14px; }
+  .master-row { flex-direction: column; align-items: stretch; gap: 12px; }
+  .master-row-main { grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px; }
+  .master-row-divider { display: none; }
+  .master-row-info { grid-column: 2; }
+  .master-row-actions { justify-content: flex-end; }
+}

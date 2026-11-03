@@ -2,7 +2,7 @@ import { PRODUCT_IMAGE_MAX_BYTES, PRODUCT_IMAGE_TARGET_BYTES } from '../../../sh
 export { PRODUCT_IMAGE_MAX_BYTES, PRODUCT_IMAGE_TARGET_BYTES };
 
 export function productImageSizeLabel(file: Blob): string {
-  return `${(file.size / 1024).toFixed(2)} KB · ${file.size <= PRODUCT_IMAGE_TARGET_BYTES ? '30 KB target achieved' : 'Above 30 KB target — retained for clarity'}`;
+  return `${(file.size / 1024).toFixed(2)} KB · ${file.size <= PRODUCT_IMAGE_MAX_BYTES ? 'Within 25 KB limit' : 'Exceeds 25 KB limit'}`;
 }
 export const IMAGE_INPUT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 export interface CropRegion { x: number; y: number; size: number; width?: number; height?: number }
@@ -28,8 +28,10 @@ function encode(canvas: HTMLCanvasElement, type = 'image/png', quality?: number)
     ? resolve(blob) : reject(new Error('Unable to process this image. Please try another image.')), type, quality));
 }
 
+// The Android POS displays JPEG product images but not WebP, so every upload is
+// a JPEG within the 25 KB limit, whatever the source format.
 export async function processProductImage(image: ImageBitmap, crop: CropRegion, source?: File): Promise<File> {
-  if (source && source.size <= PRODUCT_IMAGE_TARGET_BYTES && crop.x === 0 && crop.y === 0
+  if (source?.type === 'image/jpeg' && source.size <= PRODUCT_IMAGE_TARGET_BYTES && crop.x === 0 && crop.y === 0
     && crop.width === image.width && crop.height === image.height && Math.max(image.width, image.height) <= 1600) return source;
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -41,55 +43,40 @@ export async function processProductImage(image: ImageBitmap, crop: CropRegion, 
     canvas.height = Math.max(1, Math.floor(size * cropHeight / longestSide));
     context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
     // Every candidate comes directly from the decoded original, never encoded output.
-    // Honor the chosen crop or the full source proportions; retain alpha without stretching.
+    // Honor the chosen crop or the full source proportions without stretching.
+    // JPEG has no alpha, so transparent areas become white rather than black.
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(image, crop.x, crop.y, cropWidth, cropHeight, 0, 0, canvas.width, canvas.height);
   };
-  const asFile = (blob: Blob) => new File([blob], `product.${blob.type === 'image/webp' ? 'webp' : blob.type === 'image/jpeg' ? 'jpg' : 'png'}`, { type: blob.type });
+  const asFile = (blob: Blob) => {
+    if (!blob.size || blob.size > PRODUCT_IMAGE_MAX_BYTES || blob.type !== 'image/jpeg') {
+      throw new Error('Unable to prepare an image within 25 KB. Adjust the crop or choose a simpler image.');
+    }
+    return new File([blob], 'product.jpg', { type: 'image/jpeg' });
+  };
   const nativeSize = Math.max(1, Math.floor(longestSide));
-  // Bound large camera sources without upscaling small ones. Keep at least 768px
-  // on the long side (or native size) and 256px on the short side where possible.
+  // Resize from the decoded original; never return oversized output.
   const initialSize = Math.min(nativeSize, 1600);
-  const minimumSize = Math.min(initialSize, Math.max(768, Math.ceil(256 * longestSide / Math.min(cropWidth, cropHeight))));
+  const minimumSize = Math.min(initialSize, 256);
   let size = initialSize;
-  let clarityFallback: Blob | undefined;
   while (true) {
     draw(size);
-    const png = await encode(canvas);
-    if (png.size <= PRODUCT_IMAGE_TARGET_BYTES) return asFile(png);
-    // WebP is already supported by the POS and storage layer and preserves alpha.
-    // A missing WebP encoder may use JPEG only for opaque content.
-    let type = 'image/webp';
-    let preferred = await encode(canvas, type, 0.9);
-    if (preferred.type !== type) {
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      let opaque = true;
-      for (let i = 3; i < pixels.length; i += 4) {
-        if (pixels[i] !== 255) { opaque = false; break; }
+    const preferred = await encode(canvas, 'image/jpeg', 0.9);
+    if (preferred.size <= PRODUCT_IMAGE_MAX_BYTES) return asFile(preferred);
+    let best = await encode(canvas, 'image/jpeg', 0.6);
+    if (best.size <= PRODUCT_IMAGE_MAX_BYTES) {
+      let lower = 0.6, upper = 0.9;
+      for (let attempt = 0; attempt < 7; attempt++) {
+        const quality = (lower + upper) / 2;
+        const candidate = await encode(canvas, 'image/jpeg', quality);
+        if (candidate.size <= PRODUCT_IMAGE_MAX_BYTES) { lower = quality; best = candidate; }
+        else upper = quality;
       }
-      type = opaque ? 'image/jpeg' : 'image/png';
-      preferred = type === 'image/png' ? png : await encode(canvas, type, 0.9);
-    }
-    if (preferred.size <= PRODUCT_IMAGE_TARGET_BYTES) return asFile(preferred);
-    if (!clarityFallback && preferred.size <= PRODUCT_IMAGE_MAX_BYTES) clarityFallback = preferred;
-    if (type !== 'image/png') {
-      let best = await encode(canvas, type, 0.82);
-      if (!clarityFallback && best.size <= PRODUCT_IMAGE_MAX_BYTES) clarityFallback = best;
-      if (best.size <= PRODUCT_IMAGE_TARGET_BYTES) {
-        let lower = 0.82, upper = 0.9;
-        for (let attempt = 0; attempt < 7; attempt++) {
-          const quality = (lower + upper) / 2;
-          const candidate = await encode(canvas, type, quality);
-          if (candidate.size <= PRODUCT_IMAGE_TARGET_BYTES) { lower = quality; best = candidate; }
-          else upper = quality;
-        }
-        return asFile(best);
-      }
+      return asFile(best);
     }
     if (size === minimumSize) {
-      // Stop shrinking for a byte target. Keep the preferred quality and show
-      // the measured size to the user before they explicitly upload it.
-      if (clarityFallback) return asFile(clarityFallback);
-      throw new Error('This image needs more than 512 KB to retain detail. Choose a smaller source or adjust the crop.');
+      throw new Error('Unable to prepare a clear image within 25 KB. Adjust the crop or choose a simpler image.');
     }
     size = Math.max(minimumSize, Math.floor(size * 0.85));
   }

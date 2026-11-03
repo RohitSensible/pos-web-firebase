@@ -1,4 +1,7 @@
+import { beginDataLoading } from '../utils/dataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { Search } from 'lucide-react';
 import './ProductFlagsBulkUpdate.css';
 import './ProductPriceBulkUpdate.css';
@@ -33,12 +36,14 @@ export function ProductPriceBulkUpdate({ products, outletId, token, onClose, onS
   products: PriceProduct[]; outletId: string; token: string; onClose: (updatedCount?: number) => void;
   onSaved: (product: PriceProduct) => void; onSessionExpired: () => void;
 }) {
+  const { confirmAction, confirmation } = useActionConfirmation();
   const [premises, setPremises] = useState<string[]>([]);
   const [premisesError, setPremisesError] = useState('');
   const [premisesReload, setPremisesReload] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     void (async () => {
+      const finishLoading = beginDataLoading('Premises', controller.signal);
       try {
         setPremisesError('');
         const response = await fetch(`/api/outlets/${encodeURIComponent(outletId)}/premises`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal });
@@ -46,7 +51,7 @@ export function ProductPriceBulkUpdate({ products, outletId, token, onClose, onS
         const result = await response.json() as { success?: boolean; data?: { premises: { fields: { name?: unknown } }[] }; message?: string };
         if (!response.ok || !result.success || !Array.isArray(result.data?.premises)) throw new Error(result.message || 'Unable to load premises.');
         if (!controller.signal.aborted) setPremises(result.data.premises.flatMap(row => typeof row.fields.name === 'string' && row.fields.name.trim() ? [row.fields.name.trim()] : []));
-      } catch (error) { if (!controller.signal.aborted) setPremisesError((error as Error).message); }
+      } catch (error) { if (!controller.signal.aborted) setPremisesError((error as Error).message); } finally { finishLoading(); }
     })();
     return () => controller.abort();
   }, [outletId, token, onSessionExpired, premisesReload]);
@@ -113,6 +118,7 @@ export function ProductPriceBulkUpdate({ products, outletId, token, onClose, onS
     if (busy.current) return;
     if (!changes.length) { setFailures([]); setMessage('No price changes to update.'); return; }
     if (invalid.length) { setFailures([]); setMessage(`Enter valid prices of zero or more for ${invalid.map(change => productName(change.product)).join(', ')}.`); return; }
+    if (!await confirmAction('update', 'product prices')) return;
     busy.current = true; setSaving(true); setMessage(''); setFailures([]);
     const queue = [...changes], failed: Failure[] = [];
     let saved = 0, expired = false;
@@ -150,14 +156,17 @@ export function ProductPriceBulkUpdate({ products, outletId, token, onClose, onS
     setMessage(`${saved} of ${changes.length} products updated; ${failed.length} failed. Prices for the failed products are kept — review and click Update to try again.`);
   };
 
-  const cancel = () => {
+  const cancel = async () => {
     if (saving) return;
-    if (changes.length && !window.confirm('Discard unsaved price changes?')) return;
+    if (changes.length && !await confirmAction('discard', 'unsaved price changes')) return;
     onClose();
   };
+  // Back behaves like Cancel, including the unsaved-changes confirmation.
+  useWorkspaceBack(true, () => { void cancel(); });
 
   const failedIds = new Map(failures.map(failure => [failure.documentId, failure.message]));
   return <section className="products-page-shell product-flags-bulk product-price-bulk" aria-label="Update Bulk Price" aria-busy={saving}>
+    {confirmation}
     <div className="products-header flags-header">
       <div>
         <h1>Update Bulk Price</h1>

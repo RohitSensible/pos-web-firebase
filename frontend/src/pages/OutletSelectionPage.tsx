@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useDataLoading } from '../utils/useDataLoading.ts';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, CalendarDays, LogOut, MapPin, RefreshCw, Search, Store, X } from 'lucide-react';
 import type { UserSession } from './LoginPage.tsx';
 import './OutletSelectionPage.css';
@@ -32,9 +33,15 @@ function formatDate(timestamp: number | null): string {
 export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelectionPageProps) => {
   const [outlets, setOutlets] = useState<OutletSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  useDataLoading(loading, 'Outlets');
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const clearSearch = () => {
+    setSearchQuery('');
+    searchInputRef.current?.focus();
+  };
 
   const filteredOutlets = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -111,7 +118,7 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
         <button type="button" onClick={onLogout}><LogOut /> Sign out</button>
       </header>
 
-      <section className="outlet-selection-content">
+      <section className="outlet-selection-content" aria-busy={loading}>
         <div className="outlet-selection-title">
           <span>POS WORKSPACE</span>
           <h1>Select an outlet</h1>
@@ -122,28 +129,31 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
           <div className="outlet-search-wrap">
             <Search />
             <input
+              ref={searchInputRef}
               type="search"
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
               placeholder="Search by outlet name, branch, ID or dealer code"
               aria-label="Search outlets"
+              aria-describedby="outlet-search-count"
             />
-            {searchQuery && <button type="button" onClick={() => setSearchQuery('')} aria-label="Clear outlet search"><X /></button>}
-            <span>{filteredOutlets.length} of {outlets.length}</span>
+            {searchQuery && <button type="button" onClick={clearSearch} aria-label="Clear outlet search"><X /></button>}
+            <span id="outlet-search-count" role="status" aria-atomic="true">{filteredOutlets.length} of {outlets.length} outlets</span>
           </div>
         )}
 
-        {loading && <div className="outlet-state-card"><RefreshCw className="outlet-spinner" /><strong>Loading your outlets…</strong></div>}
+        {loading && <div className="outlet-state-card" role="status" data-inline-loading><RefreshCw className="outlet-spinner" aria-hidden="true" /><strong>Loading your outlets…</strong></div>}
 
         {!loading && error && (
-          <div className="outlet-state-card error">
-            <strong>{error}</strong>
-            <button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Try again</button>
+          <div className="outlet-state-card error" role="alert">
+            <strong>Couldn’t load your outlets</strong>
+            <p>{error}</p>
+            <button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw aria-hidden="true" /> Retry</button>
           </div>
         )}
 
         {!loading && !error && outlets.length === 0 && (
-          <div className="outlet-state-card"><Store /><strong>No outlets are assigned to this account.</strong><p>Ask your administrator to update USER_PROFILE.outlets.</p></div>
+          <div className="outlet-state-card"><Store /><strong>No outlets are assigned to this account.</strong><p>Ask your administrator to assign an outlet to your account.</p></div>
         )}
 
         {!loading && !error && outlets.length > 0 && filteredOutlets.length === 0 && (
@@ -151,7 +161,7 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
             <Search />
             <strong>No matching outlets found.</strong>
             <p>Try searching with a different name, branch, ID, or dealer code.</p>
-            <button type="button" onClick={() => setSearchQuery('')}><X /> Clear search</button>
+            <button type="button" onClick={clearSearch}><X aria-hidden="true" /> Clear search</button>
           </div>
         )}
 
@@ -172,7 +182,7 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
                 </dl>
                 <div className="outlet-card-footer">
                   <span className={outlet.active ? 'active' : 'inactive'}>{outlet.active ? 'Active' : 'Inactive'}</span>
-                  <button type="button" disabled={!outlet.active} onClick={() => onSelect(outlet)}>Open outlet</button>
+                  <button type="button" disabled={!outlet.active} aria-label={`Open outlet ${outlet.name} (${outlet.id})`} onClick={() => onSelect(outlet)}>Open outlet</button>
                 </div>
               </article>
             ))}

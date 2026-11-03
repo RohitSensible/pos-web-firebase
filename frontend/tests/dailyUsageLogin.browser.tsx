@@ -84,6 +84,9 @@ void (async () => {
   const denied = await fetch('/api/outlets/limited/products', { headers: { Authorization: 'Bearer token' } });
   await until(() => notice()?.textContent?.includes('Daily limit reached'), 'full screen exhaustion lockout');
   await until(() => calls.some(path => path === '/api/outlets/limited/usage/stop'), 'exhausted lease release');
+  await until(() => !localStorage.getItem('pos_user_session') && !localStorage.getItem('pos_selected_outlet')
+    && !document.querySelector('.retail-dashboard-shell') && document.querySelector<HTMLButtonElement>('.outlet-lockout-resume')?.disabled,
+  'exhaustion logout commits the signed-out screen');
   assert(!localStorage.getItem('pos_user_session') && !localStorage.getItem('pos_selected_outlet') && !document.querySelector('.retail-dashboard-shell') && document.querySelector<HTMLButtonElement>('.outlet-lockout-resume')!.disabled, 'Restricted exhaustion automatically ends authentication and displays its signed-out notice');
   document.querySelector<HTMLButtonElement>('.outlet-lockout-signout')!.click();
   await until(() => document.getElementById('crm-email'), 'explicit Sign Out');

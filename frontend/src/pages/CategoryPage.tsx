@@ -1,4 +1,7 @@
+import { beginDataLoading, markDataLoadingBackground } from '../utils/dataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { readMasterSnapshot, masterSnapshotRevision, rememberMasterSnapshot } from '../utils/masterSnapshots.ts';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { useMasterSync } from '../utils/useMasterSync.ts';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
 import { EditCategoryForm, CategoryUpdatedPopup } from './EditCategoryForm.tsx';
@@ -92,13 +95,15 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
 
   const [searchQuery, setSearchQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
+  const { confirmAction, confirmation } = useActionConfirmation(addOpen);
   const [editTarget, setEditTarget] = useState<Category | null>(null);
   const [updatedPopup, setUpdatedPopup] = useState(false);
   const [draft, setDraft] = useState({ name: '', regionalName: '' });
   const [saving, setSaving] = useState(false);
+  useWorkspaceBack(addOpen, () => { if (!saving) setAddOpen(false); });
   const [addError, setAddError] = useState('');
   const [noticeIsError, setNoticeIsError] = useState(false);
-  const [notice, setNotice] = useTimedNotice(!noticeIsError);
+  const [notice, setNotice] = useTimedNotice(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const deleteBusy = useRef(false);
@@ -120,6 +125,8 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
     setLiveReady(false);
     const url = `/api/outlets/${encodeURIComponent(outlet.id)}/categories`;
     const cached = readMasterSnapshot<FirebaseCategory[]>(url, token);
+    if (cached) markDataLoadingBackground(controller.signal);
+    const finishLoading = beginDataLoading('Categories', controller.signal);
     const revision = masterSnapshotRevision();
     if (cached) setCategories(cached.map(toCategory));
     setLoading(!cached);
@@ -130,6 +137,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
       if (controller.signal.aborted || revision !== masterSnapshotRevision()) return;
       setCategories(current => [...new Map([...names.map(toCategory), ...current].map(category => [category.id, category])).values()]);
       namesShown = true; setLoading(false);
+      markDataLoadingBackground(controller.signal);
     }, () => { /* The full request below reports errors. */ });
     fetch(url, {
       headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
@@ -150,11 +158,12 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
           setCategories(current => current.map(category => ({ ...category, productCount: counts.get(category.id) ?? category.productCount })));
         } else setCategories(result.data.map(toCategory));
         setLiveReady(true);
+        markDataLoadingBackground(controller.signal);
       })
       .catch(requestError => {
         if (!controller.signal.aborted) setError((requestError as Error).message);
       })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+      .finally(() => { finishLoading(); if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   // onSessionExpired is a stable callback from the parent.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -250,6 +259,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
       setAddError('A category with this number or name already exists.');
       return;
     }
+    if (!await confirmAction('add', name)) return;
     setSaving(true);
     setAddError('');
     try {
@@ -292,10 +302,10 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
     <div className="category-page-shell">
       {updatedPopup && <CategoryUpdatedPopup onDismiss={() => setUpdatedPopup(false)} />}
       {deleteAllOpen && <DeleteConfirmation kind="category" name="all categories" busy={deleting} error={deleteAllError}
-        title="Delete all categories?" description={`Are you sure you want to delete all categories? This will permanently remove all ${categories.length} categories. Products are kept and stay listed under All products.`}
-        confirmLabel="Yes" cancelLabel="No" onCancel={() => { if (!deleteBusy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllCategories()} />}
+        title="Delete all categories?"
+        onCancel={() => { if (!deleteBusy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllCategories()} />}
       {deleteAllDone && <SuccessPopup message="Categories deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
-      {deleteTarget && <DeleteConfirmation kind="category" name={deleteTarget.name} busy={deleting}
+      {deleteTarget && <DeleteConfirmation kind="category" name={deleteTarget.name} busy={deleting} error={noticeIsError ? notice : ''}
         onCancel={() => { if (!deleteBusy.current) setDeleteTarget(null); }} onConfirm={() => void deleteCategory(deleteTarget.id)} />}
       {/* Header Row */}
       <div className="category-header-row">
@@ -369,7 +379,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
             {loading ? (
               <tr>
                 <td colSpan={6}>
-                  <div className="table-empty-state">
+                  <div className="table-empty-state" data-inline-loading>
                     <RefreshCw size={30} className="empty-state-icon category-loading-icon" />
                     <h3>Loading categories…</h3>
                   </div>
@@ -467,7 +477,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
       </div>
       {addOpen && <div className="modal-scrim" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving) setAddOpen(false); }}>
         <section className="category-modal" role="dialog" aria-modal="true" aria-labelledby="add-category-title">
-          <form onSubmit={addCategory}>
+          <form onSubmit={addCategory}>{confirmation}
             <div className="modal-header"><h3 id="add-category-title">Add New Category</h3><button type="button" className="modal-close-btn" aria-label="Close add category" disabled={saving} onClick={() => setAddOpen(false)}><X size={18} /></button></div>
             <div className="modal-body">
               <div className="form-field"><label htmlFor="new-category-number">Category Number</label><input id="new-category-number" type="text" readOnly disabled={saving} value={loading ? 'Loading…' : error ? 'Unavailable' : String(nextCategoryNumber)} /></div>
@@ -475,13 +485,14 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
               <div className="form-field"><label htmlFor="new-category-regional">Regional Name</label><input id="new-category-regional" maxLength={200} disabled={saving} value={draft.regionalName} onChange={event => setDraft(current => ({ ...current, regionalName: event.target.value }))} /></div>
               {addError && <p className="category-form-error" role="alert">{addError}</p>}
             </div>
-            {loading && <p className="category-form-loading" role="status">Loading the next category number. You can enter the names now.</p>}
+            {loading && <p className="category-form-loading" role="status" data-inline-loading>Loading the next category number. You can enter the names now.</p>}
             {error && <p className="category-form-error" role="alert">{error} <button type="button" className="btn-secondary" onClick={() => setReloadKey(value => value + 1)}>Retry</button></p>}
             <div className="modal-footer"><button type="button" className="btn-secondary" disabled={saving} onClick={() => setAddOpen(false)}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving || loading || !!error}>{saving ? 'Saving…' : 'Add Category'}</button></div>
           </form>
         </section>
       </div>}
-      {notice && <div className="category-toast" role={noticeIsError ? 'alert' : 'status'} style={noticeIsError ? { color: '#fca5a5' } : undefined}>{noticeIsError ? <X size={18} /> : <CheckCircle2 size={18} />}{notice}<button type="button" className="modal-close-btn" aria-label="Dismiss message" onClick={() => setNotice('')}><X size={16} /></button></div>}
+      {notice && !noticeIsError && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
+      {notice && noticeIsError && <div className="category-toast" role={noticeIsError ? 'alert' : 'status'} style={noticeIsError ? { color: '#fca5a5' } : undefined}>{noticeIsError ? <X size={18} /> : <CheckCircle2 size={18} />}{notice}<button type="button" className="modal-close-btn" aria-label="Dismiss message" onClick={() => setNotice('')}><X size={16} /></button></div>}
     </div>
   );
 };

@@ -1,4 +1,7 @@
+import { beginDataLoading } from '../utils/dataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { MoreVertical, Plus, Printer, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { DeleteConfirmation } from './DeleteConfirmation.tsx';
@@ -24,15 +27,17 @@ export function ServicePointsPage(props: Props) {
 }
 function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
   const [rows, setRows] = useState<ServicePoint[] | null>(null);
-  const [error, setError] = useState(''), [notice, setNotice] = useTimedNotice();
+  const [error, setError] = useState(''), [notice, setNotice] = useTimedNotice(false);
   const [reload, setReload] = useState(0);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const { confirmAction, confirmation } = useActionConfirmation(!!draft);
   const [editing, setEditing] = useState<ServicePoint | null>(null);
   const [deleting, setDeleting] = useState<ServicePoint | null>(null);
   const [deleteError, setDeleteError] = useState(''), [deleteBusy, setDeleteBusy] = useState(false);
   const original = useRef<Draft | null>(null);
   const [saveError, setSaveError] = useState(''), [saving, setSaving] = useState(false);
   const busy = useRef(false), request = useRef<AbortController | null>(null);
+  useWorkspaceBack(!!draft, () => { if (!saving) setDraft(null); });
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
   const [deleteAllError, setDeleteAllError] = useState(''), [deletingAll, setDeletingAll] = useState(false);
@@ -40,6 +45,7 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
   useEffect(() => {
     const controller = new AbortController(); request.current = controller;
     void (async () => {
+      const finishLoading = beginDataLoading('Service Points', controller.signal);
       try {
         const response = await fetch(`/api/outlets/${encodeURIComponent(outlet.id)}/service-points`, {
           headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal,
@@ -49,7 +55,7 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
         if (response.status === 401) { onSessionExpired(); return; }
         if (!response.ok || result.success !== true || !Array.isArray(result.data?.servicePoints)) throw new Error(result.message || 'Unable to load service points.');
         setRows(result.data.servicePoints);
-      } catch (failure) { if (!controller.signal.aborted) setError((failure as Error).message); }
+      } catch (failure) { if (!controller.signal.aborted) setError((failure as Error).message); } finally { finishLoading(); }
     })();
     return () => controller.abort();
   }, [outlet.id, token, onSessionExpired, reload]);
@@ -108,6 +114,7 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
     if (!Number.isInteger(port) || port < 0 || port > 65535 || (draft.printerType === 1 && !draft.port.trim())) {
       setSaveError('Enter a printer port between 0 and 65535.'); return;
     }
+    if (!await confirmAction(editing ? 'update' : 'add', draft.name.trim())) return;
     busy.current = true; setSaving(true); setSaveError('');
     try {
       const values = payload(draft), baseline = original.current ? payload(original.current) : null;
@@ -123,12 +130,12 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
       const saved = result.data;
       setRows(current => [...(current ?? []).filter(row => row.documentId !== saved.documentId), saved].sort((a, b) => a.name.localeCompare(b.name)));
       setDraft(null); setEditing(null); original.current = null;
-      setNotice(editing ? 'Service point updated successfully.' : 'Service point saved successfully.');
+      setNotice(editing ? 'Service point updated successfully.' : 'Service point added successfully.');
     } catch (failure) { if (!controller.signal.aborted) setSaveError((failure as Error).message); }
     finally { if (!controller.signal.aborted) { busy.current = false; setSaving(false); } }
   };
   if (draft) return <section className="category-modal service-point-form-page master-form-page" aria-labelledby="service-point-title">
-    <form onSubmit={save}>
+    <form onSubmit={save}>{confirmation}
       <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon"><Printer size={24} /></span><div><h3 id="service-point-title">{editing ? 'Edit Service Point' : 'Add Service Point'}</h3><p>{outlet.name} · Service Point details</p></div></div>
         <button type="button" className="modal-close-btn" aria-label="Close service point form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button></div>
       <fieldset className="service-point-fields" disabled={saving}>
@@ -150,8 +157,8 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
   </section>;
   return <section className="category-page service-points-page" aria-label="Service Points">
     {deleteAllOpen && <DeleteConfirmation kind="service point" name="all service points" busy={deletingAll} error={deleteAllError}
-      title="Delete all service points?" description={`Are you sure you want to delete all service points? This will permanently remove all ${rows?.length ?? 0} service points of this outlet. Products are kept and become unassigned.`}
-      confirmLabel="Yes" cancelLabel="No" onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllServicePoints()} />}
+      title="Delete all service points?"
+      onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllServicePoints()} />}
     {deleteAllDone && <SuccessPopup message="Service points deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
     <div className="category-header-row"><h1>Service Points</h1>
       <div className="category-header-actions category-master-actions">
@@ -164,9 +171,9 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
           </div>}
         </div>
       </div></div>
-    {notice && <p className="service-point-notice" role="status">{notice}</p>}
+    {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
     {error ? <div className="service-point-state" role="alert">{error}<button type="button" className="btn-secondary" onClick={() => { setRows(null); setError(''); setReload(value => value + 1); }}><RefreshCw size={15} />Retry</button></div>
-      : rows === null ? <p className="service-point-state" role="status">Loading service points…</p>
+      : rows === null ? <p className="service-point-state" role="status" data-inline-loading>Loading service points…</p>
       : !rows.length ? <p className="service-point-state">No service points yet. Add a service point to get started.</p>
       : <div className="service-points-table"><table><thead><tr><th>Name</th><th>Paper Size</th><th>Printer Type</th><th>Header</th><th>Sub Header</th><th>Footer</th><th>Actions</th></tr></thead><tbody>
         {rows.map(row => <tr key={row.documentId} onClick={() => openEdit(row)}><td><button type="button" className="service-point-name-button" aria-label={`Edit service point ${row.name || 'Unnamed service point'}`} onClick={event => { event.stopPropagation(); openEdit(row); }}>{row.name || 'Unnamed service point'}</button></td><td>{row.paperSize === 2 || row.paperSize === 3 ? `${row.paperSize} Inch` : '—'}</td><td>{row.printerType !== null && printerTypes[row.printerType] || '—'}</td><td>{row.header || '—'}</td><td>{row.subHeader || '—'}</td><td>{row.footer || '—'}</td><td><button type="button" className="service-point-delete-button" aria-label={`Delete service point ${row.name || 'Unnamed service point'}`} onClick={event => { event.stopPropagation(); setNotice(''); setDeleteError(''); setDeleting(row); }}><Trash2 size={15} />Delete</button></td></tr>)}

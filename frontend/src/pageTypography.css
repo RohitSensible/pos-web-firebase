@@ -1,0 +1,102 @@
+/* Primary workspace titles only; section headings, dialogs and print layouts keep their own scale. */
+:root {
+  --page-title-size: clamp(26px, 2.5vw, 30px);
+  --page-title-weight: 700;
+  --page-title-line-height: 1.2;
+  --page-title-tracking: -.025em;
+  --page-title-icon-size: .9em;
+  --page-title-icon-gap: 10px;
+  --page-title-description-gap: 8px;
+  --page-header-gap: 20px;
+}
+
+@media screen {
+  /* Root scope keeps module-specific and mobile header rules on the same scale. */
+  :root :is(
+    .category-title-group > h1,
+    .category-header-row > h1,
+    .products-header h1,
+    .bill-report-heading h1,
+    .devices-heading h1,
+    .upload-excel-heading > h1,
+    .user-account-heading > h1,
+    .outlet-logo-heading > h1,
+    .page-hero h1,
+    .master-form-page .master-form-title h3,
+    .add-product-modal > form > .modal-header > h3,
+    .category-edit-page > form > .modal-header > h3
+  ) {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--page-title-icon-gap);
+    min-width: 0;
+    max-width: 100%;
+    margin: 0;
+    font-size: var(--page-title-size);
+    font-weight: var(--page-title-weight);
+    line-height: var(--page-title-line-height);
+    letter-spacing: var(--page-title-tracking);
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+  }
+
+  :root :is(
+    .category-title-group > h1,
+    .category-header-row > h1,
+    .products-header h1,
+    .bill-report-heading h1,
+    .devices-heading h1,
+    .upload-excel-heading > h1,
+    .user-account-heading > h1,
+    .outlet-logo-heading > h1,
+    .page-hero h1,
+    .master-form-page .master-form-title h3,
+    .add-product-modal > form > .modal-header > h3,
+    .category-edit-page > form > .modal-header > h3
+  ) > svg {
+    flex: 0 0 auto;
+    width: var(--page-title-icon-size);
+    height: var(--page-title-icon-size);
+    /* Keep icons aligned to the first title line when narrow screens wrap the text. */
+    align-self: flex-start;
+    margin-top: calc((1em * var(--page-title-line-height) - var(--page-title-icon-size)) / 2);
+  }
+
+  :root :is(
+    .category-title-group > h1,
+    .category-header-row > h1,
+    .products-header h1,
+    .bill-report-heading h1,
+    .devices-heading h1,
+    .upload-excel-heading > h1,
+    .user-account-heading > h1,
+    .outlet-logo-heading > h1,
+    .page-hero h1,
+    .master-form-page .master-form-title h3,
+    .add-product-modal > form > .modal-header > h3,
+    .category-edit-page > form > .modal-header > h3
+  ) + p {
+    margin: var(--page-title-description-gap) 0 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  :root :is(.bill-report-heading, .devices-heading, .user-account-heading, .outlet-logo-heading) > div:first-child > span,
+  :root :is(.user-account-heading, .outlet-logo-heading) > span {
+    display: block;
+    margin-bottom: var(--page-title-description-gap);
+  }
+
+  :root :is(.category-header-row, .products-header, .bill-report-heading, .devices-heading, .page-hero) {
+    gap: var(--page-header-gap);
+  }
+
+  :root :is(.category-header-row, .products-header, .bill-report-heading, .devices-heading, .page-hero) > div:first-child {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  :root :is(.category-page-shell, .products-page-shell, .bill-report-page, .devices-page, .premises-page, .upload-excel-page, .user-account-page) {
+    gap: var(--page-header-gap);
+  }
+}

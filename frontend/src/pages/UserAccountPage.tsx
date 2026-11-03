@@ -1,3 +1,7 @@
+import { useUnsavedChanges } from '../utils/unsavedChanges.tsx';
+import { beginDataLoading } from '../utils/dataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
+import { SuccessPopup } from './SuccessPopup.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { RefreshCw, Save, UserRound } from 'lucide-react';
@@ -11,21 +15,42 @@ interface UserAccountPageProps {
 }
 
 export function UserAccountPage({ token, onSessionExpired, onSaved }: UserAccountPageProps) {
+  // A new session must never render the previous session's account or form state.
+  return <SessionAccountPage key={token} token={token} onSessionExpired={onSessionExpired} onSaved={onSaved} />;
+}
+
+function SessionAccountPage({ token, onSessionExpired, onSaved }: UserAccountPageProps) {
+  const { confirmAction, confirmation } = useActionConfirmation();
   const [account, setAccount] = useState<AccountDetails | null>(null);
+  const [revealedAccount, setRevealedAccount] = useState<AccountDetails | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useTimedNotice();
+  const [success, setSuccess] = useTimedNotice(false);
   const [saving, setSaving] = useState(false);
   const [reload, setReload] = useState(0);
   const request = useRef<AbortController | null>(null);
   const busy = useRef(false);
 
   useEffect(() => {
+    const hidePin = () => setRevealedAccount(null);
+    const visibilityChanged = () => { if (document.visibilityState === 'hidden') hidePin(); };
+    document.addEventListener('visibilitychange', visibilityChanged);
+    window.addEventListener('blur', hidePin);
+    window.addEventListener('pagehide', hidePin);
+    return () => {
+      document.removeEventListener('visibilitychange', visibilityChanged);
+      window.removeEventListener('blur', hidePin);
+      window.removeEventListener('pagehide', hidePin);
+    };
+  }, []);
+
+  useEffect(() => {
     const controller = new AbortController();
     request.current = controller;
-    setAccount(null); setError(''); setSuccess(''); setSaving(false); busy.current = false;
+    setAccount(null); setRevealedAccount(null); setError(''); setSuccess(''); setSaving(false); busy.current = false;
     void (async () => {
+      const finishLoading = beginDataLoading('Account Details', controller.signal);
       try {
         const response = await fetch('/api/auth/account', {
           headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal,
@@ -37,12 +62,14 @@ export function UserAccountPage({ token, onSessionExpired, onSaved }: UserAccoun
         setAccount(result.data); setName(result.data.name ?? ''); setEmail(result.data.email ?? '');
       } catch (failure) {
         if (!controller.signal.aborted) setError((failure as Error).message);
-      }
+      } finally { finishLoading(); }
     })();
     return () => controller.abort();
   }, [token, onSessionExpired, reload]);
 
   const changed = !!account && ((account.name !== null && name !== account.name) || (account.email !== null && email !== account.email));
+
+  useUnsavedChanges(changed, saving);
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -54,6 +81,7 @@ export function UserAccountPage({ token, onSessionExpired, onSaved }: UserAccoun
     if (changes.name !== undefined && !changes.name) { setError('Name is required.'); return; }
     const controller = request.current;
     if (!controller || controller.signal.aborted) return;
+    if (!await confirmAction('update', 'account details')) return;
     busy.current = true; setSaving(true);
     try {
       const response = await fetch('/api/auth/account', {
@@ -65,7 +93,7 @@ export function UserAccountPage({ token, onSessionExpired, onSaved }: UserAccoun
       if (response.status === 401) { onSessionExpired(); return; }
       if (!response.ok || !result.data) throw new Error(result.message || 'Unable to save your account details.');
       setAccount(result.data); setName(result.data.name ?? ''); setEmail(result.data.email ?? '');
-      setSuccess('Account details saved.');
+      setSuccess('Updated successfully.');
       onSaved({ name: result.data.name, email: result.data.email });
     } catch (failure) {
       if (!controller.signal.aborted) setError((failure as Error).message);
@@ -74,19 +102,31 @@ export function UserAccountPage({ token, onSessionExpired, onSaved }: UserAccoun
     }
   };
 
-  return <section className="user-account-page">
+  const pinVisible = !!account && revealedAccount === account;
+
+  return <section className="user-account-page" onBlur={event => {
+    if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setRevealedAccount(null);
+  }}>
     <div className="user-account-heading"><span>MASTERS</span><h1>User Account</h1><p>View and update your account details.</p></div>
     <div className="user-account-card">
       <h2><UserRound size={20} /> Personal details</h2>
-      {!account ? error ? <div className="user-account-state"><p role="alert">{error}</p><button type="button" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : <p className="user-account-state" role="status">Loading account details…</p> :
-        <form onSubmit={save} onChange={() => { setSuccess(''); setError(''); }}>
+      {!account ? error ? <div className="user-account-state"><p role="alert">{error}</p><button type="button" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : <p className="user-account-state" role="status" data-inline-loading>Loading account details…</p> :
+        <form onSubmit={save} onChange={() => { setSuccess(''); setError(''); }}>{confirmation}
           <fieldset disabled={saving}>
             {account.name !== null && <label>Name<input name="name" autoComplete="name" value={name} onChange={event => setName(event.target.value)} required maxLength={200} /></label>}
             {account.email !== null && <label>Email ID<input name="email" type="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required maxLength={320} /></label>}
-            {account.hasLoginPin && <label>Login PIN<input id="account-login-pin" type="text" value={account.loginPin ?? 'Unavailable'} readOnly aria-describedby="account-pin-help" autoComplete="off" /><small id="account-pin-help">{account.loginPin ? 'Your current login PIN.' : 'This PIN cannot be displayed.'} PIN changes are not available here.</small></label>}
+            {account.hasLoginPin && <div className="user-account-pin">
+              <label htmlFor="account-login-pin">Login PIN</label>
+              <div className="user-account-pin-controls">
+                <input id="account-login-pin" type={account.loginPin && !pinVisible ? 'password' : 'text'} value={account.loginPin || 'Unavailable'} readOnly aria-describedby="account-pin-help" autoComplete="off" />
+                {account.loginPin && <button type="button" aria-controls="account-login-pin" aria-pressed={pinVisible}
+                  onClick={() => setRevealedAccount(pinVisible ? null : account)}>{pinVisible ? 'Hide PIN' : 'Show PIN'}</button>}
+              </div>
+              <small id="account-pin-help">{account.loginPin ? 'Your current login PIN.' : 'This PIN cannot be displayed.'} PIN changes are not available here.</small>
+            </div>}
           </fieldset>
           {error && <p className="user-account-error" role="alert">{error}</p>}
-          {success && <p className="user-account-success" role="status">{success}</p>}
+          {success && <SuccessPopup message={success} onDismiss={() => setSuccess('')} />}
           <div className="user-account-actions"><button type="submit" disabled={!changed || saving}>{saving ? <RefreshCw size={16} /> : <Save size={16} />}{saving ? 'Saving…' : 'Save changes'}</button></div>
         </form>}
     </div>

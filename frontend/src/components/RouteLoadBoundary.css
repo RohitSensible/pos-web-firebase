@@ -1,0 +1,21 @@
+.route-load-notice {
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid var(--line, #dce3eb);
+  border-radius: 12px;
+  background: var(--card, #fff);
+  color: var(--ink, #172b43);
+}
+
+.route-load-notice h2 { margin: 0 0 12px; font-size: 1.15rem; }
+.route-load-notice p { margin: 0 0 16px; line-height: 1.5; }
+.route-load-notice button {
+  padding: 10px 16px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.route-load-notice button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }

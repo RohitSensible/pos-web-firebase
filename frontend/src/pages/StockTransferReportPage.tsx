@@ -1,3 +1,4 @@
+import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
 import { ReportDateInput } from './ReportDateInput.tsx';
@@ -5,6 +6,8 @@ import { reportDateError } from './reportDates.ts';
 import { useEffect, useMemo, useState } from 'react';
 import { Boxes, ChevronLeft, ChevronRight, Download, FileText, Filter, Package, Printer, RefreshCw, Search, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
+import { StockTransferSessionPreviews } from './StockTransferSessionPreviews.tsx';
+import type { StockTransferPreview } from './stockTransferPreviews.ts';
 import './BillWiseReportPage.css';
 import './StockTransferReportPage.css';
 
@@ -46,6 +49,8 @@ interface StockTransferReportPageProps {
   reportName?: string;
   token: string;
   onSessionExpired: () => void;
+  previews?: StockTransferPreview[];
+  initialPreviewDate?: string;
 }
 
 function todayId(): string {
@@ -67,15 +72,17 @@ function dateTime(value: number): string {
 
 const PAGE_SIZE = 50;
 
-export const StockTransferReportPage = ({ outlet, token, onSessionExpired, reportName = 'Stock Transfer Report' }: StockTransferReportPageProps) => {
-  const initialFilters = useMemo(() => ({ startDate: todayId(), endDate: todayId(), search: '' }), []);
+export const StockTransferReportPage = ({ outlet, token, onSessionExpired, reportName = 'Stock Transfer Report', previews = [], initialPreviewDate }: StockTransferReportPageProps) => {
+  const initialFilters = useMemo(() => ({ startDate: initialPreviewDate || todayId(), endDate: initialPreviewDate || todayId(), search: '' }), [initialPreviewDate]);
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [report, setReport] = useState<TransferReport | null>(null);
   const [selectedTransfer, setSelectedTransfer] = useState<StockTransfer | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  useDataLoading(loading && !previews.length, 'Saved Stock Transfers');
   const [error, setError] = useState('');
+  const [filterError, setFilterError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters, setPage);
@@ -118,22 +125,23 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
   const applyFilters = () => {
     const dateError = reportDateError(filters.startDate, filters.endDate);
     if (dateError) {
-      setError(dateError);
+      setFilterError(dateError);
       return;
     }
     setPage(1);
+    setFilterError('');
     setAppliedFilters({ ...filters, search: filters.search.trim() });
   };
 
   const resetFilters = () => {
     const reset = { startDate: todayId(), endDate: todayId(), search: '' };
+    setFilterError('');
     setFilters(reset);
     setAppliedFilters(reset);
     setPage(1);
   };
 
   const totalPages = Math.max(1, Math.ceil((report?.transfers.length ?? 0) / PAGE_SIZE));
-  const rows = report?.transfers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
   const hasData = !!report?.transfers.length;
   const exportExcel = async () => {
     if (!report) return;
@@ -154,33 +162,38 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
 
   return <section className="bill-report-page stock-transfer-report-page">
     <div className="bill-report-heading">
-      <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Stock Transfer Report</h1><p>{outlet.name} · Stock transfers and product details.</p></div>
+      <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Stock Transfer Report</h1><p>{outlet.name} · Saved database records and local session previews.</p></div>
       <div className="bill-report-actions">
         <button type="button" onClick={() => setReloadKey(value => value + 1)} disabled={loading}><RefreshCw /> Refresh</button>
         <button type="button" onClick={exportExcel} disabled={!hasData || loading || !!error}><Download /> Export Excel</button>
-        <button type="button" onClick={() => window.print()}><Printer /> Print / PDF</button>
+        <button type="button" onClick={() => window.print()} disabled={!hasData || loading || !!error} title="Print all filtered saved records; session previews are excluded"><Printer /> Print / PDF</button>
       </div>
     </div>
     <div className="bill-report-filters">
       <label><span>From date</span><ReportDateInput aria-label="From date" value={filters.startDate} onChange={value => setFilters(current => ({ ...current, startDate: value }))} /></label>
       <label><span>To date</span><ReportDateInput aria-label="To date" value={filters.endDate} onChange={value => setFilters(current => ({ ...current, endDate: value }))} /></label>
-      <label className="bill-search-filter"><span>Transfer / product search</span><div><Search /><input value={filters.search} onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') applyFilters(); }} placeholder="Transfer no., reference or product" /></div></label>
+      <label className="bill-search-filter"><span>Transfer / product / preview search</span><div><Search /><input value={filters.search} onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') applyFilters(); }} placeholder="Transfer no., product or preview outlet / note" /></div></label>
       <div className="bill-filter-buttons"><button type="button" className="apply" onClick={applyFilters}><Filter /> Apply</button><button type="button" onClick={resetFilters}><X /> Reset</button></div>
     </div>
+    {filterError && <p className="stock-transfer-filter-error" role="alert">{filterError}</p>}
+    <p className="stock-transfer-filter-help">Dates apply when you choose Apply; search updates automatically. Both sections use the applied filters.</p>
+    <StockTransferSessionPreviews previews={previews} startDate={appliedFilters.startDate} endDate={appliedFilters.endDate} search={appliedFilters.search} />
+    <section className="stock-transfer-saved-records" aria-labelledby="saved-transfers-title">
+    <header className="stock-transfer-saved-heading"><div><h2 id="saved-transfers-title">Saved Stock Transfers <span className="saved-transfer-label">Database records</span></h2><p>{outlet.name} only · {appliedFilters.startDate} to {appliedFilters.endDate}{appliedFilters.search ? ` · Search: “${appliedFilters.search}”` : ' · No search filter'}</p><p>Totals, Excel and Print / PDF include only filtered saved records. Print includes every page. Session previews are excluded.</p></div></header>
     <div className="bill-summary-grid">
-      <article><span><FileText /></span><div><small>Total Transfers</small><strong>{report?.summary.totalTransfers ?? 0}</strong></div></article>
-      <article><span><Package /></span><div><small>Transferred Products</small><strong>{report?.summary.totalProducts ?? 0}</strong></div></article>
-      <article><span><Boxes /></span><div><small>Transferred Quantity</small><strong>{quantity(report?.summary.totalQuantity)}</strong></div></article>
-      <article><span><FileText /></span><div><small>Transfer Amount</small><strong>{money(report?.summary.totalAmount)}</strong></div></article>
+      <article><span><FileText /></span><div><small>Saved Transfers</small><strong>{report ? report.summary.totalTransfers : '—'}</strong></div></article>
+      <article><span><Package /></span><div><small>Transferred Products</small><strong>{report ? report.summary.totalProducts : '—'}</strong></div></article>
+      <article><span><Boxes /></span><div><small>Transferred Quantity</small><strong>{report ? quantity(report.summary.totalQuantity) : '—'}</strong></div></article>
+      <article><span><FileText /></span><div><small>Transfer Amount</small><strong>{report ? money(report.summary.totalAmount) : '—'}</strong></div></article>
     </div>
     <div className="bill-table-card">
-      {loading && <div className="bill-report-state"><RefreshCw className="bill-report-spinner" /><strong>Loading stock transfers…</strong></div>}
-      {!loading && error && <div className="bill-report-state error"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
-      {!loading && !error && !hasData && <div className="bill-report-state"><Package /><strong>No stock transfers found for these filters.</strong><p>Choose another date range or clear the search.</p></div>}
+      {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading saved stock transfers…</strong></div>}
+      {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><p>Saved records could not be loaded.{previews.length > 0 ? ' Session previews above remain available.' : ' Try loading them again.'}</p><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
+      {!loading && !error && !hasData && <div className="bill-report-state"><Package /><strong>No saved stock transfers found for these filters.</strong><p>Choose another date range or clear the search.</p></div>}
       {!loading && !error && hasData && report && <>
         <div className="bill-table-scroll"><table>
           <thead><tr><th>Transfer No.</th><th>Date / Time</th><th>Type</th><th>Supplier</th><th>Products</th><th className="amount">Quantity</th><th className="amount">Amount</th></tr></thead>
-          <tbody>{rows.map(entry => <tr key={entry.documentId} tabIndex={0} aria-label={`View stock transfer ${entry.transferNo}`} onClick={() => setSelectedTransfer(entry)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedTransfer(entry); } }}>
+          <tbody>{report.transfers.map((entry, index) => <tr key={entry.documentId} className={index < (page - 1) * PAGE_SIZE || index >= page * PAGE_SIZE ? 'stock-transfer-other-page' : undefined} tabIndex={0} aria-label={`View stock transfer ${entry.transferNo}`} onClick={() => setSelectedTransfer(entry)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedTransfer(entry); } }}>
             <td><strong>{entry.transferNo}</strong><small>{entry.dayId}</small></td><td>{dateTime(entry.createdDate)}</td><td>{entry.type}</td><td>{entry.supplier || '—'}</td><td>{entry.items.map(item => item.name).join(', ') || '—'}</td><td className="amount">{quantity(entry.quantity)}</td><td className="amount"><strong>{money(entry.finalTotal)}</strong></td>
           </tr>)}</tbody>
           <tfoot><tr><td><strong>Total</strong></td><td colSpan={4}>{report.summary.totalTransfers} transfers</td><td className="amount">{quantity(report.summary.totalQuantity)}</td><td className="amount"><strong>{money(report.summary.totalAmount)}</strong></td></tr></tfoot>
@@ -188,6 +201,7 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
         <div className="bill-pagination"><span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, report.transfers.length)} of {report.transfers.length}</span><div><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}><ChevronLeft /></button><strong>Page {page} of {totalPages}</strong><button type="button" disabled={page >= totalPages} onClick={() => setPage(value => value + 1)}><ChevronRight /></button></div></div>
       </>}
     </div>
+    </section>
     {selectedTransfer && <div className="bill-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedTransfer(null); }}><article className="bill-detail-modal" role="dialog" aria-modal="true" aria-label={`Stock transfer ${selectedTransfer.transferNo}`}>
       <header><div><span>STOCK TRANSFER DETAILS</span><h2>{selectedTransfer.transferNo}</h2><p>{dateTime(selectedTransfer.createdDate)}</p></div><button type="button" aria-label="Close transfer details" autoFocus onClick={() => setSelectedTransfer(null)}><X /></button></header>
       <div className="bill-detail-body">

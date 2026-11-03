@@ -1,0 +1,30 @@
+.category-modal.combo-details-modal { width: min(760px, calc(100vw - 32px)); max-width: 760px; max-height: calc(100dvh - 48px); margin: auto; padding: 0; color: var(--ink); background: var(--card); border: 1px solid var(--dialog-border); border-radius: var(--dialog-radius); box-shadow: var(--dialog-shadow); }
+.combo-details-modal[open] { display: flex; flex-direction: column; }
+.combo-details-modal::backdrop { background: var(--dialog-backdrop); backdrop-filter: blur(var(--dialog-backdrop-blur)); }
+.combo-details-modal .modal-header, .combo-details-modal .modal-footer { flex-shrink: 0; border-color: var(--line); padding: var(--dialog-header-padding); }
+.combo-details-modal h2 { display: flex; align-items: center; gap: 9px; margin: 0; color: var(--ink); font-size: 20px; overflow-wrap: anywhere; }
+.combo-details-modal h2 svg { flex-shrink: 0; color: var(--blue); }
+.combo-details-modal .modal-header p { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+.combo-details-modal .modal-body { overflow-y: auto; min-height: 0; padding: var(--dialog-body-padding); }
+.combo-details-modal .modal-footer { background: color-mix(in srgb, var(--workspace) 50%, var(--card)); }
+.combo-details-count { margin: 0; color: var(--muted); font-size: 12px; }
+.combo-details-state { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin: 0; padding: 24px 0; color: var(--muted); font-size: 13px; }
+.combo-details-state p { margin: 0; }
+.combo-details-state [role=alert] { color: var(--dialog-action-danger); }
+.combo-details-table { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+.combo-details-table table { width: 100%; min-width: 450px; border-collapse: collapse; color: var(--ink); font-size: 13px; }
+.combo-details-table th, .combo-details-table td { padding: 13px 15px; text-align: left; border-bottom: 1px solid var(--line); }
+.combo-details-table th { background: var(--workspace); color: var(--muted); font-size: 11px; font-weight: 600; }
+.combo-details-table tbody tr:last-child td { border-bottom: 0; }
+.combo-details-table td:last-child, .combo-details-table th:last-child { text-align: right; white-space: nowrap; }
+.combo-details-table td small { display: block; margin-top: 5px; color: var(--muted); overflow-wrap: anywhere; }
+.combo-details-modal button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.products-combo-link { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--blue); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.products-combo-link > small { padding: 3px 6px; border-radius: 5px; background: color-mix(in srgb, var(--blue) 7%, var(--card)); font-size: 10px; font-weight: 500; }
+.products-combo-link:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 3px; }
+
+.combo-details-table input { box-sizing: border-box; width: 110px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); font: inherit; }
+.combo-details-table input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.combo-details-modal .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+.combo-details-error { color: var(--dialog-action-danger); font-size: 13px; }
+

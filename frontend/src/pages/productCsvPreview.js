@@ -253,8 +253,8 @@ export function parseProductCsv(source, mode = 'standard') {
             if (mode === 'premises') {
                 if (Number(cells[2]) !== Number(cells[3]))
                     row.errors.push({ column: 'Price 1', message: 'Price 1 must equal Default Price.' });
-                if (cells[10]?.trim() !== 'number')
-                    row.errors.push({ column: 'Unit Type', message: 'Product imports currently support only number.' });
+                if (cells[10]?.trim().toLowerCase() !== 'number')
+                    row.errors.push({ column: 'Unit Type', message: 'Product imports currently support only number (any letter case).' });
                 if (Number(cells[11]) !== 0)
                     row.errors.push({ column: 'Stock', message: 'Only zero opening stock is supported.' });
                 if (!weightable)

@@ -1,55 +1,68 @@
-.excel-sheet-instructions { min-width: 0; color: #193454; color-scheme: light; }
-.excel-sheet-instructions > .csv-upload-preview { margin-bottom: 18px; padding: 14px 16px; border: 1px solid #d9e3ef; border-radius: 10px; background: #f7faff; }
-.excel-sheet-instructions > .csv-upload-preview summary { cursor: pointer; font-size: 13px; font-weight: 600; }
-.excel-sheet-instructions .csv-upload-file-controls { margin-top: 12px; }
-.sheet-instructions-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
-.sheet-workbook { min-width: 0; overflow: hidden; border: 1px solid #d9e3ef; border-radius: 10px; background: #fff; }
-.sheet-workbook-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 12px 14px; background: #f0f5fc; font-size: 12px; }
+.excel-sheet-instructions { min-width: 0; color: var(--dialog-text); }
+.excel-sheet-instructions .sheet-template-card { margin-bottom: 24px; padding: 20px; border: 1px solid var(--dialog-border); border-radius: var(--dialog-radius); background: var(--dialog-surface); }
+.sheet-template-card > summary { display: flex; align-items: center; gap: 12px; list-style: none; cursor: pointer; }
+.sheet-template-card > summary::-webkit-details-marker { display: none; }
+.sheet-template-icon { display: grid; place-items: center; flex: 0 0 44px; height: 44px; border-radius: 10px; color: var(--dialog-action-danger); background: color-mix(in srgb, var(--dialog-action-danger) 8%, transparent); }
+.sheet-template-card summary strong { display: block; font-size: 16px; font-weight: 700; }
+.sheet-template-card summary small { display: block; margin-top: 4px; color: var(--dialog-muted); font-size: 12px; line-height: 1.5; }
+.sheet-template-chevron { margin-left: auto; flex-shrink: 0; color: var(--dialog-muted); transition: transform .15s; }
+.sheet-template-card:not([open]) .sheet-template-chevron { transform: rotate(-90deg); }
+.sheet-template-card .csv-upload-file-controls { margin-top: 18px; gap: 12px; }
+.sheet-template-card .csv-upload-file-controls > button { min-height: 42px; padding: 10px 16px; border-color: var(--dialog-action-danger); background: var(--dialog-action-danger); color: var(--dialog-action-foreground); }
+.sheet-template-card .csv-upload-file-controls > button:hover:not(:disabled) { background: var(--dialog-action-danger-hover); }
+.sheet-template-card .csv-upload-file-controls > button + button { color: var(--dialog-action-danger); background: transparent; }
+.sheet-template-card .csv-upload-file-controls > button + button:hover:not(:disabled) { background: color-mix(in srgb, var(--dialog-action-danger) 8%, transparent); }
+.sheet-instructions-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); gap: 20px; align-items: start; }
+.sheet-workbook { min-width: 0; overflow: hidden; border: 1px solid var(--dialog-border); border-radius: var(--dialog-radius); background: var(--dialog-surface); }
+.sheet-workbook-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 16px; background: var(--workspace); font-size: 14px; }
 .sheet-workbook-heading > span:first-child { display: flex; align-items: center; gap: 8px; }
-.sheet-workbook-heading svg { color: #3567f0; }
-.sheet-sample-badge { padding: 4px 8px; border: 1px solid #d6e2f3; border-radius: 5px; background: #fff; color: #60779c; font-size: 10px; }
-.sheet-formula-bar { display: flex; align-items: center; height: 36px; gap: 12px; border-top: 1px solid #d9e3ef; border-bottom: 1px solid #d9e3ef; font-size: 12px; }
-.sheet-name-box { display: flex; align-items: center; justify-content: space-between; width: 78px; height: 100%; padding: 0 12px; border-right: 1px solid #d9e3ef; flex-shrink: 0; }
-.sheet-formula-symbol { color: #7d8fa5; font-style: italic; border-right: 1px solid #e2e8f0; padding-right: 12px; }
-.sheet-grid-scroll { overflow: auto; max-height: min(40dvh, 400px); scrollbar-color: #b5c4d8 #f0f4fa; }
-.sheet-grid { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 12px; color: #334155; }
-.sheet-grid th, .sheet-grid td { height: 29px; padding: 6px 10px; border-right: 1px solid #e1e7ef; border-bottom: 1px solid #e1e7ef; text-align: left; white-space: nowrap; font-weight: 400; }
+.sheet-workbook-heading svg { color: var(--dialog-action-danger); }
+.sheet-sample-badge { padding: 5px 9px; border: 1px solid var(--dialog-border); border-radius: 20px; background: var(--dialog-surface); color: var(--dialog-muted); font-size: 11px; }
+.sheet-formula-bar { display: flex; align-items: center; height: 38px; gap: 12px; border-block: 1px solid var(--dialog-border); font-size: 12px; }
+.sheet-name-box { display: flex; align-items: center; justify-content: space-between; width: 78px; height: 100%; padding: 0 12px; border-right: 1px solid var(--dialog-border); flex-shrink: 0; }
+.sheet-formula-symbol { color: var(--dialog-muted); font-style: italic; border-right: 1px solid var(--dialog-border); padding-right: 12px; }
+.sheet-grid-scroll { overflow: auto; max-height: min(44dvh, 420px); scrollbar-color: var(--dialog-muted) var(--workspace); }
+.sheet-grid { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 12px; color: var(--dialog-text); }
+.sheet-grid th, .sheet-grid td { height: 32px; padding: 7px 10px; border-right: 1px solid var(--dialog-border); border-bottom: 1px solid var(--dialog-border); text-align: left; white-space: nowrap; font-weight: 400; }
 .sheet-grid thead td, .sheet-grid thead th { position: sticky; z-index: 2; }
-.sheet-grid .sheet-column-letters td { top: 0; height: 27px; padding: 5px; background: #edf2f8; color: #6b809a; text-align: center; font-size: 10px; }
-.sheet-grid .sheet-column-headers th { top: 27px; height: 34px; background: #f0f5fc; font-weight: 600; color: #193454; }
-.sheet-grid .sheet-row-number { position: sticky; left: 0; width: 44px; padding: 5px; background: #f5f7fa; color: #7d8fa5; text-align: center; font-size: 10px; z-index: 1; }
+.sheet-grid .sheet-column-letters td { top: 0; height: 27px; padding: 5px; background: var(--workspace); color: var(--dialog-muted); text-align: center; font-size: 10px; }
+.sheet-grid .sheet-column-headers th { top: 27px; height: 36px; background: var(--dialog-control-surface); font-weight: 650; color: var(--dialog-text); }
+.sheet-grid .sheet-row-number { position: sticky; left: 0; width: 44px; padding: 5px; background: var(--workspace); color: var(--dialog-muted); text-align: center; font-size: 10px; z-index: 1; }
 .sheet-grid .sheet-column-letters td:first-child, .sheet-grid .sheet-column-headers .sheet-row-number { left: 0; z-index: 3; }
-.sheet-grid .sheet-column-letters .sheet-selected-heading, .sheet-grid .sheet-selected-heading { color: #3567f0; background: #e8efff; }
+.sheet-grid .sheet-column-letters .sheet-selected-heading, .sheet-grid .sheet-selected-heading { color: var(--dialog-action-danger); background: color-mix(in srgb, var(--dialog-action-danger) 10%, var(--dialog-surface)); }
 .sheet-grid .sheet-number { text-align: right; font-variant-numeric: tabular-nums; }
-.sheet-grid .sheet-selected-cell { box-shadow: inset 0 0 0 2px #3567f0; background: #f8faff; }
+.sheet-grid .sheet-selected-cell { box-shadow: inset 0 0 0 2px var(--dialog-action-danger); background: color-mix(in srgb, var(--dialog-action-danger) 4%, var(--dialog-surface)); }
 .sheet-accessible-caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.sheet-bottom-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 0 12px; min-height: 39px; border-top: 1px solid #d9e3ef; background: #f6f9fd; color: #7d8fa5; font-size: 10px; }
-.sheet-tab { display: inline-flex; align-items: center; gap: 6px; align-self: stretch; padding: 10px 15px; border-bottom: 2px solid #3567f0; background: #fff; color: #3567f0; font-size: 11px; font-weight: 600; }
-.upload-excel-instruction-dialog .sheet-sample-note { margin: 0; padding: 11px 14px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 11px; line-height: 1.6; }
-.sheet-instruction-panel { min-width: 0; border: 1px solid #dce6f2; border-radius: 10px; background: #f7faff; overflow: hidden; }
-.sheet-rules-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e2e8f0; }
-.sheet-rules-heading h3 { font-size: 14px; font-weight: 600; }
-.sheet-rules-label { order: 1; color: #8da0b8; font-size: 10px; }
-.sheet-rules-list { list-style: none; margin: 0; padding: 16px; display: grid; gap: 18px; max-height: min(48dvh, 500px); overflow-y: auto; }
-.sheet-rules-list li { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
-.sheet-rule-number { display: grid; place-items: center; width: 24px; height: 24px; flex: 0 0 24px; border-radius: 50%; color: #d94781; background: #fce7f0; font-size: 11px; font-weight: 600; }
-.sheet-rules-list h4 { color: #27445f; font-size: 13px; font-weight: 600; line-height: 1.5; }
-.upload-excel-instruction-dialog .sheet-rules-list p { margin: 4px 0 0; font-size: 12px; line-height: 1.7; color: #64748b; overflow-wrap: anywhere; }
-.sheet-required-columns { margin-top: 20px; padding: 16px; border: 1px solid #dce6f2; border-radius: 10px; background: #f7faff; }
-.sheet-required-columns h3 { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 13px; font-weight: 600; }
-.sheet-required-columns h3 span { font-size: 10px; color: #7d8fa5; font-weight: 400; }
-.sheet-required-columns ol { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0; margin: 12px 0 0; }
-.sheet-required-columns li { padding: 6px 9px; border: 1px solid #dbe5f2; border-radius: 6px; background: #fff; font-size: 10px; line-height: 1.5; }
-.sheet-required-columns li span { color: #3567f0; font-weight: 600; }
-.sheet-grid-scroll:focus-visible, .sheet-rules-list:focus-visible { outline: 2px solid #3567f0; outline-offset: -2px; }
+.sheet-bottom-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 0 12px; min-height: 42px; border-top: 1px solid var(--dialog-border); background: var(--workspace); color: var(--dialog-muted); font-size: 11px; }
+.sheet-tab { display: inline-flex; align-items: center; gap: 6px; align-self: stretch; padding: 12px; border-bottom: 2px solid var(--dialog-action-danger); background: var(--dialog-surface); color: var(--dialog-action-danger); font-size: 12px; font-weight: 600; }
+.upload-excel-instruction-dialog .sheet-sample-note { margin: 0; padding: 14px 16px; border-top: 1px solid var(--dialog-border); color: var(--dialog-muted); font-size: 12px; line-height: 1.6; }
+.sheet-instruction-panel { min-width: 0; border: 1px solid var(--dialog-border); border-radius: var(--dialog-radius); background: var(--dialog-surface); overflow: hidden; }
+.sheet-rules-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px; border-bottom: 1px solid var(--dialog-border); }
+.sheet-rules-heading h3 { font-size: 16px; font-weight: 700; }
+.sheet-rules-label { order: 1; padding: 4px 8px; border-radius: 20px; color: var(--dialog-muted); background: var(--workspace); font-size: 11px; }
+.sheet-rules-list { list-style: none; margin: 0; padding: 18px; display: grid; gap: 22px; max-height: min(60dvh, 580px); overflow-y: auto; }
+.sheet-rules-list li { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.sheet-rule-number { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; border-radius: 9px; color: var(--dialog-action-danger); background: color-mix(in srgb, var(--dialog-action-danger) 10%, transparent); font-size: 12px; font-weight: 700; }
+.sheet-rules-list h4 { color: var(--dialog-text); font-size: 13px; font-weight: 650; line-height: 1.5; }
+.upload-excel-instruction-dialog .sheet-rules-list p { margin: 5px 0 0; font-size: 12px; line-height: 1.7; color: var(--dialog-muted); overflow-wrap: anywhere; }
+.sheet-required-columns { margin-top: 24px; padding: 20px; border: 1px solid var(--dialog-border); border-radius: var(--dialog-radius); background: var(--dialog-surface); }
+.sheet-required-columns h3 { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 16px; font-weight: 700; }
+.sheet-required-columns h3 span { font-size: 12px; color: var(--dialog-muted); font-weight: 400; }
+.sheet-required-columns ol { list-style: none; display: flex; flex-wrap: wrap; gap: 10px; padding: 0; margin: 18px 0 0; }
+.sheet-required-columns li { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border: 1px solid var(--dialog-border); border-radius: 24px; background: var(--dialog-control-surface); font-size: 12px; line-height: 1.5; }
+.sheet-required-columns li span { display: grid; place-items: center; min-width: 24px; height: 24px; border-radius: 50%; color: var(--dialog-action-danger); background: color-mix(in srgb, var(--dialog-action-danger) 9%, transparent); font-size: 11px; font-weight: 700; }
+.sheet-grid-scroll:focus-visible, .sheet-rules-list:focus-visible, .sheet-template-card > summary:focus-visible { outline: 2px solid var(--dialog-action-danger); outline-offset: -2px; }
 @media (max-width: 1100px) {
   .sheet-instructions-layout { grid-template-columns: minmax(0, 1fr); }
   .sheet-grid-scroll { max-height: 42dvh; }
-  .sheet-rules-list { max-height: none; }
+  .sheet-rules-list { max-height: 48dvh; }
 }
 @media (max-width: 600px) {
-  .sheet-workbook-heading { padding: 10px; }
+  .excel-sheet-instructions .sheet-template-card, .sheet-required-columns { padding: 16px; }
+  .sheet-template-card .csv-upload-file-controls > button { width: 100%; }
+  .sheet-workbook-heading { padding: 12px; }
   .sheet-formula-bar { gap: 8px; }
-  .sheet-required-columns { padding: 12px; }
-  .sheet-rules-list { padding: 12px; gap: 14px; }
+  .sheet-rules-list { padding: 16px; gap: 18px; }
 }
+:root[data-theme=dark] .excel-sheet-instructions .sheet-grid .sheet-selected-heading,
+:root[data-theme=dark] .excel-sheet-instructions .sheet-grid .sheet-selected-cell { color: var(--dialog-action-danger); background: color-mix(in srgb, var(--dialog-action-danger) 10%, var(--dialog-surface)); }

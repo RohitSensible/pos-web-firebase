@@ -3,19 +3,10 @@
 .premises-page .btn-secondary { display: inline-flex; align-items: center; gap: 7px; }
 .premises-total { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 13px; }
 .premises-total strong { margin-left: 10px; color: var(--ink); }
-.premises-list { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
-.premises-list-row { display: flex; align-items: center; gap: 12px; padding-right: 20px; border-bottom: 1px solid var(--line); }
-.premises-list-row:last-child { border-bottom: 0; }
-.premises-list-row .premises-list-item { flex: 1; min-width: 0; border-bottom: 0; }
-.premises-list-item { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 20px; padding: 24px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.premises-list-item:hover { background: color-mix(in srgb, var(--blue) 4%, var(--card)); }
-.premises-list-item:focus-visible { outline: 2px solid var(--blue); outline-offset: -3px; }
-.premises-list-item:last-child { border-bottom: 0; }
-.premises-list-item h2 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
-.premises-list-item h2 span { margin-right: 14px; color: var(--muted); font-weight: 500; }
-.premises-list-item p { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
-.premises-list-count { flex-shrink: 0; font-size: 13px; color: var(--muted); text-align: right; }
-.premises-list-count small { display: block; margin-top: 10px; }
+/* The search sits on the page background with Total Premises on the right, as in the list design. */
+.premises-page .category-toolbar { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.premises-page .category-toolbar .toolbar-search-box { max-width: 360px; }
+.premises-page .category-header-actions .btn-primary-add { display: inline-flex; align-items: center; gap: 7px; }
 .premises-notice { margin: 0; color: #15803d; }
 .premises-empty { padding: 40px 20px; text-align: center; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); background: var(--card); }
 .premises-form { width: 100%; max-width: 1100px; }
@@ -28,6 +19,4 @@
 .premises-save-error { padding: 0 32px; }
 @media (max-width: 600px) {
   .premises-fields { grid-template-columns: 1fr; padding: 22px 18px; gap: 20px; }
-  .premises-list-item { align-items: flex-start; padding: 18px; flex-direction: column; }
-  .premises-list-count { text-align: left; }
 }

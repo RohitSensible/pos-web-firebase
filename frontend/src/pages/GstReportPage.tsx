@@ -1,3 +1,5 @@
+import { useScopedReportRead, useScopedReportExport } from '../utils/useScopedReportRead.ts';
+import { useDataLoading } from '../utils/useDataLoading.ts';
 import { gstDetailRows } from '../utils/gstExcel.ts';
 import { downloadReportExcel, billRange, gstSummary } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
@@ -106,70 +108,58 @@ export const GstReportPage = ({ outlet, token, onSessionExpired, reportName = 'G
   }), []);
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
-  const [report, setReport] = useState<GstReportResponse | null>(null);
   const [selectedBill, setSelectedBill] = useState<GstBillRow | null>(null);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters, setPage);
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const scopeKey = JSON.stringify([outlet.id, token, appliedFilters, reloadKey]);
+  const { data, loading, error } = useScopedReportRead<GstReportResponse>(scopeKey, token, onSessionExpired, async request => {
     const params = new URLSearchParams({ startDate: appliedFilters.startDate, endDate: appliedFilters.endDate });
     if (appliedFilters.shiftId) params.set('shiftId', appliedFilters.shiftId);
-    if (appliedFilters.taxType) params.set('taxType', appliedFilters.taxType);
     if (appliedFilters.search) params.set('search', appliedFilters.search);
-
-    setLoading(true);
-    setError('');
-    fetch(`/api/outlets/${encodeURIComponent(outlet.id)}/reports/gst?${params}`, {
-      headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
-    })
-      .then(async response => {
-        const result = await response.json() as { success: boolean; message?: string; data?: GstReportResponse };
-        if (controller.signal.aborted) return;
-        if (response.status === 401) {
-          onSessionExpired();
-          throw new Error('Your session has expired.');
-        }
-        if (!response.ok || !result.data) throw new Error(result.message || 'Unable to load the GST report.');
-        setReport(result.data);
-        setPage(1);
-      })
-      .catch(requestError => {
-        if (!controller.signal.aborted) setError((requestError as Error).message);
-      })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  // onSessionExpired is a stable callback from the parent.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outlet.id, token, appliedFilters, reloadKey]);
+    if (appliedFilters.taxType) params.set('taxType', appliedFilters.taxType);
+    return (await request<GstReportResponse>(`/api/outlets/${encodeURIComponent(outlet.id)}/reports/gst?${params}`))!;
+  });
+  const report = data ?? null;
+  useDataLoading(loading, 'GST Report');
+  const { runExport, exporting, exportError } = useScopedReportExport(JSON.stringify([scopeKey, filters]));
+  // The keyed read already hides old details; reset local selection for the next result.
+  // eslint-disable-next-line react/set-state-in-effect
+  useEffect(() => { setPage(1); setSelectedBill(null); }, [scopeKey]);
 
   const totalPages = Math.max(1, Math.ceil((report?.bills.length ?? 0) / PAGE_SIZE));
 
   const applyFilters = () => {
     const dateError = reportDateError(filters.startDate, filters.endDate);
     if (dateError) {
-      setError(dateError);
+      setValidationError(dateError);
       return;
     }
+    setValidationError('');
     setAppliedFilters({ ...filters, search: filters.search.trim() });
   };
 
   const resetFilters = () => {
+    setValidationError('');
     const reset = { ...initialFilters, startDate: todayId(), endDate: todayId() };
     setFilters(reset);
     setAppliedFilters(reset);
   };
 
+  const canOutput = !loading && !error && (!!report?.bills.length);
+
   const exportExcel = async () => {
-    if (!report) return;
-    const rows = gstDetailRows(report.bills, 'bill');
-    await downloadReportExcel({
-      name: reportName, outlet, startDate: appliedFilters.startDate, endDate: appliedFilters.endDate,
-      summary: { ...gstSummary(report), 'Bill No Range': billRange(report.bills) }, rows,
+    if (!canOutput || !report) return;
+    await runExport(async signal => {
+      const rows = gstDetailRows(report.bills, 'bill');
+      await downloadReportExcel({
+        signal,
+        name: reportName, outlet, startDate: appliedFilters.startDate, endDate: appliedFilters.endDate,
+        summary: { ...gstSummary(report), 'Bill No Range': billRange(report.bills) }, rows,
+      });
     });
   };
 
@@ -180,8 +170,8 @@ export const GstReportPage = ({ outlet, token, onSessionExpired, reportName = 'G
       <div className="bill-report-heading">
         <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>GST Report</h1><p>{outlet.name} · Taxable value, CGST, SGST and GST-inclusive totals.</p></div>
         <div className="bill-report-actions">
-          <button type="button" onClick={exportExcel} disabled={!hasData}><Download /> Export Excel</button>
-          <button type="button" onClick={() => window.print()}><Printer /> Print / PDF</button>
+          <button type="button" onClick={exportExcel} disabled={!canOutput || exporting}><Download /> Export Excel</button>
+          <button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / PDF</button>
         </div>
       </div>
 
@@ -191,8 +181,11 @@ export const GstReportPage = ({ outlet, token, onSessionExpired, reportName = 'G
         <label><span>Shift</span><input value={filters.shiftId} onChange={event => setFilters(current => ({ ...current, shiftId: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') applyFilters(); }} placeholder="All shifts" /></label>
         <label><span>Tax type</span><select value={filters.taxType} onChange={event => setFilters(current => ({ ...current, taxType: event.target.value }))}><option value="">All tax types</option><option value="inclusive">Inclusive</option><option value="exclusive">Exclusive</option><option value="notax">No Tax</option></select></label>
         <label><span>Bill search</span><div><Search /><input value={filters.search} onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') applyFilters(); }} placeholder="Bill no." /></div></label>
-        <div className="bill-filter-buttons"><button type="button" className="apply" onClick={applyFilters}><Filter /> Apply</button><button type="button" onClick={resetFilters}><X /> Reset</button></div>
+        <div className="bill-filter-buttons"><button type="button" className="apply" onClick={applyFilters}><Filter /> Apply</button><button type="button" onClick={resetFilters}><X /> Reset</button><button type="button" disabled={loading} onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Refresh</button></div>
       </div>
+
+      {exportError && <div role="alert">Export failed: {exportError} Use Export Excel to try again.</div>}
+      {validationError && <div role="alert">{validationError} Correct the dates or use Reset.</div>}
 
       <div className="bill-summary-grid">
         <article><span><FileText /></span><div><small>Taxable Value</small><strong>{money(report?.summary.taxable)}</strong></div></article>
@@ -202,8 +195,8 @@ export const GstReportPage = ({ outlet, token, onSessionExpired, reportName = 'G
       </div>
 
       <div className="bill-table-card">
-        {loading && <div className="bill-report-state"><RefreshCw className="bill-report-spinner" /><strong>Loading GST report…</strong></div>}
-        {!loading && error && <div className="bill-report-state error"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
+        {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading GST report…</strong></div>}
+        {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
         {!loading && !error && report && !hasData && <div className="bill-report-state"><Percent /><strong>No bills found for these filters.</strong><p>Choose another date or clear some filters.</p></div>}
         {!loading && !error && report && hasData && (
           <>
@@ -215,7 +208,7 @@ export const GstReportPage = ({ outlet, token, onSessionExpired, reportName = 'G
         )}
       </div>
 
-      {selectedBill && <div className="bill-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedBill(null); }}><article className="bill-detail-modal" role="dialog" aria-modal="true" aria-label={`GST details for bill ${selectedBill.billNo}`}><header><div><span>GST BILL DETAILS</span><h2>{selectedBill.billNo}</h2><p>{dateTime(selectedBill.createdDate)}</p></div><button type="button" onClick={() => setSelectedBill(null)} aria-label="Close bill details"><X /></button></header><div className="bill-detail-body"><div className="bill-detail-meta"><div><span>Tax type</span><strong>{taxTypeLabel(selectedBill.taxType)}</strong></div><div><span>GST rates</span><strong>{selectedBill.rates.length ? selectedBill.rates.map(rateLabel).join(' / ') : '—'}</strong></div></div><h3>Items</h3><div className="bill-items-table gst-items-table"><table><thead><tr><th>Product</th><th>Qty</th><th>GST %</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>GST</th><th>Amount</th></tr></thead><tbody>{selectedBill.items.length ? selectedBill.items.map((item, index) => <tr key={`${item.name}-${index}`}><td><strong>{item.name}</strong>{item.code && <small>Code {item.code}</small>}</td><td>{item.quantity} × {money(item.price)}</td><td><span className={`gst-rate ${item.rate > 0 ? '' : 'zero'}`}>{rateLabel(item.rate)}</span></td><td>{money(item.taxable)}</td><td>{money(item.cgst)}</td><td>{money(item.sgst)}</td><td>{money(item.gst)}</td><td><strong>{money(item.gross)}</strong></td></tr>) : <tr><td colSpan={8}>No item details available</td></tr>}</tbody></table></div><div className="bill-total-detail"><div><span>Taxable value</span><strong>{money(selectedBill.taxable)}</strong></div><div><span>CGST</span><strong>{money(selectedBill.cgst)}</strong></div><div><span>SGST</span><strong>{money(selectedBill.sgst)}</strong></div><div><span>Total GST</span><strong>{money(selectedBill.gst)}</strong></div><div className="grand-total"><span>Amount incl. GST</span><strong>{money(selectedBill.gross)}</strong></div>{Math.abs(selectedBill.finalTotal - selectedBill.gross) >= 0.01 && <div><span>Bill final total (after discount, charges, round-off)</span><strong>{money(selectedBill.finalTotal)}</strong></div>}</div></div><footer><button type="button" onClick={() => window.print()}><Printer /> Print / Save PDF</button></footer></article></div>}
+      {report && selectedBill && <div className="bill-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedBill(null); }}><article className="bill-detail-modal" role="dialog" aria-modal="true" aria-label={`GST details for bill ${selectedBill.billNo}`}><header><div><span>GST BILL DETAILS</span><h2>{selectedBill.billNo}</h2><p>{dateTime(selectedBill.createdDate)}</p></div><button type="button" onClick={() => setSelectedBill(null)} aria-label="Close bill details"><X /></button></header><div className="bill-detail-body"><div className="bill-detail-meta"><div><span>Tax type</span><strong>{taxTypeLabel(selectedBill.taxType)}</strong></div><div><span>GST rates</span><strong>{selectedBill.rates.length ? selectedBill.rates.map(rateLabel).join(' / ') : '—'}</strong></div></div><h3>Items</h3><div className="bill-items-table gst-items-table"><table><thead><tr><th>Product</th><th>Qty</th><th>GST %</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>GST</th><th>Amount</th></tr></thead><tbody>{selectedBill.items.length ? selectedBill.items.map((item, index) => <tr key={`${item.name}-${index}`}><td><strong>{item.name}</strong>{item.code && <small>Code {item.code}</small>}</td><td>{item.quantity} × {money(item.price)}</td><td><span className={`gst-rate ${item.rate > 0 ? '' : 'zero'}`}>{rateLabel(item.rate)}</span></td><td>{money(item.taxable)}</td><td>{money(item.cgst)}</td><td>{money(item.sgst)}</td><td>{money(item.gst)}</td><td><strong>{money(item.gross)}</strong></td></tr>) : <tr><td colSpan={8}>No item details available</td></tr>}</tbody></table></div><div className="bill-total-detail"><div><span>Taxable value</span><strong>{money(selectedBill.taxable)}</strong></div><div><span>CGST</span><strong>{money(selectedBill.cgst)}</strong></div><div><span>SGST</span><strong>{money(selectedBill.sgst)}</strong></div><div><span>Total GST</span><strong>{money(selectedBill.gst)}</strong></div><div className="grand-total"><span>Amount incl. GST</span><strong>{money(selectedBill.gross)}</strong></div>{Math.abs(selectedBill.finalTotal - selectedBill.gross) >= 0.01 && <div><span>Bill final total (after discount, charges, round-off)</span><strong>{money(selectedBill.finalTotal)}</strong></div>}</div></div><footer><button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / Save PDF</button></footer></article></div>}
     </section>
   );
 };

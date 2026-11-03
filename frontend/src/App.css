@@ -129,7 +129,9 @@ button { font: inherit; }
   transition: 150ms ease;
 }
 
-.nav-group-items button svg { display: none; width: 15px; height: 15px; }
+.nav-item-icon { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 15px; color: var(--muted); }
+.nav-group-items button svg { display: block; width: 15px; height: 15px; stroke-width: 1.75; }
+.nav-group-items button:is(:hover, .active) .nav-item-icon { color: inherit; }
 .nav-group-items button:hover { color: #3157e8; background: #f3f5ff; transform: translateX(2px); }
 .nav-group-items button.active { color: #3157e8; background: #ebeafd; font-weight: 700; }
 
@@ -167,21 +169,6 @@ button { font: inherit; }
 }
 
 .header-brand { display: flex; align-items: center; gap: 8px; color: #ff363d; }
-.header-logo-crop {
-  position: relative;
-  width: 150px;
-  height: 60px;
-  display: block;
-  overflow: hidden;
-}
-.header-logo-crop img {
-  position: absolute;
-  top: -20px;
-  left: -36px;
-  width: 207px;
-  max-width: none;
-  height: auto;
-}
 .mobile-menu { display: none; }
 
 .header-actions, .admin-chip { display: flex; align-items: center; }
@@ -217,6 +204,13 @@ button { font: inherit; }
 .admin-chip > svg { width: 14px; color: #737b84; }
 
 .dashboard-workspace { padding: 32px 24px; }
+/* Stays just under the sticky header while the page scrolls. */
+.workspace-back { position: sticky; top: 80px; z-index: 15; display: inline-flex; align-items: center; gap: 6px; margin: -16px 0 14px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); padding: 6px 12px 6px 8px; border: 1px solid var(--line);
+  border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.workspace-back svg { width: 16px; height: 16px; }
+.workspace-back:hover { border-color: #c7d2fe; color: #4F46E5; }
+.workspace-back:focus-visible { outline: 2px solid #4F46E5; outline-offset: 2px; }
 
 .page-hero {
   min-height: 104px;
@@ -511,7 +505,9 @@ button { font: inherit; }
 .shift-card div { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid #edf0f2; font-size: 10px; }
 .shift-card div:last-child { border-bottom: 0; }
 .shift-card div span { color: #89939c; }
-.shift-card div strong { max-width: 130px; color: #263441; text-align: right; }
+.shift-card div strong { max-width: 150px; min-width: 0; overflow-wrap: anywhere; color: #263441; text-align: right; }
+.shift-card .shift-card-context { margin: 0 0 8px; color: #89939c; font-size: 10px; line-height: 1.5; }
+.shift-card .shift-device-id { min-width: 0; overflow-wrap: anywhere; }
 .shift-card .status-active { padding: 2px 7px; border-radius: 999px; background: #dff7e6; color: #13883d; }
 .help-card, .sidebar-logout { display: flex; align-items: center; gap: 10px; padding: 13px; border: 1px solid #dce2e8; border-radius: 9px; background: #fff; color: #3e4b58; cursor: pointer; text-align: left; }
 .help-card svg { width: 20px; color: #3c64ed; }
@@ -600,8 +596,7 @@ button { font: inherit; }
 
 @media (max-width: 600px) {
   .retail-header { height: 62px; padding: 0 12px; }
-  .header-logo-crop { width: 126px; height: 52px; }
-  .header-logo-crop img { top: -17px; left: -30px; width: 174px; }
+  .workspace-back { top: 70px; }
   .admin-chip div, .admin-chip > svg { display: none; }
   .page-hero { padding: 20px; }
   .page-hero h1 { font-size: 22px; }
@@ -620,3 +615,40 @@ button { font: inherit; }
 
 .outlet-connection-status { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; padding: 14px 24px; color: var(--muted, #64748b); font-size: 12px; }
 .outlet-connection-status button { padding: 7px 11px; border: 1px solid var(--line, #e2e8f0); border-radius: 7px; background: var(--card, #fff); color: var(--blue, #4f46e5); cursor: pointer; }
+
+@media print {
+  .workspace-back { display: none !important; }
+}
+
+/* Master editors fill the workspace beside the existing sidebar and header. */
+@media screen {
+  .dashboard-workspace:has(> :is(.master-form-page, .add-product-modal, .category-edit-page)) {
+    display: flex; flex-direction: column; padding: 0; min-height: calc(100dvh - 68px);
+  }
+  .dashboard-workspace:has(> :is(.master-form-page, .add-product-modal, .category-edit-page)) > .workspace-back {
+    align-self: flex-start; flex-shrink: 0; margin: 12px 20px;
+  }
+  .dashboard-workspace > :is(.master-form-page, .add-product-modal, .category-edit-page) {
+    display: flex; flex-direction: column; flex: 1; align-self: stretch; width: 100%; max-width: none;
+    min-height: 0; margin: 0; border-radius: 0; border-inline: 0; border-bottom: 0; box-shadow: none;
+  }
+  .dashboard-workspace > :is(.master-form-page, .add-product-modal, .category-edit-page) > form {
+    display: flex; flex-direction: column; flex: 1; min-height: 0;
+  }
+  .dashboard-workspace > :is(.master-form-page, .add-product-modal, .category-edit-page) > form > .modal-footer { margin-top: auto; }
+  .dashboard-workspace > .master-form-page .employees-form-fields { max-width: none; }
+  /* Keep the page shell full width, with narrower, centered form controls. */
+  .dashboard-workspace > .master-form-page > form > :is(.customer-form-fields, .premises-fields, .service-point-fields) {
+    width: 100%; max-width: 720px; min-width: 0; margin-inline: auto;
+  }
+  .dashboard-workspace > .category-edit-page > form > .modal-body {
+    width: 100%; max-width: 600px; min-width: 0; margin-inline: auto;
+  }
+}
+@media screen and (max-width: 820px) {
+  .dashboard-workspace:has(> :is(.master-form-page, .add-product-modal, .category-edit-page)) { min-height: calc(100dvh - 62px); }
+}
+
+.hero-actions .shift-selector-bar { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; max-width: 100%; }
+.hero-actions .shift-pill { white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.hero-actions .shift-pill:focus-visible { outline: 3px solid #ffdc76; outline-offset: 3px; }

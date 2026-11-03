@@ -15,7 +15,7 @@ window.fetch = async input => {
   if (path.endsWith('/products') || path.endsWith('/categories')) return Response.json({ success: true, data: [] });
   throw new Error(`Unexpected API: ${path}`);
 };
-localStorage.clear(); sessionStorage.clear(); history.replaceState(null, '');
+localStorage.clear(); sessionStorage.clear(); history.replaceState({ 'pos-screen': 'Masters:Products' }, '');
 localStorage.setItem('pos_user_session', JSON.stringify({ id: 'u', name: 'User', email: 'u@example.com', role: 'Admin', terminal: 'POS', token: 'mock-token' }));
 localStorage.setItem('pos_selected_outlet', JSON.stringify({ id: 'outlet', name: 'Outlet', active: true, branch: '', country: '' }));
 let root = createRoot(document.getElementById('root')!);
@@ -27,6 +27,7 @@ void (async () => {
   const url = location.href;
   root.render(<App />);
   await until(() => document.querySelector('.dashboard-columns'), 'dashboard');
+  assert(history.state['pos-screen'] === 'Home:Dashboard' && !document.querySelector('.products-page-shell'), 'Stored outlet entry starts on Dashboard instead of the previous browser-history screen');
   nav('Products').click(); await until(() => document.querySelector('.products-page-shell'), 'products');
   const length = history.length; nav('Products').click(); await pause();
   assert(history.length === length, 'Repeated navigation to the same screen adds no duplicate history entry');
@@ -45,11 +46,11 @@ void (async () => {
   document.querySelector<HTMLButtonElement>('[aria-label="Close information"]')!.click();
   await until(() => upload() && !instructions(), 'close uses prior upload entry');
   root.unmount(); root = createRoot(document.getElementById('root')!); root.render(<App />);
-  await until(upload, 'restored browser entry');
-  assert(!!upload() && !instructions(), 'Remount restores the current screen without reopening a closed dialog');
+  await until(() => document.querySelector('.dashboard-columns'), 'dashboard on restored outlet');
+  assert(!upload() && !instructions() && history.state['pos-screen'] === 'Home:Dashboard', 'Reopening an authenticated outlet always starts on Dashboard without restoring its prior screen or dialog');
   assert(location.href === url, 'Internal Back and Forward keep the application URL');
   document.querySelector<HTMLButtonElement>('.sidebar-logout')!.click(); await pause();
-  document.querySelector<HTMLButtonElement>('.confirm')!.click(); await until(() => document.getElementById('crm-email'), 'logout');
+  document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click(); await until(() => document.getElementById('crm-email'), 'logout');
   history.back(); await pause();
   assert(!!document.getElementById('crm-email') && !localStorage.getItem('pos_user_session'), 'Browser history cannot restore authentication after logout');
   root.unmount(); document.getElementById('test-results')!.textContent = JSON.stringify({ passed });

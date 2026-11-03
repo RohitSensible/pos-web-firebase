@@ -3,3 +3,53 @@
 .stock-transfer-report-page tfoot td:first-child { display: table-cell; }
 .stock-transfer-report-page .bill-detail-meta strong { white-space: normal; overflow-wrap: anywhere; }
 .stock-transfer-report-page .bill-items-table td:first-child small { display: block; margin-top: 3px; color: #8a99a6; font-size: 8px; }
+
+.stock-transfer-session-previews { display: grid; gap: 14px; min-width: 0; padding: 20px; border: 1px solid color-mix(in srgb, #4f46e5 25%, var(--line)); border-radius: 12px; background: var(--card); color: var(--ink); }
+.stock-transfer-session-previews > header { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 12px; }
+.stock-transfer-session-previews h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 17px; }
+.stock-transfer-session-previews h2 svg { color: #4f46e5; }
+.stock-transfer-session-previews header p, .session-preview-help { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.transfer-preview-label { display: inline-flex; flex: none; padding: 4px 8px; border-radius: 6px; background: color-mix(in srgb, #4f46e5 9%, var(--card)); color: #4f46e5; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.session-preview-scroll { min-width: 0; max-width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; }
+.session-preview-scroll table { width: 100%; min-width: 940px; border-collapse: collapse; color: var(--ink); font-size: 12px; }
+.session-preview-scroll :is(th, td) { padding: 13px 12px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.session-preview-scroll th { background: var(--workspace); color: var(--muted); white-space: nowrap; font-size: 11px; font-weight: 600; }
+.session-preview-scroll tbody tr:last-child td { border-bottom: 0; }
+.session-preview-scroll button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); color: #4f46e5; font: inherit; font-size: 11px; white-space: nowrap; cursor: pointer; }
+.session-preview-scroll:focus-visible, .session-preview-scroll button:focus-visible { outline: 2px solid #4f46e5; outline-offset: 3px; }
+.session-preview-empty { padding: 20px; color: var(--muted); font-size: 12px; }
+.category-modal.action-popup.stock-transfer-preview-dialog { --dialog-width: 720px; }
+.session-preview-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.session-preview-meta dt { margin-bottom: 4px; color: var(--muted); font-size: 12px; }
+.session-preview-meta dd { margin: 0; color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
+.session-preview-product { display: grid; gap: 9px; padding: 14px; border: 1px solid var(--line); border-radius: 9px; }
+.session-preview-product h4 { margin: 0; color: var(--ink); font-size: 14px; }
+.session-preview-product p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.session-preview-product ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.session-preview-product li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 6px; background: var(--workspace); color: var(--ink); font-size: 12px; }
+:root[data-theme=dark] .transfer-preview-label, :root[data-theme=dark] .session-preview-scroll button { color: #a5b4fc; }
+@media (max-width: 600px) { .stock-transfer-session-previews { padding: 16px; } }
+@media (max-width: 430px) { .session-preview-meta { grid-template-columns: 1fr; } }
+
+.stock-transfer-filter-help { margin: -4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.stock-transfer-filter-error { margin: 0; color: #b52c32; font-size: 13px; }
+.stock-transfer-saved-records { display: grid; gap: 18px; min-width: 0; }
+.stock-transfer-saved-heading { padding: 4px 0 0; }
+.stock-transfer-saved-heading h2 { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0; color: var(--ink); font-size: 17px; }
+.stock-transfer-saved-heading p { margin: 7px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.saved-transfer-label { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--workspace); color: var(--muted); font-size: 11px; font-weight: 600; }
+.stock-transfer-session-previews h2 { flex-wrap: wrap; }
+.session-preview-empty { margin: 0; padding-bottom: 6px; font-weight: 600; }
+.session-preview-empty-help { margin: 0; padding: 0 20px 20px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.stock-transfer-report-page .stock-transfer-other-page { display: none; }
+@media print {
+  .stock-transfer-session-previews, .stock-transfer-preview-dialog, .stock-transfer-preview-dialog::backdrop,
+  .stock-transfer-filter-help, .stock-transfer-filter-error { display: none !important; }
+  .stock-transfer-report-page .stock-transfer-other-page { display: table-row; }
+  .stock-transfer-saved-heading h2, .stock-transfer-saved-heading p, .saved-transfer-label { color: #000; }
+  .stock-transfer-report-page .bill-table-scroll { overflow: visible; }
+  .stock-transfer-report-page .bill-table-scroll table { width: 100%; min-width: 0; }
+  .stock-transfer-report-page .bill-table-scroll :is(th, td) { white-space: normal; overflow-wrap: anywhere; }
+  .stock-transfer-report-page thead { display: table-header-group; }
+  .stock-transfer-report-page tr { break-inside: avoid; }
+}

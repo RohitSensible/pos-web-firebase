@@ -20,7 +20,7 @@ window.fetch = async (url, init) => {
     release = () => { controller.enqueue(line({ type: 'items', data: [customer('c3', 'Meena')] })); controller.enqueue(line({ type: 'end', count: 3 })); controller.close(); };
   } }), { headers: { 'Content-Type': 'application/x-ndjson' } });
 };
-const names = () => [...document.querySelectorAll('.customer-edit-button')].map(button => button.textContent);
+const names = () => [...document.querySelectorAll('.customers-list .master-row-title strong')].map(node => node.textContent);
 const root = createRoot(document.getElementById('root')!);
 root.render(<CustomersPage outlet={{ id: 'outlet', name: 'Outlet' } as OutletSummary} token="token" onSessionExpired={() => { throw new Error('Unexpected session expiration'); }} />);
 void (async () => {

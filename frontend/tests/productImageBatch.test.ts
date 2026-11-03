@@ -28,6 +28,10 @@ test('filename matching ignores only case, extension and whitespace; ambiguity i
   assert.deepEqual(imageCandidates('Coffee Large.png', products), []);
   assert.deepEqual(imageCandidates('Coffee (Large).jpg', products).map(product => product.documentId), ['b']);
   assert.equal(imageCandidates('Tea.webp', products).length, 2);
+  assert.deepEqual(imageCandidates('tea.webp', products).map(product => product.documentId), ['d'], 'exact case wins among case-only duplicates');
+  assert.deepEqual(imageCandidates('MASALA DOSA.jpeg', products).map(product => product.documentId), ['a'], 'upper case file matches');
+  assert.deepEqual(imageCandidates('masala​ dosa﻿.JPG', [{ documentId: 'z', fields: { name: 'Masala Dosa​' } }]).map(product => product.documentId), ['z'],
+    'invisible characters are ignored');
   assert.equal(imageCandidates('Masala Dosaa.png', products).length, 0);
   assert.deepEqual(imageTarget(products[0]!), { documentId: 'a', expectedImage: 'old.png', expectedImagePath: 'legacy/path', replaceExisting: false });
 });

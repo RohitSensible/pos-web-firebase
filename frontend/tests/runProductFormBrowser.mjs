@@ -36,7 +36,12 @@ try {
   const chrome = spawn(process.env.CHROME_BIN || '/usr/bin/google-chrome', ['--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
     `--window-size=${process.argv[3] || '1280,900'}`, '--no-first-run', '--no-default-browser-check', '--disable-background-networking', `--user-data-dir=${join(temporary, 'chrome')}`,
     ...(!realtime && process.argv[4] ? [`--screenshot=${process.argv[4]}`] : []), ...(realtime ? ['--remote-debugging-port=0'] : ['--dump-dom', '--virtual-time-budget=12000']), `http://127.0.0.1:${address.port}/${process.argv[4] ? '#preview' : ''}`]);
-  const closed = new Promise(resolve => chrome.on('close', resolve));
+  const closed = new Promise((resolve, reject) => {
+    chrome.once('close', resolve);
+    chrome.once('error', error => reject(new Error(`Cannot launch Chrome. Set CHROME_BIN to an executable Chrome/Chromium path: ${error.message}`)));
+  });
+  // Realtime mode awaits this after connecting; handle an early spawn failure too.
+  closed.catch(() => {});
   let html = '', errors = '';
   chrome.stdout.on('data', chunk => { html += chunk; }); chrome.stderr.on('data', chunk => { errors += chunk; });
   const timer = setTimeout(() => chrome.kill(), 30000);
@@ -85,14 +90,15 @@ try {
         await writeFile(process.argv[4], Buffer.from(screenshot, 'base64'));
       }
       code = 0;
-    } finally { socket?.close(); chrome.kill(); await closed; clearTimeout(timer); }
-  } else { code = await closed; clearTimeout(timer); }
+    } finally { socket?.close(); chrome.kill(); clearTimeout(timer); await closed; }
+  } else { try { code = await closed; } finally { clearTimeout(timer); } }
   const match = html.match(/<pre id="test-results"[^>]*>(.*?)<\/pre>/s);
   const output = match?.[1]?.replaceAll('&quot;', '"').replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
   if (code !== 0 || !output || output === 'pending') throw new Error(`Browser checks did not complete: ${errors.slice(-1500)}`);
   const result = JSON.parse(output);
   console.log(JSON.stringify(result, null, 2));
-  if (result.failed) process.exitCode = 1;
+  const passed = Array.isArray(result?.passed) ? result.passed.length : result?.passed;
+  if (!Number.isSafeInteger(passed) || passed < 1 || (result.failed !== undefined && result.failed !== 0 && result.failed !== false)) process.exitCode = 1;
 } finally {
   if (server) await new Promise(resolve => server.close(resolve));
   await rm(temporary, { recursive: true, force: true });

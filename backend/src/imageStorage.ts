@@ -177,6 +177,12 @@ export async function readOutletLogo(bucket: StorageBucket, outletName: string, 
   } catch (error) { return logoStorageError(error); }
 }
 
+// Firebase client SDKs (the Android POS) build download URLs from an object's
+// download token. Admin SDK uploads carry none unless it is set here.
+function storedImageMetadata(contentType: string) {
+  return { contentType, cacheControl: 'private, no-store', metadata: { firebaseStorageDownloadTokens: randomUUID() } };
+}
+
 export async function saveOutletLogo(bucket: StorageBucket, outletName: string, outletId: string, variant: OutletLogoVariant,
   bytes: Buffer, expectedGeneration: string, declaredType: string) {
   const path = outletLogoPath(outletName, outletId, variant);
@@ -185,7 +191,7 @@ export async function saveOutletLogo(bucket: StorageBucket, outletName: string, 
   if (contentType !== declaredType) throw new ImageStorageError(415, 'Choose a valid JPEG, PNG, or WebP image.');
   try {
     await bucket.file(path).save(bytes, { resumable: false, validation: 'crc32c',
-      preconditionOpts: { ifGenerationMatch: expectedGeneration }, metadata: { contentType, cacheControl: 'private, no-store' } });
+      preconditionOpts: { ifGenerationMatch: expectedGeneration }, metadata: storedImageMetadata(contentType) });
     return { saved: true };
   } catch (error) { return logoStorageError(error); }
 }
@@ -254,7 +260,7 @@ export async function copyMasterImageFromPath(bucket: StorageBucket, kind: Maste
   const destinationFile = bucket.file(destinationImagePath);
   try {
     await destinationFile.save(source.bytes, { resumable: false, preconditionOpts: { ifGenerationMatch: 0 },
-      metadata: { contentType: source.contentType, cacheControl: 'private, no-store' } });
+      metadata: storedImageMetadata(source.contentType) });
   } catch (error) {
     if (!isPreconditionFailure(error)) {
       throw new ImageStorageError(503, 'The destination image could not be copied safely. Retry the transfer.');
@@ -296,7 +302,7 @@ export async function storeVerifiedProductImage(bucket: StorageBucket, filename:
   if (!exists) {
     try {
       await object.save(bytes, { resumable: false, preconditionOpts: { ifGenerationMatch: 0 },
-        metadata: { contentType, cacheControl: 'private, no-store' } });
+        metadata: storedImageMetadata(contentType) });
     } catch { /* A concurrent retry or lost response is resolved by exact verification below. */ }
   }
   if (!await verifyStorageCopy(bucket, path, bytes, contentType)) {
@@ -310,7 +316,7 @@ export async function uploadMasterImage(db: Firestore, bucket: StorageBucket, ki
   outletId: string, documentId: string, bytes: Buffer, declaredType: string, operation?: ProductImageUploadOperation) {
   validateRecordIds(outletId, documentId);
   if (!Buffer.isBuffer(bytes) || !bytes.length) throw new ImageStorageError(400, 'Choose an image before uploading.');
-  if (kind === 'products' && bytes.length > PRODUCT_IMAGE_MAX_BYTES) throw new ImageStorageError(413, 'Product images must be 512 KB or smaller.');
+  if (kind === 'products' && bytes.length > PRODUCT_IMAGE_MAX_BYTES) throw new ImageStorageError(413, 'Product images must be 25 KB or smaller.');
   const detectedType = detectImage(bytes);
   if (declaredType !== detectedType) throw new ImageStorageError(415, 'The image content does not match its declared file type.');
   const collection: MasterImageCollection = kind === 'products' ? 'PRODUCT' : 'CATEGORY';
@@ -349,7 +355,7 @@ export async function uploadMasterImage(db: Firestore, bucket: StorageBucket, ki
   const object = bucket.file(imagePath);
   try {
     await object.save(bytes, { resumable: false, preconditionOpts: { ifGenerationMatch: 0 },
-      metadata: { contentType: detectedType, cacheControl: 'private, no-store' } });
+      metadata: storedImageMetadata(detectedType) });
   } catch {
     throw new ImageStorageError(503, 'Firebase Storage could not accept the upload. Check the bucket name and backend service account permissions.');
   }

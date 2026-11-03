@@ -1,3 +1,4 @@
+import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
 import { ReportDateInput } from './ReportDateInput.tsx';
@@ -54,7 +55,7 @@ function todayId(): string {
 }
 
 function money(value = 0): string {
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value);
+  return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
 function quantity(value = 0): string {
@@ -75,6 +76,7 @@ export const StockInOutReportPage = ({ outlet, token, onSessionExpired, reportNa
   const [selectedMovement, setSelectedMovement] = useState<StockMovement | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  useDataLoading(loading, 'Stock Movements');
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -170,7 +172,7 @@ export const StockInOutReportPage = ({ outlet, token, onSessionExpired, reportNa
         <button type="button" onClick={() => window.print()}><Printer /> Print / PDF</button>
       </div>
     </div>
-    <div className="stock-direction-tabs" role="tablist" aria-label="Stock direction">
+    <div className="stock-direction-tabs stock-direction-boxes" role="tablist" aria-label="Stock direction">
       {(['in', 'out'] as const).map(direction => <button key={direction} type="button" role="tab" aria-selected={appliedFilters.direction === direction}
         className={`stock-direction-tab ${direction}`} disabled={loading && appliedFilters.direction !== direction} onClick={() => showDirection(direction)}>
         {direction === 'in' ? <ArrowDown aria-hidden="true" /> : <ArrowUp aria-hidden="true" />}<span>{direction === 'in' ? 'STOCK-IN' : 'STOCK-OUT'}</span></button>)}
@@ -187,7 +189,7 @@ export const StockInOutReportPage = ({ outlet, token, onSessionExpired, reportNa
       <article><span><FileText /></span><div><small>Total Amount</small><strong>{money(report?.summary.totalAmount)}</strong></div></article>
     </div>
     <div className="bill-table-card">
-      {loading && <div className="bill-report-state"><RefreshCw className="bill-report-spinner" /><strong>Loading stock movements…</strong></div>}
+      {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading stock movements…</strong></div>}
       {!loading && error && <div className="bill-report-state error"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
       {!loading && !error && !hasData && <div className="bill-report-state"><Package /><strong>No {directionLabel.toLowerCase()} transactions found for these filters.</strong><p>Choose another date range or clear the search.</p></div>}
       {!loading && !error && hasData && report && <>

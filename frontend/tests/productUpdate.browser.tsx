@@ -65,7 +65,7 @@ void (async () => {
   assert(input('product-wholeSaleAmount').value === '40' && input('product-onlinePrice').value === '60', 'saved additional prices displayed');
   assert(input('product-barcode').value === '00000123456' && !input('product-barcode').readOnly, 'barcode string preserved and editable');
   assert(input('product-kitchenId').value === 'kitchen' && document.querySelector('#product-kitchenId option:checked')?.textContent === 'Kitchen Printer', 'service point selected by ID and displayed by name');
-  assert(product.fields.kitchenId === 'kitchen' && input('product-recipeId').value === 'recipe', 'saved service point ID and recipe preserved');
+  assert(product.fields.kitchenId === 'kitchen' && product.fields.recipeId === 'recipe' && !document.getElementById('product-recipeId'), 'saved service point and recipe remain preserved without displaying the recipe ID');
   const taxOptions = [...document.querySelectorAll<HTMLOptionElement>('#product-taxIndex option')].filter(option => option.value);
   assert(taxOptions.length === 12 && taxOptions[5]!.value === '6' && taxOptions[5]!.textContent === 'VAT 22'
     && taxOptions[6]!.value === '7' && taxOptions[6]!.textContent === 'VAT 10', 'Product selector uses all Android GST and VAT IDs');

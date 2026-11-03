@@ -9,13 +9,22 @@ export const MAX_ZIP_BYTES = 25 * 1024 * 1024;
 const MAX_ENTRY_BYTES = 30 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 100 * 1024 * 1024;
 
+// Names copied from spreadsheets or chats can carry invisible characters
+// (zero-width spaces, BOMs) or compatibility forms; neither changes the name.
+const nameText = (value: string) => value.normalize('NFKC').replace(/\p{Cf}/gu, '').trim().replace(/\s+/g, ' ');
 export function normalizedImageName(name: string): string {
-  return name.trim().replace(/\.(?:jpe?g|png|webp)$/i, '').trim().replace(/\s+/g, ' ').toLowerCase();
+  return nameText(nameText(name).replace(/\.(?:jpe?g|png|webp)$/i, '')).toLowerCase();
 }
+// Upper and lower case are the same name. When several products differ only in
+// case, the one written exactly like the file wins; otherwise the user chooses.
 export function imageCandidates(name: string, products: ImageProduct[]): ImageProduct[] {
   const normalized = normalizedImageName(name);
-  return products.filter(product => typeof product.fields.name === 'string'
-    && product.fields.name.trim().replace(/\s+/g, ' ').toLowerCase() === normalized);
+  const matches = products.filter(product => typeof product.fields.name === 'string'
+    && nameText(product.fields.name).toLowerCase() === normalized);
+  if (matches.length < 2) return matches;
+  const exact = nameText(nameText(name).replace(/\.(?:jpe?g|png|webp)$/i, ''));
+  const sameCase = matches.filter(product => nameText(product.fields.name as string) === exact);
+  return sameCase.length === 1 ? sameCase : matches;
 }
 export function imageTarget(product: ImageProduct, replaceExisting = false): ImageTarget {
   const saved = (value: unknown) => typeof value === 'string' && value ? value : null;

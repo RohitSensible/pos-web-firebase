@@ -1,10 +1,12 @@
+import { useDataLoading } from '../utils/useDataLoading.ts';
+import { printDocument } from '../utils/printDocument.ts';
 import { gstDetailRows, loadGstExportBills, gstBillSummary } from '../utils/gstExcel.ts';
 import { downloadReportExcel, billRange, sumPayments } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
 import { ReportDateInput } from './ReportDateInput.tsx';
 import { isProvided, tableLabel } from './billReceipt.ts';
 import { reportDateError } from './reportDates.ts';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Banknote, ChevronLeft, ChevronRight, CreditCard, Download,
   FileText, Filter, Printer, ReceiptText, RefreshCw, Search, X,
@@ -108,13 +110,46 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
   }), []);
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
-  const [report, setReport] = useState<ReportResponse | null>(null);
-  const [selectedBill, setSelectedBill] = useState<BillRecord | null>(null);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const scope = useMemo(() => ({ outletId: outlet.id, token, filters: appliedFilters, revision: reloadKey }), [outlet.id, token, appliedFilters, reloadKey]);
+  const listScope = useMemo(() => ({ scope, page }), [scope, page]);
+  const [listState, setListState] = useState<{ scope: typeof listScope; report?: ReportResponse; error?: string } | null>(null);
+  const report = listState?.scope === listScope ? listState.report : undefined;
+  const error = listState?.scope === listScope ? listState.error : '';
+  const loading = listState?.scope !== listScope;
+  const [selection, setSelection] = useState<{ scope: typeof listScope; bill: BillRecord } | null>(null);
+  const selectedBill = selection?.scope === listScope ? selection.bill : null;
+  const setSelectedBill = (bill: BillRecord | null) => { setSelection(bill ? { scope: listScope, bill } : null); setPrintError(''); };
+  const [validationError, setValidationError] = useState('');
+  const [exportFailure, setExportFailure] = useState<{ scope: typeof scope; message: string } | null>(null);
+  const exportJob = useRef<{ scope: typeof scope; controller: AbortController } | null>(null);
+  const [exportScope, setExportScope] = useState<typeof scope | null>(null);
+  const exporting = exportScope === scope;
+  useLayoutEffect(() => {
+    return () => {
+      exportJob.current?.controller.abort();
+      exportJob.current = null;
+    };
+  }, [scope]);
+  const billDetail = useRef<HTMLElement | null>(null);
+  const billDialog = useRef<HTMLDialogElement | null>(null);
+  const selectedBillId = selectedBill?.documentId;
+  useEffect(() => {
+    const dialog = billDialog.current;
+    if (!selectedBillId || !dialog) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (!dialog.open) dialog.showModal();
+    dialog.querySelector<HTMLButtonElement>('[aria-label="Close bill details"]')?.focus();
+    return () => {
+      dialog.close();
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [selectedBillId]);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState('');
+  useDataLoading(loading, 'Sales Report');
+  useDataLoading(exporting, 'Sales Export');
 
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters, setPage);
 
@@ -131,10 +166,13 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
   };
 
   const requestReport = async (targetPage: number, signal?: AbortSignal): Promise<ReportResponse> => {
+    signal?.throwIfAborted();
     const response = await fetch(`/api/outlets/${encodeURIComponent(outlet.id)}/reports/bills?${buildQuery(targetPage)}`, {
       headers: { Authorization: `Bearer ${token}` }, signal,
     });
+    signal?.throwIfAborted();
     const result = await response.json() as { success: boolean; message?: string; data?: ReportResponse };
+    signal?.throwIfAborted();
     if (response.status === 401) {
       onSessionExpired();
       throw new Error('Your session has expired.');
@@ -143,27 +181,37 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
     return result.data;
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError('');
     requestReport(page, controller.signal)
-      .then(result => { if (!controller.signal.aborted) setReport(result); })
+      .then(result => { if (!controller.signal.aborted) setListState({ scope: listScope, report: result }); })
       .catch(requestError => {
-        if (!controller.signal.aborted) setError((requestError as Error).message);
-      })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+        if (!controller.signal.aborted) setListState({ scope: listScope, error: (requestError as Error).message });
+      });
     return () => controller.abort();
   // requestReport is intentionally derived from the filter state listed below.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outlet.id, token, appliedFilters, page, reloadKey]);
+  }, [listScope]);
+
+  const printBill = async () => {
+    if (!billDetail.current || !selectedBill || printing) return;
+    setPrinting(true); setPrintError('');
+    try {
+      await printDocument(billDetail.current, `${outlet.name} - Bill ${selectedBill.billNo}`);
+    } catch (failure) {
+      setPrintError((failure as Error).message);
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const applyFilters = () => {
     const dateError = reportDateError(filters.startDate, filters.endDate);
     if (dateError) {
-      setError(dateError);
+      setValidationError(dateError);
       return;
     }
+    setValidationError('');
     setPage(1);
     setAppliedFilters({ ...filters, search: filters.search.trim() });
   };
@@ -171,25 +219,44 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
   const resetFilters = () => {
     const reset = { ...initialFilters, startDate: todayId(), endDate: todayId() };
     setFilters(reset);
+    setValidationError('');
     setPage(1);
     setAppliedFilters(reset);
   };
 
   const exportExcel = async () => {
-    setExporting(true);
-    setError('');
+    if (exportJob.current || loading || !report) return;
+    const controller = new AbortController();
+    const job = { scope, controller };
+    exportJob.current = job;
+    setExportScope(scope);
+    setExportFailure(null);
+    const snapshotOutlet = { ...outlet };
+    const snapshotFilters = { ...appliedFilters };
+    const { signal } = controller;
     try {
-      const first = await requestReport(1);
-      const pages = await Promise.all(
-        Array.from({ length: Math.max(0, first.pagination.totalPages - 1) }, (_, index) => requestReport(index + 2))
-      );
+      const first = await requestReport(1, signal);
+      signal.throwIfAborted();
+      const pages: ReportResponse[] = [];
+      let nextPage = 2;
+      // Four workers bound outstanding GETs and preserve page order in the workbook.
+      await Promise.all(Array.from({ length: Math.min(4, Math.max(0, first.pagination.totalPages - 1)) }, async () => {
+        while (nextPage <= first.pagination.totalPages) {
+          signal.throwIfAborted();
+          const targetPage = nextPage++;
+          pages[targetPage - 2] = await requestReport(targetPage, signal);
+          signal.throwIfAborted();
+        }
+      }));
+      signal.throwIfAborted();
       const bills = [first, ...pages].flatMap(result => result.bills);
       const gstBills = await loadGstExportBills(
-        outlet.id, token, bills, appliedFilters.startDate, appliedFilters.endDate, onSessionExpired,
+        snapshotOutlet.id, token, bills, snapshotFilters.startDate, snapshotFilters.endDate, onSessionExpired, signal,
       );
+      signal.throwIfAborted();
       const rows = gstDetailRows(gstBills, 'bill');
       await downloadReportExcel({
-        name: reportName, outlet, startDate: appliedFilters.startDate, endDate: appliedFilters.endDate,
+        name: reportName, outlet: snapshotOutlet, startDate: snapshotFilters.startDate, endDate: snapshotFilters.endDate, signal,
         summary: {
           ...sumPayments(bills),
           ...gstBillSummary(gstBills),
@@ -202,9 +269,15 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
         rows,
       });
     } catch (exportError) {
-      setError((exportError as Error).message);
+      if (!signal.aborted && exportJob.current === job) {
+        setExportFailure({ scope, message: (exportError as Error).message });
+      }
+      controller.abort();
     } finally {
-      setExporting(false);
+      if (exportJob.current === job) {
+        exportJob.current = null;
+        setExportScope(null);
+      }
     }
   };
 
@@ -213,8 +286,8 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
       <div className="bill-report-heading">
         <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Bill Wise Sale Report</h1><p>{outlet.name} · Review, filter and export completed bills.</p></div>
         <div className="bill-report-actions">
-          <button type="button" onClick={exportExcel} disabled={exporting}><Download /> {exporting ? 'Exporting…' : 'Export Excel'}</button>
-          <button type="button" onClick={() => window.print()}><Printer /> Print / PDF</button>
+          <button type="button" onClick={exportExcel} disabled={exporting || loading || !report}><Download /> {exporting ? 'Exporting…' : 'Export Excel'}</button>
+          <button type="button" disabled={loading || !report} onClick={() => window.print()}><Printer /> Print / PDF</button>
         </div>
       </div>
 
@@ -226,6 +299,9 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
         <div className="bill-filter-buttons"><button type="button" className="apply" onClick={applyFilters}><Filter /> Apply</button><button type="button" onClick={resetFilters}><X /> Reset</button></div>
       </div>
 
+      {validationError && <p role="alert">{validationError}</p>}
+      {exportFailure?.scope === scope && <p role="alert">Export failed: {exportFailure.message} <button type="button" disabled={exporting || loading || !report} onClick={exportExcel}>Retry export</button></p>}
+      <button type="button" disabled={loading} onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Refresh report</button>
       <div className="bill-summary-grid">
         <article><span><ReceiptText /></span><div><small>Total Bills</small><strong>{report?.summary.totalBills ?? 0}</strong></div></article>
         <article><span><FileText /></span><div><small>Total Amount</small><strong>{money(report?.summary.totalAmount)}</strong></div></article>
@@ -234,16 +310,16 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
       </div>
 
       <div className="bill-table-card">
-        {loading && <div className="bill-report-state"><RefreshCw className="bill-report-spinner" /><strong>Loading bills…</strong></div>}
+        {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading bills…</strong></div>}
         {!loading && error && <div className="bill-report-state error"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
         {!loading && !error && report?.bills.length === 0 && <div className="bill-report-state"><ReceiptText /><strong>No bills found for these filters.</strong><p>Choose another date or clear some filters.</p></div>}
         {!loading && !error && report && report.bills.length > 0 && (
-          <div className="bill-table-scroll"><table><thead><tr><th>Bill No.</th><th>Date / Time</th><th>Payment Mode</th><th>Bill Type</th><th>Shift</th><th className="amount">Amount</th></tr></thead><tbody>{report.bills.map(bill => <tr key={bill.documentId} onClick={() => setSelectedBill(bill)} tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') setSelectedBill(bill); }}><td><strong>{bill.billNo}</strong><small>{bill.vehicleNo || bill.serialNo}</small></td><td>{dateTime(bill.createdDate)}</td><td><div className="payment-tags">{bill.paymentModes.length ? bill.paymentModes.map(mode => <span key={mode}>{labelPayment(mode)}</span>) : <span>Unspecified</span>}</div></td><td>{bill.billType}</td><td>{bill.shiftId || '—'}</td><td className="amount"><strong>{money(bill.finalTotal)}</strong></td></tr>)}</tbody></table></div>
+          <div className="bill-table-scroll"><table><thead><tr><th>Bill No.</th><th>Date / Time</th><th>Payment Mode</th><th>Bill Type</th><th>Shift</th><th className="amount">Amount</th></tr></thead><tbody>{report.bills.map(bill => <tr key={bill.documentId} onClick={event => { event.currentTarget.focus(); setSelectedBill(bill); }} tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') setSelectedBill(bill); }}><td><strong>{bill.billNo}</strong><small>{bill.vehicleNo || bill.serialNo}</small></td><td>{dateTime(bill.createdDate)}</td><td><div className="payment-tags">{bill.paymentModes.length ? bill.paymentModes.map(mode => <span key={mode}>{labelPayment(mode)}</span>) : <span>Unspecified</span>}</div></td><td>{bill.billType}</td><td>{bill.shiftId || '—'}</td><td className="amount"><strong>{money(bill.finalTotal)}</strong></td></tr>)}</tbody></table></div>
         )}
         {!loading && !error && report && report.pagination.totalItems > 0 && <div className="bill-pagination"><span>Showing {(report.pagination.page - 1) * report.pagination.pageSize + 1}–{Math.min(report.pagination.page * report.pagination.pageSize, report.pagination.totalItems)} of {report.pagination.totalItems}</span><div><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}><ChevronLeft /></button><strong>Page {page} of {report.pagination.totalPages}</strong><button type="button" disabled={page >= report.pagination.totalPages} onClick={() => setPage(value => value + 1)}><ChevronRight /></button></div></div>}
       </div>
 
-      {selectedBill && <div className="bill-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedBill(null); }}><article className="bill-detail-modal" role="dialog" aria-modal="true" aria-label={`Bill ${selectedBill.billNo}`}><header><div><span>BILL DETAILS</span><h2>{selectedBill.billNo}</h2><p>{dateTime(selectedBill.createdDate)}</p></div><button type="button" onClick={() => setSelectedBill(null)} aria-label="Close bill details"><X /></button></header><div className="bill-detail-body"><div className="bill-detail-meta">{[['Bill type', selectedBill.billType], ['Table', tableLabel(selectedBill.table)], ['Customer', entityLabel(selectedBill.customerDetails)], ['Employee', entityLabel(selectedBill.employee)], ['Vehicle', selectedBill.vehicleNo], ['Remark', entityLabel(selectedBill.remark)]].filter(([, value]) => isProvided(value)).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div><h3>Items</h3><div className="bill-items-table"><table><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead><tbody>{selectedBill.items.length ? selectedBill.items.map((item, index) => <tr key={`${item.name}-${index}`}><td>{item.name}</td><td>{item.quantity}</td><td>{money(item.price)}</td><td>{money(item.total)}</td></tr>) : <tr><td colSpan={4}>No item details available</td></tr>}</tbody></table></div><div className="bill-payment-detail"><h3>Payments</h3>{Object.entries(selectedBill.payments).filter(([, amount]) => amount > 0).map(([mode, amount]) => <div key={mode}><span>{labelPayment(mode)}</span><strong>{money(amount)}</strong></div>)}</div><div className="bill-total-detail">{([['Discount', selectedBill.discount], ['Tax', selectedBill.taxAmount], ['Service charge', selectedBill.serviceChargeAmount]] as const).filter(([, amount]) => amount !== 0).map(([label, amount]) => <div key={label}><span>{label}</span><strong>{money(amount)}</strong></div>)}<div className="grand-total"><span>Grand Total</span><strong>{money(selectedBill.finalTotal)}</strong></div></div></div><footer><button type="button" onClick={() => window.print()}><Printer /> Print / Save PDF</button></footer></article></div>}
+      {selectedBill && <dialog ref={billDialog} className="bill-detail-backdrop" aria-label={`Bill ${selectedBill.billNo}`} onCancel={event => { event.preventDefault(); setSelectedBill(null); }} onMouseDown={event => { if (event.target === event.currentTarget) setSelectedBill(null); }}><article ref={billDetail} className="bill-detail-modal"><header><div><strong className="bill-print-outlet">{outlet.name}</strong><span>BILL DETAILS</span><h2>{selectedBill.billNo}</h2><p>{dateTime(selectedBill.createdDate)}</p></div><button type="button" onClick={() => setSelectedBill(null)} aria-label="Close bill details"><X /></button></header><div className="bill-detail-body"><div className="bill-detail-meta">{[['Bill type', selectedBill.billType], ['Table', tableLabel(selectedBill.table)], ['Customer', entityLabel(selectedBill.customerDetails)], ['Employee', entityLabel(selectedBill.employee)], ['Vehicle', selectedBill.vehicleNo], ['Remark', entityLabel(selectedBill.remark)]].filter(([, value]) => isProvided(value)).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div><h3>Items</h3><div className="bill-items-table"><table><thead><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead><tbody>{selectedBill.items.length ? selectedBill.items.map((item, index) => <tr key={`${item.name}-${index}`}><td>{item.name}</td><td>{item.quantity}</td><td>{money(item.price)}</td><td>{money(item.total)}</td></tr>) : <tr><td colSpan={4}>No item details available</td></tr>}</tbody></table></div><div className="bill-payment-detail"><h3>Payments</h3>{Object.entries(selectedBill.payments).filter(([, amount]) => amount > 0).map(([mode, amount]) => <div key={mode}><span>{labelPayment(mode)}</span><strong>{money(amount)}</strong></div>)}</div><div className="bill-total-detail">{([['Discount', selectedBill.discount], ['Tax', selectedBill.taxAmount], ['Service charge', selectedBill.serviceChargeAmount], ['Round off', selectedBill.roundOff]] as const).filter(([, amount]) => amount !== 0).map(([label, amount]) => <div key={label}><span>{label}</span><strong>{money(amount)}</strong></div>)}<div className="grand-total"><span>Grand Total</span><strong>{money(selectedBill.finalTotal)}</strong></div></div></div><footer>{printError && <p className="bill-print-error" role="alert">{printError}</p>}<button type="button" disabled={printing} onClick={() => void printBill()}><Printer />{printing ? 'Preparing…' : 'Print / Save PDF'}</button></footer></article></dialog>}
     </section>
   );
 };

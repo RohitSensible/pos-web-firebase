@@ -90,3 +90,38 @@ export async function createOutletEmployee(db: Firestore, outletId: string, prof
     return employeeDetails(documentId, fields);
   });
 }
+
+export async function updateOutletEmployee(db: Firestore, outletId: string, documentId: string, profileId: string | null, assigned: Assignments, raw: unknown) {
+  if (!profileId) throw new ProductCreationError(401, 'Your session has expired. Please sign in again.');
+  if (![outletId, documentId].every(id => id && id.length <= 200 && !id.includes('/') && id !== '.' && id !== '..')) {
+    throw new ProductCreationError(400, 'A valid outlet and employee are required.');
+  }
+  const parsed = employeeSchema.omit({ requestId: true }).safeParse(raw);
+  if (!parsed.success) throw new ProductCreationError(422, parsed.error.issues[0]?.message || 'Check the employee details.');
+  const data = parsed.data;
+  const outlet = db.collection('OUTLET').doc(outletId);
+  const collection = outlet.collection('EMPLOYEE');
+  const reference = collection.doc(documentId);
+  return db.runTransaction(async transaction => {
+    requireProductOutlet(profileId, outletId, (await transaction.get(db.collection('USER_PROFILE').doc(profileId))).data(), assigned);
+    if (!(await transaction.get(outlet)).exists) throw new ProductCreationError(404, 'Outlet not found.');
+    const record = await transaction.get(reference);
+    if (!record.exists) throw new ProductCreationError(404, 'This employee no longer exists.');
+    const records = await transaction.get(collection);
+    if (data.userId) {
+      const account = (await transaction.get(db.collection('USER_PROFILE').doc(data.userId))).data();
+      if (!account || account.active !== true || !assigned(account).includes(outletId)) {
+        throw new ProductCreationError(422, 'Select an active user account assigned to this outlet.');
+      }
+    }
+    const others = records.docs.filter(doc => doc.id !== documentId);
+    if (others.some(doc => doc.data().searchCode === data.searchCode)) {
+      throw new ProductCreationError(409, 'This search code is already in use. Choose another code or reload the list.');
+    }
+    if (others.some(doc => mobileKey(doc.data().mobile) === mobileKey(data.mobile))) {
+      throw new ProductCreationError(409, 'An employee with this mobile number already exists. Select the existing employee.');
+    }
+    transaction.update(reference, data);
+    return employeeDetails(documentId, { ...record.data(), ...data });
+  });
+}

@@ -1,3 +1,5 @@
+import { useScopedReportRead, useScopedReportExport } from '../utils/useScopedReportRead.ts';
+import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel, salesTaxRows, salesTaxSummary, type SalesTaxBreakdown } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
 import { ReportDateInput } from './ReportDateInput.tsx';
@@ -74,44 +76,25 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
   }), []);
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
-  const [report, setReport] = useState<CategoryReportResponse | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => new Set());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [validationError, setValidationError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters);
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const scopeKey = JSON.stringify([outlet.id, token, appliedFilters, reloadKey]);
+  const { data, loading, error } = useScopedReportRead<CategoryReportResponse>(scopeKey, token, onSessionExpired, async request => {
     const params = new URLSearchParams({ startDate: appliedFilters.startDate, endDate: appliedFilters.endDate });
     if (appliedFilters.shiftId) params.set('shiftId', appliedFilters.shiftId);
     if (appliedFilters.search) params.set('search', appliedFilters.search);
-
-    setLoading(true);
-    setError('');
-    fetch(`/api/outlets/${encodeURIComponent(outlet.id)}/reports/categories?${params}`, {
-      headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
-    })
-      .then(async response => {
-        const result = await response.json() as { success: boolean; message?: string; data?: CategoryReportResponse };
-        if (controller.signal.aborted) return;
-        if (response.status === 401) {
-          onSessionExpired();
-          throw new Error('Your session has expired.');
-        }
-        if (!response.ok || !result.data) throw new Error(result.message || 'Unable to load categories.');
-        setReport(result.data);
-        setExpandedCategories(new Set());
-      })
-      .catch(requestError => {
-        if (!controller.signal.aborted) setError((requestError as Error).message);
-      })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  // onSessionExpired is a stable callback from the parent.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [outlet.id, token, appliedFilters, reloadKey]);
+    return (await request<CategoryReportResponse>(`/api/outlets/${encodeURIComponent(outlet.id)}/reports/categories?${params}`))!;
+  });
+  const report = data ?? null;
+  useDataLoading(loading, 'Category Sales Report');
+  const { runExport, exporting, exportError } = useScopedReportExport(JSON.stringify([scopeKey, filters]));
+  // The keyed read already hides old details; reset local selection for the next result.
+  // eslint-disable-next-line react/set-state-in-effect
+  useEffect(() => { setExpandedCategories(new Set()); }, [scopeKey]);
 
   const toggleCategory = (categoryId: string) => {
     setExpandedCategories(current => {
@@ -125,37 +108,44 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
   const applyFilters = () => {
     const dateError = reportDateError(filters.startDate, filters.endDate);
     if (dateError) {
-      setError(dateError);
+      setValidationError(dateError);
       return;
     }
+    setValidationError('');
     setAppliedFilters({ ...filters, search: filters.search.trim() });
   };
 
   const resetFilters = () => {
+    setValidationError('');
     const reset = { ...initialFilters, startDate: todayId(), endDate: todayId() };
     setFilters(reset);
     setAppliedFilters(reset);
   };
 
+  const canOutput = !loading && !error && (!!report?.categories.length);
+
   const exportExcel = async () => {
-    if (!report) return;
-    const taxSummary = salesTaxSummary(report.categories);
-    const totalTax = report.summary.totalTax ?? Number(taxSummary['TOTAL TAX']);
-    const rows: (string | number | Date)[][] = [
-      ['Category No', 'Category Name', 'Tax Rate', 'Total Products', 'Items Sold', 'Sale', 'Tax Amount', 'Discount'],
-      ...report.categories.flatMap(category => salesTaxRows(category).flatMap(group => [
-        [category.categoryNo ?? 0, category.name, group.rate === null ? 0 : `${group.rate}%`,
-          group.productCount ?? category.productCount, group.quantity, group.amount, group.taxAmount, 0],
-        ...category.products.flatMap(product => salesTaxRows(product)
-          .filter(productGroup => !category.taxBreakdown?.length || productGroup.rate === group.rate)
-          .map(productGroup => ['', product.name, productGroup.rate === null ? 0 : `${productGroup.rate}%`, '',
-            productGroup.quantity, productGroup.amount, productGroup.taxAmount, 0])),
-      ])),
-      ['Total', '', '', '', report.summary.totalQuantity, report.summary.totalAmount, totalTax, 0],
-    ];
-    await downloadReportExcel({
-      name: reportName, outlet, startDate: appliedFilters.startDate, endDate: appliedFilters.endDate,
-      summary: { ...taxSummary, 'TOTAL SALE': report.summary.totalAmount, 'TOTAL TAX': totalTax }, rows,
+    if (!canOutput || !report) return;
+    await runExport(async signal => {
+      const taxSummary = salesTaxSummary(report.categories);
+      const totalTax = report.summary.totalTax ?? Number(taxSummary['TOTAL TAX']);
+      const rows: (string | number | Date)[][] = [
+        ['Category No', 'Category Name', 'Tax Rate', 'Total Products', 'Items Sold', 'Sale', 'Tax Amount', 'Discount'],
+        ...report.categories.flatMap(category => salesTaxRows(category).flatMap(group => [
+          [category.categoryNo ?? 0, category.name, group.rate === null ? 0 : `${group.rate}%`,
+            group.productCount ?? category.productCount, group.quantity, group.amount, group.taxAmount, 0],
+          ...category.products.flatMap(product => salesTaxRows(product)
+            .filter(productGroup => !category.taxBreakdown?.length || productGroup.rate === group.rate)
+            .map(productGroup => ['', product.name, productGroup.rate === null ? 0 : `${productGroup.rate}%`, '',
+              productGroup.quantity, productGroup.amount, productGroup.taxAmount, 0])),
+        ])),
+        ['Total', '', '', '', report.summary.totalQuantity, report.summary.totalAmount, totalTax, 0],
+      ];
+      await downloadReportExcel({
+        signal,
+        name: reportName, outlet, startDate: appliedFilters.startDate, endDate: appliedFilters.endDate,
+        summary: { ...taxSummary, 'TOTAL SALE': report.summary.totalAmount, 'TOTAL TAX': totalTax }, rows,
+      });
     });
   };
 
@@ -164,8 +154,8 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
       <div className="bill-report-heading">
         <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Category Wise Report</h1><p>{outlet.name} · Billing totals grouped by product category.</p></div>
         <div className="bill-report-actions">
-          <button type="button" onClick={exportExcel} disabled={!report?.categories.length}><Download /> Export Excel</button>
-          <button type="button" onClick={() => window.print()}><Printer /> Print / PDF</button>
+          <button type="button" onClick={exportExcel} disabled={!canOutput || exporting}><Download /> Export Excel</button>
+          <button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / PDF</button>
         </div>
       </div>
 
@@ -173,8 +163,11 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
         <label><span>From date</span><ReportDateInput aria-label="From date" value={filters.startDate} onChange={value => setFilters(current => ({ ...current, startDate: value }))} /></label>
         <label><span>To date</span><ReportDateInput aria-label="To date" value={filters.endDate} onChange={value => setFilters(current => ({ ...current, endDate: value }))} /></label>
         <label className="bill-search-filter"><span>Category search</span><div><Search /><input value={filters.search} onChange={event => setFilters(current => ({ ...current, search: event.target.value }))} onKeyDown={event => { if (event.key === 'Enter') applyFilters(); }} placeholder="Category name" /></div></label>
-        <div className="bill-filter-buttons"><button type="button" className="apply" onClick={applyFilters}><Filter /> Apply</button><button type="button" onClick={resetFilters}><X /> Reset</button></div>
+        <div className="bill-filter-buttons"><button type="button" className="apply" onClick={applyFilters}><Filter /> Apply</button><button type="button" onClick={resetFilters}><X /> Reset</button><button type="button" disabled={loading} onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Refresh</button></div>
       </div>
+
+      {exportError && <div role="alert">Export failed: {exportError} Use Export Excel to try again.</div>}
+      {validationError && <div role="alert">{validationError} Correct the dates or use Reset.</div>}
 
       <div className="bill-summary-grid">
         <article><span><Layers /></span><div><small>Categories</small><strong>{report?.summary.totalCategories ?? 0}</strong></div></article>
@@ -184,8 +177,8 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
       </div>
 
       <div className="bill-table-card">
-        {loading && <div className="bill-report-state"><RefreshCw className="bill-report-spinner" /><strong>Loading categories…</strong></div>}
-        {!loading && error && <div className="bill-report-state error"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
+        {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading categories…</strong></div>}
+        {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
         {!loading && !error && report?.categories.length === 0 && <div className="bill-report-state"><Layers /><strong>No category sales found for these filters.</strong><p>Choose another date or clear some filters.</p></div>}
         {!loading && !error && report && report.categories.length > 0 && (
           <div className="bill-table-scroll">

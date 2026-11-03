@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowRight, Database, LoaderCircle } from 'lucide-react';
+import { beginDataLoading } from '../utils/dataLoading.ts';
+import { ActionConfirmation, ActionPopup } from './ActionPopup.tsx';
+import { SuccessPopup } from './SuccessPopup.tsx';
+import { useEffect, useRef, useState } from 'react';
+import { ArrowRight, Database, LoaderCircle, Store } from 'lucide-react';
 import { AuthenticatedImagePreview } from './AuthenticatedImagePreview.tsx';
+import { QuickPinModal } from './QuickPinModal.tsx';
 import { masterImageUrl, productImageReference } from './imageApi.ts';
 import { proposeCategoryNumbers, proposeProductCodes } from './transferNumberProposals.ts';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
@@ -38,6 +42,7 @@ function usePreviewRead<T>(url: string | null, token: string, onSessionExpired: 
     if (!url) return;
     const controller = new AbortController();
     void (async () => {
+      const finishLoading = beginDataLoading(url ?? 'Transfer Data', controller.signal);
       try {
         const response = await fetch(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal });
         if (controller.signal.aborted) return;
@@ -47,7 +52,7 @@ function usePreviewRead<T>(url: string | null, token: string, onSessionExpired: 
         if (!controller.signal.aborted) setState({ key, data: result.data, loading: false, error: '' });
       } catch (error) {
         if (!controller.signal.aborted) setState({ key, data: null, loading: false, error: error instanceof Error ? error.message : 'Unable to load transfer data.' });
-      }
+      } finally { finishLoading(); }
     })();
     return () => controller.abort();
   }, [url, token, key, onSessionExpired]);
@@ -68,19 +73,39 @@ export function TransferPreviewPage({ outlet, token, onSessionExpired }: {
   return <section className="devices-page transfer-preview" aria-label="Product transfer">
     <div className="devices-heading"><div><span>MASTERS</span><h1><Database size={24} /> Product Transfer</h1>
       <p>Copy selected products and their assigned categories to another outlet.</p></div></div>
-    <div className="transfer-preview-controls transfer-route-controls">
-      <p className="transfer-source-outlet"><strong>Source outlet:</strong> {outlet.name}</p>
-      {!destination && <h2>Choose a destination outlet</h2>}
-      {outlets.loading ? <p role="status">Loading authorized destination outlets…</p> : outlets.error ?
-        <div><p role="alert">{outlets.error}</p><button type="button" className="devices-refresh" onClick={outlets.retry}>Retry outlets</button></div> : !destinations.length ?
-        <p>No other authorized outlets are available for transfer.</p> : !destination ? <div className="transfer-preview-outlets" aria-label="Destination outlets">
-          {destinations.map(item => <button key={item.id} type="button" className="devices-refresh" aria-label={`Select outlet ${item.name}`} onClick={() => setPendingDestinationId(item.id)}>
-            <span><strong>{item.name}</strong>{item.branch && <small>{item.branch}</small>}{item.active === false && <small>Inactive</small>}</span><span>Select outlet →</span>
-          </button>)}
-        </div> : <label className="transfer-destination-field">Destination outlet<select disabled={busy} value={destination.id} onChange={event => { if (event.target.value) setPendingDestinationId(event.target.value); else setDestinationId(''); }}>
-          <option value="">Choose destination outlet</option>{destinations.map(item => <option key={item.id} value={item.id}>{item.name}{item.branch ? ` · ${item.branch}` : ''}{item.active === false ? ' (Inactive)' : ''}</option>)}
-        </select></label>}
-      {destination && <button type="button" className="devices-refresh transfer-back-outlets" disabled={busy} onClick={() => setDestinationId('')}>Back to outlets</button>}
+    <div className="transfer-route">
+      <article className="transfer-route-card transfer-source-card" aria-label="Source outlet">
+        <span className="transfer-route-label">Source Outlet</span>
+        <div className="transfer-route-outlet">
+          <span className="transfer-route-icon" aria-hidden="true"><Store size={20} /></span>
+          <div><strong>{outlet.name}</strong><small>{outlet.branch || 'Current outlet'}</small></div>
+        </div>
+        <span className={`transfer-status-badge${outlet.active === false ? ' inactive' : ''}`}>{outlet.active === false ? 'Inactive' : 'Active'}</span>
+        <p className="transfer-route-note">Selected products and their categories are copied from this outlet.</p>
+      </article>
+      <span className="transfer-flow-indicator" aria-hidden="true"><ArrowRight size={20} /></span>
+      <article className="transfer-route-card transfer-destination-card" aria-label="Destination outlet">
+        <span className="transfer-route-label">Destination Outlet</span>
+        {!destination && <h2>Choose a destination outlet</h2>}
+        {outlets.loading ? <p role="status" data-inline-loading>Loading authorized destination outlets…</p> : outlets.error ?
+          <div><p role="alert">{outlets.error}</p><button type="button" className="devices-refresh" onClick={outlets.retry}>Retry outlets</button></div> : !destinations.length ?
+          <p>No other authorized outlets are available for transfer.</p> : !destination ? <div className="transfer-outlet-table-wrap">
+            <table className="transfer-outlet-table" aria-label="Destination outlets">
+              <thead><tr><th>Outlet Name</th><th>City</th><th>Status</th><th><span className="sr-only">Action</span></th></tr></thead>
+              <tbody>{destinations.map(item => <tr key={item.id}>
+                <td data-label="Outlet Name"><strong>{item.name}</strong></td>
+                <td data-label="City">{item.branch || '—'}</td>
+                <td data-label="Status"><span className={`transfer-status-badge${item.active === false ? ' inactive' : ''}`}>{item.active === false ? 'Inactive' : 'Active'}</span></td>
+                <td><button type="button" className="transfer-select-outlet" aria-label={`Select outlet ${item.name}`} onClick={() => setPendingDestinationId(item.id)}>Select</button></td>
+              </tr>)}</tbody>
+            </table>
+          </div> : <div className="transfer-destination-chosen">
+            <label className="transfer-destination-field">Destination outlet<select disabled={busy} value={destination.id} onChange={event => { if (event.target.value) setPendingDestinationId(event.target.value); else setDestinationId(''); }}>
+              <option value="">Choose destination outlet</option>{destinations.map(item => <option key={item.id} value={item.id}>{item.name}{item.branch ? ` · ${item.branch}` : ''}{item.active === false ? ' (Inactive)' : ''}</option>)}
+            </select></label>
+            <button type="button" className="devices-refresh transfer-back-outlets" disabled={busy} onClick={() => setDestinationId('')}>Back to outlets</button>
+          </div>}
+      </article>
     </div>
     {pendingDestination && <QuickPinDialog key={`${outlet.id}:${pendingDestination.id}:${token}`} sourceId={outlet.id} destination={pendingDestination} token={token} onSessionExpired={onSessionExpired}
       onCancel={() => setPendingDestinationId('')} onVerified={authorization => { setGrant(authorization); setDestinationId(pendingDestination.id); setPendingDestinationId(''); }} />}
@@ -106,14 +131,12 @@ function TransferProgress() {
 function QuickPinDialog({ sourceId, destination, token, onSessionExpired, onCancel, onVerified }: {
   sourceId: string; destination: OutletSummary; token: string; onSessionExpired: () => void; onCancel: () => void; onVerified: (grant: string) => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
   const request = useRef<AbortController | null>(null);
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  useEffect(() => { dialog.current?.showModal(); return () => request.current?.abort(); }, []);
-  const verify = async (event: FormEvent) => {
-    event.preventDefault();
+  useEffect(() => () => request.current?.abort(), []);
+  const verify = async () => {
     if (request.current) return;
     const controller = new AbortController(); request.current = controller;
     setBusy(true); setError('');
@@ -134,14 +157,9 @@ function QuickPinDialog({ sourceId, destination, token, onSessionExpired, onCanc
       if (!controller.signal.aborted) { request.current = null; setBusy(false); }
     }
   };
-  return <dialog ref={dialog} className="transfer-preview-pin" aria-labelledby="preview-pin-title" onCancel={event => { event.preventDefault(); onCancel(); }}>
-    <form onSubmit={event => void verify(event)}><h2 id="preview-pin-title">Verify QuickPin</h2><p>Destination: <strong>{destination.name}</strong></p>
-      <label htmlFor="preview-quick-pin">Your login QuickPin<input id="preview-quick-pin" type="password" inputMode="numeric" autoComplete="off" autoFocus required pattern="[0-9]{4,6}" minLength={4} maxLength={6}
-        value={pin} disabled={busy} onChange={event => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
-      {error && <p role="alert">{error}</p>}
-      <div><button type="button" className="devices-refresh" onClick={onCancel}>Cancel</button><button type="submit" className="devices-refresh" disabled={busy || !/^\d{4,6}$/.test(pin)}>{busy ? 'Verifying…' : 'Verify'}</button></div>
-    </form>
-  </dialog>;
+  // Login Quick PINs may be 4 to 6 digits; extra boxes appear only after a 5th digit.
+  return <QuickPinModal inputId="preview-quick-pin" pin={pin} onPinChange={setPin} maxDigits={6} busy={busy} error={error}
+    onCancel={onCancel} onSubmit={() => void verify()} />;
 }
 
 function OutletPreview({ source, destination, token, grant, busy, onBusy, onFinished, onAuthExpired, onSessionExpired }: {
@@ -169,7 +187,7 @@ function OutletPreview({ source, destination, token, grant, busy, onBusy, onFini
   const outcome = result && <TransferOutcome result={result} destination={destination.name} open={showOutcome} onDismiss={() => { setShowOutcome(false); if (complete) onFinished(); }} />;
   if (requests.some(request => request.loading || request.error)) return <div className="devices-state">
     {outcome}
-    {requests.filter(request => request.loading).map(request => <p key={request.label} role="status">Loading {request.label}…</p>)}
+    {requests.filter(request => request.loading).map(request => <p key={request.label} role="status" data-inline-loading>Loading {request.label}…</p>)}
     {requests.filter(request => request.error).map(request => <div key={request.label}><p role="alert">Unable to load {request.label}: {request.error}</p><button type="button" className="devices-refresh" onClick={request.retry}>Retry {request.label}</button></div>)}
   </div>;
   const categories = sourceCategories.data ?? [];
@@ -294,28 +312,20 @@ function TransferConfirmation({ source, destination, options, onOptionsChange, w
   source: string; destination: string; options: TransferOptions; onOptionsChange: (options: TransferOptions) => void;
   warnings: string[]; onCancel: () => void; onConfirm: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { dialog.current?.showModal(); }, []);
-  return <dialog ref={dialog} className="transfer-preview-pin transfer-confirmation" aria-labelledby="transfer-confirmation-title" onCancel={event => { event.preventDefault(); onCancel(); }}>
-    <div className="transfer-confirmation-body"><h2 id="transfer-confirmation-title">Transfer Products</h2>
-      <p>Source outlet: <strong>{source}</strong> → Destination outlet: <strong>{destination}</strong></p>
-      <fieldset className="transfer-options" aria-labelledby="transfer-options-title">
-        <h3 id="transfer-options-title">Select data to transfer</h3>
-        {transferOptions.map(([key, label]) => <label key={key} className="transfer-preview-check transfer-option">
-          <input type="checkbox" checked={options[key]} onChange={event => onOptionsChange({ ...options, [key]: event.target.checked })} />
-          <span><strong>{label}</strong></span></label>)}
-      </fieldset>
-      {warnings.map((warning, index) => <p className="transfer-preview-warning" key={index}>{warning}</p>)}
-      <div><button type="button" className="devices-refresh" onClick={onCancel}>Cancel</button><button type="button" className="transfer-action-button" onClick={onConfirm}>Continue Transfer</button></div>
-    </div>
-  </dialog>;
+  return <ActionConfirmation action="transfer" item={`products from ${source} to ${destination}`} title="Transfer products?" onCancel={onCancel} onConfirm={onConfirm} confirmLabel="Transfer">
+    <fieldset className="transfer-options" aria-labelledby="transfer-options-title">
+      <h3 id="transfer-options-title">Select data to transfer</h3>
+      {transferOptions.map(([key, label]) => <label key={key} className="transfer-preview-check transfer-option">
+        <input type="checkbox" checked={options[key]} onChange={event => onOptionsChange({ ...options, [key]: event.target.checked })} />
+        <span><strong>{label}</strong></span></label>)}
+    </fieldset>
+    {!!warnings.length && <details><summary>Transfer details</summary>{warnings.map((warning, index) => <p key={index}>{warning}</p>)}</details>}
+  </ActionConfirmation>;
 }
 
 function TransferOutcome({ result, destination, open, onDismiss }: {
   result: TransferResult; destination: string; open: boolean; onDismiss: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { if (open) dialog.current?.showModal(); else dialog.current?.close(); }, [open]);
   const title = result.created > 0 ? result.skipped > 0 ? 'Transfer partially completed' : 'Transfer successful'
     : result.skipped > 0 ? 'No items transferred' : 'Already transferred';
   const summary = `${result.created} copied · ${result.unchanged} already present · ${result.skipped} not copied`;
@@ -323,17 +333,12 @@ function TransferOutcome({ result, destination, open, onDismiss }: {
     <section className="transfer-preview-controls" aria-label="Transfer result" role="status">
       <h2>{title}</h2><p>{summary}</p>
     </section>
-    <dialog ref={dialog} className="transfer-preview-pin" aria-labelledby="transfer-outcome-title" onCancel={event => { event.preventDefault(); onDismiss(); }}>
-      <div className="transfer-confirmation-body"><h2 id="transfer-outcome-title">{title}</h2>
-        <p>Destination: <strong>{destination}</strong></p><p>{summary}</p>
-        {result.unchanged > 0 && <div className="transfer-outcome-present"><strong>Already present:</strong>
-          <ul>{result.items.filter(item => item.status === 'already-transferred' || item.status === 'mapped').map(item => <li key={`${item.type}:${item.sourceId}`}>
-            <strong>{item.name}</strong>: {item.type === 'category' ? 'Category' : 'Product'} is already present in the destination.</li>)}</ul></div>}
-        {result.skipped > 0 && <div className="transfer-outcome-skipped"><strong>Not copied:</strong>
-          <ul>{result.items.filter(item => item.status === 'skipped').map(item => <li key={`${item.type}:${item.sourceId}`}><strong>{item.name}</strong>: {item.reason}</li>)}</ul></div>}
-        <p>Source outlet records remain unchanged.</p>
-        <div><button type="button" className="transfer-action-button" onClick={onDismiss}>OK</button></div>
-      </div>
-    </dialog>
+    {open && (result.created > 0 && result.skipped === 0
+      ? <SuccessPopup message="Transferred successfully." onDismiss={onDismiss} />
+      : <ActionPopup title={title} onCancel={onDismiss} footer={<button type="button" data-initial-focus className="btn-secondary" onClick={onDismiss}>Done</button>}>
+        <p>{destination}: {summary}</p>
+        {result.items.filter(item => item.status === 'skipped').map(item => <p key={`${item.type}:${item.sourceId}`}>{item.name}: {item.reason}</p>)}
+        {result.items.filter(item => item.status === 'already-transferred' || item.status === 'mapped').map(item => <p key={`${item.type}:${item.sourceId}`}>{item.name}: Already present.</p>)}
+      </ActionPopup>)}
   </>;
 }

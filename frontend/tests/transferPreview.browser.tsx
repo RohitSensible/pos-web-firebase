@@ -38,7 +38,14 @@ function inputValue(input: HTMLInputElement, value: string) {
 async function flush(count: number) { await until(() => pending.length === count, `${count} read requests`); pending.splice(0).forEach(release => release()); await pause(); }
 async function verify() {
   await until(() => page().querySelector('dialog[open]'), 'QuickPin dialog');
-  inputValue(page().querySelector('#preview-quick-pin')!, '1234'); await pause(); button('Verify').click();
+  const modal = page().querySelector('dialog.quick-pin-modal')!;
+  const pin = page().querySelector<HTMLInputElement>('#preview-quick-pin')!;
+  assert(modal.querySelector('h2')?.textContent === 'Verify Quick PIN' && modal.querySelectorAll('.quick-pin-box').length === 4
+    && !modal.textContent?.includes('Destination'), 'Transfer uses the shared Quick PIN pop-up with four boxes');
+  inputValue(pin, '123456'); await pause();
+  assert(modal.querySelectorAll('.quick-pin-box').length === 6 && modal.querySelectorAll('.quick-pin-box.filled').length === 6,
+    '5- and 6-digit login PINs still fit: boxes are added as digits are typed');
+  inputValue(pin, '1234'); await pause(); button('Verify').click();
   await until(() => !page().querySelector('dialog'), 'PIN verified');
 }
 window.fetch = async (input, init) => {

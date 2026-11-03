@@ -32,7 +32,7 @@ export function goodsTransactionRecord(documentId, data) {
         dayId: text(data.dayID),
         createdDate: number(data.createDate),
         type: text(data.type),
-        supplier: label(data.supplier),
+        supplier: data.supplier && typeof data.supplier === 'object' ? text(record(data.supplier).name) : text(data.supplier),
         remark: label(data.remark),
         source: text(data.addType),
         state: text(data.state),

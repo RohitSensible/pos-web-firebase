@@ -77,7 +77,7 @@ export function ExcelSheetInstructions() {
     </div>
     <section className="sheet-required-columns" aria-labelledby="sheet-required-title">
       <h3 id="sheet-required-title">Required columns <span>Keep this exact order</span></h3>
-      <ol>{PRODUCT_COLUMNS.map((column, index) => <li key={column}><span>{index + 1}.</span> {column}</li>)}</ol>
+      <ol>{PRODUCT_COLUMNS.map((column, index) => <li key={column}><span>{index + 1}</span> {column}</li>)}</ol>
     </section>
   </div>;
 }

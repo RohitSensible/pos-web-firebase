@@ -33,22 +33,18 @@
   .stock-in-out-report-page .bill-table-card thead { display: table-header-group; }
 }
 
-/* Stock-In / Stock-Out tabs, matching the Android report: separate views with their own colours. */
-.stock-direction-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-top: 18px; border-top: 3px solid #b5001f; border-radius: 10px; background: #fff; box-shadow: 0 2px 8px rgba(29,50,69,.05); overflow: hidden; }
-.stock-direction-tab { display: grid; justify-items: center; gap: 6px; padding: 12px 8px 10px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #6b7a52; font: inherit; font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: pointer; }
-.stock-direction-tab svg { width: 22px; height: 22px; }
-.stock-direction-tab.in svg { color: #16a34a; }
-.stock-direction-tab.out svg { color: #b5001f; }
-.stock-direction-tab[aria-selected="true"] { font-size: 16px; font-weight: 600; }
-.stock-direction-tab.in[aria-selected="true"] { color: #3567f0; border-bottom-color: #16a34a; background: #f2fbf5; }
-.stock-direction-tab.out[aria-selected="true"] { color: #b5001f; border-bottom-color: #b5001f; background: #fdf2f4; }
-.stock-direction-tab:hover:not([aria-selected="true"]) { background: #f7f8fa; }
-.stock-direction-tab:disabled { cursor: wait; opacity: .6; }
+/* Boxed stock direction tabs use the existing theme palette in both modes. */
+.stock-in-out-report-page .stock-direction-tabs.stock-direction-boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 18px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: 0 2px 8px rgba(29,50,69,.05); overflow: hidden; }
+.stock-in-out-report-page .stock-direction-boxes .stock-direction-tab { display: grid; justify-items: center; gap: 6px; padding: 12px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 500; letter-spacing: .02em; cursor: pointer; }
+.stock-in-out-report-page .stock-direction-boxes .stock-direction-tab svg { width: 22px; height: 22px; color: currentColor; }
+.stock-in-out-report-page .stock-direction-boxes .stock-direction-tab[aria-selected="true"] { color: var(--ink); border-color: var(--muted); background: var(--workspace); font-size: 16px; font-weight: 600; }
+.stock-in-out-report-page .stock-direction-boxes .stock-direction-tab:hover:not([aria-selected="true"]) { color: var(--ink); background: var(--workspace); }
+.stock-in-out-report-page .stock-direction-boxes .stock-direction-tab:disabled { cursor: wait; opacity: .6; }
 .stock-in-out-report-page .stock-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .stock-print-direction { display: none; }
 @media (max-width: 700px) { .stock-in-out-report-page .stock-summary-grid { grid-template-columns: 1fr; } }
 @media print {
-  .stock-direction-tabs { display: none; }
+  .stock-in-out-report-page .stock-direction-tabs.stock-direction-boxes { display: none; }
   .stock-print-direction { display: block; margin-top: 6px; font-size: 14px; }
   .stock-in-out-report-page .stock-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -62,11 +58,11 @@
   .stock-in-out-report-page .bill-report-actions { flex-shrink: 0; gap: 10px; }
   .stock-in-out-report-page .bill-report-actions button { min-height: 42px; padding: 10px 15px; white-space: nowrap; }
 
-  .stock-in-out-report-page .stock-direction-tabs { margin-top: 24px; }
-  .stock-in-out-report-page .stock-direction-tab { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 64px; padding: 16px; font-size: 14px; font-weight: 600; }
-  .stock-in-out-report-page .stock-direction-tab[aria-selected="true"] { font-size: 14px; font-weight: 700; }
-  .stock-in-out-report-page .stock-direction-tab svg { width: 20px; height: 20px; flex-shrink: 0; }
-  .stock-in-out-report-page .stock-direction-tab:focus-visible { outline: 2px solid currentColor; outline-offset: -6px; }
+  .stock-in-out-report-page .stock-direction-tabs.stock-direction-boxes { margin-top: 24px; }
+  .stock-in-out-report-page .stock-direction-boxes .stock-direction-tab { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 64px; padding: 16px; font-size: 14px; font-weight: 600; }
+  .stock-in-out-report-page .stock-direction-boxes .stock-direction-tab[aria-selected="true"] { font-size: 14px; font-weight: 700; }
+  .stock-in-out-report-page .stock-direction-boxes .stock-direction-tab svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .stock-in-out-report-page .stock-direction-boxes .stock-direction-tab:focus-visible { outline: 2px solid currentColor; outline-offset: -6px; }
 
   .stock-in-out-report-page .bill-report-filters { grid-template-columns: minmax(150px, .9fr) minmax(150px, .9fr) minmax(240px, 2fr) auto; align-items: end; gap: 18px; margin-top: 20px; padding: 20px; }
   .stock-in-out-report-page .bill-report-filters label { gap: 9px; }

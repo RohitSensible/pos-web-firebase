@@ -33,6 +33,14 @@ window.fetch = async (input, init) => {
 };
 const root = createRoot(document.getElementById('root')!); root.render(<App />);
 const nav = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.nav-group-items button')].find(button => button.textContent === label)!;
+async function navigate(label: string) {
+  if (!nav(label)) {
+    const group = label === 'Dashboard' ? 'Home' : 'Masters';
+    [...document.querySelectorAll<HTMLButtonElement>('.nav-group-title')].find(button => button.textContent?.trim() === group)!.click();
+    await until(() => nav(label), `${label} navigation`);
+  }
+  nav(label).click();
+}
 const form = () => document.querySelector<HTMLFormElement>('.customer-form-page form');
 const field = (id: string) => document.getElementById(`customer-${id}`) as HTMLInputElement;
 function edit(id: string, value: string, textarea = false) {
@@ -41,9 +49,10 @@ function edit(id: string, value: string, textarea = false) {
 }
 const add = () => document.querySelector<HTMLButtonElement>('.category-header-row .btn-primary-add')!;
 const save = () => document.querySelector<HTMLButtonElement>('.customer-form-page button[type=submit]')!;
+async function submitConfirmed() { save().click(); await until(() => document.querySelector('.action-confirm-button'), 'save confirmation'); document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click(); await pause(); }
 async function openPage() {
   const cached = readMasterSnapshot('/api/outlets/shop/customers', 'mock-token');
-  releaseGet = undefined; nav('Customer').click(); await until(() => releaseGet, 'list request');
+  releaseGet = undefined; await navigate('Customer'); await until(() => releaseGet, 'list request');
   if (cached) assert(!document.querySelector('.customers-page [role=status]')?.textContent?.includes('Loading'), 'Recent customers remain visible while the fresh list loads');
   else assert(document.querySelector('.customers-page [role=status]')?.textContent?.includes('Loading'), 'First customer load shows progress');
   releaseGet!(); await pause();
@@ -61,8 +70,8 @@ function checkLayout() {
 }
 void (async () => {
   await until(() => nav('Customer'), 'navigation');
-  await openPage(); await until(() => document.querySelector('.customers-table-scroll'), 'existing customers');
-  assert(document.querySelector('.customers-table-scroll')?.textContent?.includes('Database Customer') && document.querySelector('.customers-table-scroll')?.textContent?.includes('9876543210'), 'Customer menu displays database customer names and mobiles');
+  await openPage(); await until(() => document.querySelector('.customers-list'), 'existing customers');
+  assert(document.querySelector('.customers-list')?.textContent?.includes('Database Customer') && document.querySelector('.customers-list')?.textContent?.includes('9876543210'), 'Customer menu displays database customer names and mobiles');
   add().click(); await until(form, 'customer form'); checkLayout();
   const labels = [...document.querySelectorAll('.customer-form-fields > .form-field > label')].map(label => label.textContent);
   assert(JSON.stringify(labels) === JSON.stringify(['Name', 'Mobile Number', 'Alternate Mobile Number', 'Email ID', 'GST Number', 'Address', 'Credit Limit', 'Day Limit', 'Old Balance', 'Birth Date', 'Anniversary Date', 'Credit Only']), 'All twelve fields appear in the requested order');
@@ -92,7 +101,7 @@ void (async () => {
   assert(submissions.length === 0 && !field('email').validity.valid, 'Invalid emails are blocked before submission');
   edit('email', 'new@example.com'); edit('day-limit', '-1'); await pause(); save().click(); await pause();
   assert(submissions.length === 0 && !field('day-limit').validity.valid, 'Negative day limits are rejected');
-  edit('day-limit', '15'); await pause(); postStatus = 503; releasePost = undefined; save().click(); await until(() => releasePost, 'save request');
+  edit('day-limit', '15'); await pause(); postStatus = 503; releasePost = undefined; await submitConfirmed(); await until(() => releasePost, 'save request');
   assert(field('name').matches(':disabled') && save().disabled, 'Form controls are disabled during saving');
   assert(!!form() && !document.querySelector('.customer-notice') && records.length === 1, 'No success or new row is shown before database confirmation');
   const expected = { name: 'New Customer', contact: '9876543211', altContact: '9876543212', email: 'new@example.com', gstNo: '27ABCDE1234F1Z5', address: 'Line one\nLine two', creditLimit: 1500.50, dayLimit: 15, balance: -25.75, birthdayDate: birthDate, anniversaryDate, allowedCredit: true };
@@ -100,20 +109,21 @@ void (async () => {
   assert(JSON.stringify(submitted) === JSON.stringify(expected), 'All twelve input values are submitted using the existing field names and numeric types');
   releasePost!(); await until(() => document.querySelector('.customer-save-error'), 'save error');
   assert(!!form() && field('contact').value === '9876543211', 'Failed saves keep the entered data and show an error');
-  postStatus = 200; releasePost = undefined; save().click(); await until(() => releasePost, 'retry');
+  postStatus = 200; releasePost = undefined; await submitConfirmed(); await until(() => releasePost, 'retry');
   assert(submissions[1].requestId === submissions[0].requestId, 'Retry uses the same request ID to prevent duplicate customers');
-  releasePost!(); await until(() => document.querySelector('.customer-notice'), 'success');
-  assert(!form() && records.length === 2 && document.querySelector('.customers-table-scroll')?.textContent?.includes('New Customer'), 'Confirmed save returns to the list with the new customer immediately visible');
+  releasePost!(); await until(() => document.querySelector('.action-success[open]'), 'success');
+  assert(!form() && records.length === 2 && document.querySelector('.customers-list')?.textContent?.includes('New Customer'), 'Confirmed save returns to the list with the new customer immediately visible');
   assert(records[0].balance === 75.25 && records[1].balance === -25.75 && records[1].anniversaryDate === anniversaryDate && records[1].birthdayDate === birthDate, 'Existing balances remain unchanged and both new dates stay distinct');
-  nav('Dashboard').click(); await pause(); records = []; await openPage(); await until(() => document.querySelector('.customer-state h2'), 'empty state');
+  document.querySelector<HTMLButtonElement>('.success-done')!.click(); await pause();
+  await navigate('Dashboard'); await pause(); records = []; await openPage(); await until(() => document.querySelector('.customer-state h2'), 'empty state');
   assert(add().textContent?.includes('Add Customer') && document.querySelector('.customer-state')?.textContent?.includes('No customers found'), 'Empty lists clearly offer Add Customer');
   add().click(); await until(form, 'empty add'); document.querySelector<HTMLButtonElement>('[aria-label="Close customer form"]')!.click(); await pause();
   assert(!form(), 'Cancel returns to the customer list');
-  nav('Dashboard').click(); await pause(); getStatus = 503; await openPage();
+  await navigate('Dashboard'); await pause(); getStatus = 503; await openPage();
   // A temporary server error is retried once automatically before it is reported.
   releaseGet = undefined; await until(() => releaseGet, 'automatic retry'); releaseGet!();
   await until(() => document.querySelector('.customer-state [role=alert]'), 'load failure');
-  assert(!document.querySelector('.customers-table-scroll') && add().disabled, 'Fetch failure shows an error without stale results');
+  assert(!document.querySelector('.customers-list') && add().disabled, 'Fetch failure shows an error without stale results');
   getStatus = 200; releaseGet = undefined; document.querySelector<HTMLButtonElement>('.customer-state button')!.click();
   await until(() => releaseGet, 'retry list'); releaseGet!(); await until(() => document.querySelector('.customer-state h2'), 'retry completed');
   assert(submissions.length === 2, 'Fetching and retrying lists never submit customer creates');

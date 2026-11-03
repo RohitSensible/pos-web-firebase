@@ -91,10 +91,43 @@ function isReadableImagePath(path, kind, outletId, documentId) {
         || (kind === 'products' && typeof path === 'string' && path.startsWith('product_images/')
             && productImageStoragePath(path.slice('product_images/'.length)) === path);
 }
+// Recently read images, reused only while Storage still reports the same object
+// generation, so a replaced file is never served from memory.
+const IMAGE_CACHE_BYTES = 64 * 1024 * 1024;
+const imageCache = new Map();
+let imageCacheBytes = 0;
+function rememberStorageImage(imagePath, generation, bytes, contentType) {
+    const old = imageCache.get(imagePath);
+    if (old) {
+        imageCacheBytes -= old.bytes.length;
+        imageCache.delete(imagePath);
+    }
+    if (!generation || bytes.length > IMAGE_CACHE_BYTES / 8)
+        return;
+    imageCache.set(imagePath, { generation, bytes, contentType });
+    imageCacheBytes += bytes.length;
+    while (imageCacheBytes > IMAGE_CACHE_BYTES) {
+        const [oldest, entry] = imageCache.entries().next().value;
+        imageCacheBytes -= entry.bytes.length;
+        imageCache.delete(oldest);
+    }
+}
 async function readStorageImage(bucket, imagePath) {
-    const [url] = await bucket.file(imagePath).getSignedUrl({ action: 'read', expires: Date.now() + 60_000 });
+    const file = bucket.file(imagePath);
+    // Without a known generation the image is read normally and not cached.
+    const generation = Promise.resolve().then(() => file.getMetadata())
+        .then(([metadata]) => String(metadata?.generation ?? ''), () => '');
+    const cached = imageCache.get(imagePath);
+    if (cached && cached.generation === await generation) {
+        imageCache.delete(imagePath);
+        imageCache.set(imagePath, cached); // Most recently used last.
+        return { bytes: cached.bytes, contentType: cached.contentType };
+    }
+    const [url] = await file.getSignedUrl({ action: 'read', expires: Date.now() + 60_000 });
     const bytes = await fetchImageBytes(url);
-    return { bytes, contentType: detectImage(bytes) };
+    const contentType = detectImage(bytes);
+    rememberStorageImage(imagePath, await generation, bytes, contentType);
+    return { bytes, contentType };
 }
 export function outletLogoPath(outletName, outletId, variant = 'header') {
     validateRecordIds(outletId, outletId);
@@ -299,7 +332,7 @@ export async function uploadMasterImage(db, bucket, kind, outletId, documentId, 
     if (!Buffer.isBuffer(bytes) || !bytes.length)
         throw new ImageStorageError(400, 'Choose an image before uploading.');
     if (kind === 'products' && bytes.length > PRODUCT_IMAGE_MAX_BYTES)
-        throw new ImageStorageError(413, 'Product images must be 512 KB or smaller.');
+        throw new ImageStorageError(413, 'Product images must be 25 KB or smaller.');
     const detectedType = detectImage(bytes);
     if (declaredType !== detectedType)
         throw new ImageStorageError(415, 'The image content does not match its declared file type.');

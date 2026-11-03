@@ -10,28 +10,30 @@ const reader = tree.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.
 function fixture(method, failure) {
   const calls = [];
   const route = tree.statements.find(n => ts.isExpressionStatement(n) && ts.isCallExpression(n.expression)
-    && n.expression.expression.getText(tree) === `app.${method}` && n.expression.arguments[0]?.text === '/api/outlets/:outletId/employees');
+    && n.expression.expression.getText(tree) === `app.${method}` && n.expression.arguments[0]?.text === (method === 'patch' ? '/api/outlets/:outletId/employees/:documentId' : '/api/outlets/:outletId/employees'));
   assert.ok(route);
   const js = ts.transpileModule(`${reader.getText(tree)}\nconst handler = ${route.expression.arguments[1].getText(tree)};`,
     { compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.None } }).outputText;
   const deps = { jwt, JWT_SECRET: 'isolated-employees-test-key', ProductCreationError, assignedOutletIds: () => [],
     getFirestoreDb: () => { calls.push('db'); return {}; },
     listOutletEmployees: async (_db, outlet, profile) => { calls.push(['list', outlet, profile]); if (failure) throw failure; return { employees: [] }; },
+    updateOutletEmployee: async (_db, outlet, documentId, profile, _assigned, body) => { calls.push(['update', outlet, profile, documentId, body]); if (failure) throw failure; return { documentId }; },
     createOutletEmployee: async (_db, outlet, profile, _assigned, body) => { calls.push(['create', outlet, profile, body]); if (failure) throw failure; return { documentId: 'saved' }; },
   };
   const handler = new Function(...Object.keys(deps), `${js};return handler;`)(...Object.values(deps));
   return { calls, async request(token) {
-    const req = { header: () => token ? `Bearer ${token}` : undefined, params: { outletId: 'selected-outlet' },
+    const req = { header: () => token ? `Bearer ${token}` : undefined, params: { outletId: 'selected-outlet', documentId: 'existing-employee' },
       body: { name: 'Draft', profileId: 'forged-profile' }, query: { profileId: 'forged-profile' } };
     const res = { statusCode: 200, headers: {}, setHeader(k,v) { this.headers[k]=v; }, status(code) { this.statusCode=code;return this; }, json(body) {this.body=body;} };
     await handler(req,res); return res;
   } };
 }
 const token = jwt.sign({ profileDocId: 'signed-profile' }, 'isolated-employees-test-key', { expiresIn: '1h' });
-for (const method of ['get', 'post']) {
+for (const method of ['get', 'post', 'patch']) {
   test(`${method} passes the signed identity and selected outlet to the authorized employee service`, async () => {
     const f = fixture(method); const res = await f.request(token);
     assert.equal(res.statusCode,200);assert.deepEqual(f.calls[1].slice(1,3),['selected-outlet','signed-profile']);
+    if(method==='patch') assert.equal(f.calls[1][3], 'existing-employee');
     if(method==='get')assert.equal(res.headers['Cache-Control'],'no-store');
   });
   test(`${method} rejects missing, invalid and expired tokens before database access`, async () => {

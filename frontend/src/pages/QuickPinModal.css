@@ -1,0 +1,29 @@
+/* Quick PIN verification pop-up: lock badge, masked digit boxes, Cancel / Verify. */
+.quick-pin-modal { --pin-accent: var(--dialog-action-primary); position: fixed; inset: 0; margin: auto; width: min(var(--dialog-width), calc(100% - 2 * var(--dialog-gutter))); max-height: calc(100dvh - 2 * var(--dialog-gutter));
+  overflow: visible; padding: calc(var(--dialog-padding) + var(--dialog-space-lg)) var(--dialog-padding) var(--dialog-padding); border: 0; border-radius: var(--dialog-radius); background: var(--dialog-surface); color: var(--dialog-text);
+  box-shadow: var(--dialog-shadow); }
+.quick-pin-modal::backdrop { background: var(--dialog-backdrop); backdrop-filter: blur(var(--dialog-backdrop-blur)); }
+.quick-pin-lock { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); display: grid; place-items: center; width: 52px; height: 52px;
+  border-radius: 50%; border: 1px solid var(--dialog-border); background: var(--dialog-surface); color: var(--dialog-text); box-shadow: var(--dialog-shadow); }
+.quick-pin-modal form { display: grid; gap: 0; text-align: center; }
+.quick-pin-modal h2 { margin: 0; font-size: var(--dialog-sheet-heading-size); font-weight: 600; color: var(--dialog-text); }
+.quick-pin-modal form > p { margin: var(--dialog-space-sm) 0 0; color: var(--dialog-muted); font-size: var(--dialog-body-size); }
+.quick-pin-boxes { position: relative; display: flex; justify-content: center; gap: var(--dialog-space-md); margin: var(--dialog-space-2xl) 0 var(--dialog-space-sm); }
+/* The real input covers the boxes: clicking anywhere focuses it, and its own text is hidden. */
+.quick-pin-boxes input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: text; font-size: 16px; }
+.quick-pin-box { display: grid; place-items: center; flex: 0 1 64px; min-width: 40px; aspect-ratio: 1; border: 1.5px solid var(--dialog-border); border-radius: var(--dialog-control-radius);
+  background: var(--dialog-surface); color: var(--dialog-text); font-size: var(--dialog-body-size); line-height: 1; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.quick-pin-box.filled { border-color: var(--pin-accent); }
+.quick-pin-box.active { border-color: var(--pin-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pin-accent) 18%, transparent); }
+.quick-pin-error { margin: var(--dialog-space-md) 0 0; color: var(--dialog-action-danger); font-size: var(--dialog-caption-size); }
+.quick-pin-actions { display: flex; justify-content: flex-end; gap: var(--dialog-space-md); margin-top: var(--dialog-space-2xl); }
+.quick-pin-actions button { min-width: 88px; min-height: var(--dialog-control-height); padding: var(--dialog-space-sm) var(--dialog-space-lg); border-radius: var(--dialog-control-radius); font: inherit; font-size: var(--dialog-body-size); font-weight: 500; cursor: pointer; }
+.quick-pin-cancel { border: 1px solid var(--dialog-border); background: var(--dialog-surface); color: var(--dialog-text); }
+.quick-pin-verify { border: 1px solid var(--pin-accent); background: var(--pin-accent); color: var(--dialog-action-foreground); }
+.quick-pin-actions button:disabled { opacity: 0.55; cursor: not-allowed; }
+.quick-pin-actions button:focus-visible { outline: 2px solid var(--pin-accent); outline-offset: 2px; }
+@media (max-width: 420px) {
+  .quick-pin-modal { padding: calc(var(--dialog-padding) + var(--dialog-space-md)) var(--dialog-space-xl) var(--dialog-padding); }
+  .quick-pin-boxes { gap: var(--dialog-space-sm); }
+  .quick-pin-box { flex-basis: 54px; }
+}

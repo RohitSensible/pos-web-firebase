@@ -2,9 +2,8 @@
 .shift-report-page .bill-report-filters input:disabled { color: #a3b0bb; background: #f6f8fa; cursor: not-allowed; }
 .shift-report-page .bill-report-filters label > div:has(input:disabled) { background: #f6f8fa; }
 .shift-status { padding: 4px 7px; border-radius: 999px; font-size: 8px; font-weight: 800; }
-.shift-status.open { color: #25704f; background: #e9f7f0; }
+.shift-status.active { color: #25704f; background: #e9f7f0; }
 .shift-status.closed { color: #5d6f80; background: #eef2f5; }
-.shift-status.not-closed { color: #9a6200; background: #fff4de; }
 .shift-times { display: grid; gap: 3px; }
 .shift-times small { color: #8a99a6; font-size: 8px; }
 .shift-report-page tfoot td { border-top: 2px solid #e2e7eb; color: #173b53; background: #f6f8fa; font-weight: 800; }
@@ -103,14 +102,13 @@
   .shift-report-page .bill-table-card th:nth-child(1) { width: 13%; }
   .shift-report-page .bill-table-card th:nth-child(2) { width: 6%; }
   .shift-report-page .bill-table-card th:nth-child(3) { width: 8%; }
-  .shift-report-page .bill-table-card th:nth-child(4) { width: 15%; }
-  .shift-report-page .bill-table-card th:nth-child(5) { width: 9%; }
+  .shift-report-page .bill-table-card th:nth-child(4) { width: 17%; }
+  .shift-report-page .bill-table-card th:nth-child(5) { width: 10%; }
   .shift-report-page .bill-table-card th:nth-child(6) { width: 10%; }
-  .shift-report-page .bill-table-card th:nth-child(7) { width: 8%; }
-  .shift-report-page .bill-table-card th:nth-child(8) { width: 8%; }
-  .shift-report-page .bill-table-card th:nth-child(9) { width: 7%; }
-  .shift-report-page .bill-table-card th:nth-child(10) { width: 8%; }
-  .shift-report-page .bill-table-card th:nth-child(11) { width: 8%; }
+  .shift-report-page .bill-table-card th:nth-child(7) { width: 9%; }
+  .shift-report-page .bill-table-card th:nth-child(8) { width: 9%; }
+  .shift-report-page .bill-table-card th:nth-child(9) { width: 8%; }
+  .shift-report-page .bill-table-card th:nth-child(10) { width: 10%; }
 
   .shift-report-page .bill-table-card th { font-size: 6.5pt !important; }
   .shift-report-page .bill-table-card td:first-child { display: table-cell !important; }
@@ -122,3 +120,7 @@
   .shift-report-page tbody tr,
   .shift-report-page tfoot tr { break-inside: avoid; page-break-inside: avoid; }
 }
+
+.shift-report-error { color: #a12b32; font-size: 12px; margin: 12px 0; }
+.shift-report-timezone { color: #637786; font-size: 11px; margin: 12px 0; }
+@media print { .shift-report-error { display: none !important; } }

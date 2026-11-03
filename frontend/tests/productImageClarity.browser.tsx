@@ -46,18 +46,20 @@ void (async () => {
     const output = await decodeProductImage(processed);
     assert(Math.abs(output.width / output.height - width / height) < .005, `${name}: aspect ratio preserved`);
     assert(output.width <= width && output.height <= height, `${name}: never upscaled`);
-    assert(Math.max(output.width, output.height) >= Math.min(768, Math.max(width, height)), `${name}: detail resolution retained`);
+    assert(Math.max(output.width, output.height) >= Math.min(256, Math.max(width, height)), `${name}: minimum usable resolution retained`);
     assert(processed.size <= PRODUCT_IMAGE_MAX_BYTES, 'Safety bound');
-    if (detail) assert(processed.size > PRODUCT_IMAGE_TARGET_BYTES, 'Detailed image is permitted to exceed target for clarity');
-    if (source.size <= PRODUCT_IMAGE_TARGET_BYTES) assert(processed === source, 'Small original is reused byte-for-byte');
+    assert(processed.type === 'image/jpeg', 'Every source becomes a JPEG for the Android POS');
+    if (source.type === 'image/jpeg' && source.size <= PRODUCT_IMAGE_TARGET_BYTES) assert(processed === source, 'Small JPEG original is reused byte-for-byte');
     const decoded = document.createElement('canvas'); decoded.width = output.width; decoded.height = output.height;
     const dctx = decoded.getContext('2d')!; dctx.drawImage(output, 0, 0);
-    if (alpha) assert(dctx.getImageData(0, 0, 1, 1).data[3] === 0, 'Transparent corners preserved');
+    if (alpha) { const corner = dctx.getImageData(0, 0, 1, 1).data; assert(corner[3] === 255 && [0, 1, 2].every(channel => corner[channel]! >= 240), 'Transparent corners become white'); }
     // Compare at the normal 320px display size, including both source and encoded
     // detail. This catches severe blur or lost labels without testing encoder internals.
     function display(image: ImageBitmap) {
       const c = document.createElement('canvas'); c.width = 320; c.height = Math.round(320 * height / width);
-      const x = c.getContext('2d')!; x.imageSmoothingQuality = 'high'; x.drawImage(image, 0, 0, c.width, c.height);
+      // White backing matches the JPEG output, which fills transparency with white.
+      const x = c.getContext('2d')!; x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height);
+      x.imageSmoothingQuality = 'high'; x.drawImage(image, 0, 0, c.width, c.height);
       return x.getImageData(0, 0, c.width, c.height).data;
     }
     const a = display(bitmap), b = display(output); let squared = 0;
@@ -71,5 +73,5 @@ void (async () => {
     const caption = document.createElement('p'); caption.textContent = `${source.size} → ${processed.size} bytes · ${output.width}×${output.height} · ${productImageSizeLabel(processed)}`; article.append(caption); gallery.append(article);
     bitmap.close(); output.close();
   }
-  results.textContent = JSON.stringify({ passed: ['Proportions, transparency, reuse, detail floor, byte target fallback, and normal-display distortion'], measurements });
+  results.textContent = JSON.stringify({ passed: ['Proportions, transparency, reuse, JPEG output for every source format, hard 25 KB limit, and display decoding'], measurements });
 })().catch(error => { results.textContent = JSON.stringify({ failed: String(error), measurements }); });

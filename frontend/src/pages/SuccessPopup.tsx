@@ -1,15 +1,19 @@
-import { useSuccessDismiss } from '../utils/useTimedNotice.ts';
-import { useEffect, useRef } from 'react';
-import { CheckCircle2 } from 'lucide-react';
-import './CategoryPage.css';
+import { Check } from 'lucide-react';
+import { ActionPopup } from './ActionPopup.tsx';
+
+export function successMessage(message: string): string {
+  const action = /\b(deleted|removed|updated|added|created|uploaded|saved|assigned|transferred|downloaded)\b/i.exec(message)?.[1]?.toLowerCase();
+  if (action) {
+    const label = action === 'created' ? 'Added' : action.charAt(0).toUpperCase() + action.slice(1);
+    return `${label} successfully.`;
+  }
+  return message.endsWith('.') ? message : `${message}.`;
+}
 
 export function SuccessPopup({ message, onDismiss }: { message: string; onDismiss: () => void }) {
-  useSuccessDismiss(message, onDismiss);
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => { dialog.current?.showModal(); }, []);
-  return <dialog ref={dialog} className="category-modal category-updated-popup" role="alertdialog" aria-labelledby="success-popup-title"
-    onCancel={event => { event.preventDefault(); onDismiss(); }}>
-    <div className="modal-body"><CheckCircle2 size={36} color="#16a34a" aria-hidden="true" /><h3 id="success-popup-title">{message}</h3></div>
-    <div className="modal-footer"><button type="button" autoFocus className="btn-primary-add" onClick={onDismiss}>OK</button></div>
-  </dialog>;
+  return <ActionPopup title="Success!" onCancel={onDismiss} className="action-success category-updated-popup"
+    footer={<button type="button" data-initial-focus className="btn-primary-add success-done" onClick={onDismiss}>Done</button>}>
+    <span className="success-checkmark" aria-hidden="true"><Check size={34} strokeWidth={2} /></span>
+    <p className="success-message" role="status">{successMessage(message)}</p>
+  </ActionPopup>;
 }

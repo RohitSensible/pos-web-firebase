@@ -1,0 +1,24 @@
+.category-modal.action-popup {
+  width: min(var(--dialog-width), calc(100vw - 2 * var(--dialog-gutter))); max-width: min(var(--dialog-width), calc(100vw - 2 * var(--dialog-gutter))); max-height: calc(100dvh - 2 * var(--dialog-gutter));
+  margin: auto; padding: 0; border: 1px solid var(--dialog-border); border-radius: var(--dialog-radius);
+  background: var(--dialog-surface); color: var(--dialog-text); box-shadow: var(--dialog-shadow); overflow-y: auto;
+}
+.action-popup::backdrop { background: var(--dialog-backdrop); backdrop-filter: blur(var(--dialog-backdrop-blur)); }
+.action-popup > .modal-header { padding: var(--dialog-header-padding); border-bottom: 1px solid var(--dialog-border); background: transparent; }
+.action-popup > .modal-header h3 { margin: 0; color: inherit; font-size: var(--dialog-heading-size); font-weight: 600; }
+.action-popup > .modal-header .modal-close-btn { width: 28px; height: 28px; border-radius: var(--dialog-control-radius); color: var(--dialog-muted); }
+.action-popup > .modal-body { display: flex; flex-direction: column; gap: var(--dialog-gap); padding: var(--dialog-body-padding); color: inherit; font-size: var(--dialog-body-size); line-height: var(--dialog-line-height); overflow-wrap: anywhere; }
+.action-popup-question { margin: 0; text-align: center; }
+.action-popup > .modal-footer { display: flex; gap: var(--dialog-space-md); justify-content: flex-end; padding: var(--dialog-footer-padding); border-top: 1px solid var(--dialog-border); background: transparent; }
+.action-popup > .modal-footer > button { display: inline-flex; align-items: center; justify-content: center; min-height: var(--dialog-control-height); min-width: 88px; padding: var(--dialog-space-sm) var(--dialog-space-lg); font: inherit; font-size: var(--dialog-caption-size); border-radius: var(--dialog-control-radius); cursor: pointer; }
+.action-popup .btn-secondary { border: 1px solid var(--dialog-border); background: var(--dialog-control-surface); color: inherit; }
+.action-popup .action-confirm-button { border: 1px solid var(--dialog-action-danger); background: var(--dialog-action-danger); color: var(--dialog-action-foreground); }
+.action-popup .action-confirm-button:hover:not(:disabled) { border-color: var(--dialog-action-danger-hover); background: var(--dialog-action-danger-hover); }
+.action-popup button:disabled { cursor: wait; opacity: .6; }
+.action-popup button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.action-popup.action-success > .modal-body { align-items: center; text-align: center; }
+.action-success .success-checkmark { display: grid; place-items: center; width: 60px; height: 60px; border: 1px solid var(--dialog-success-border); border-radius: 50%; background: var(--dialog-success-tint); color: var(--dialog-success-indicator); }
+.action-success .success-message { margin: 0; }
+.action-popup.action-success .success-done { width: 100%; border: 1px solid var(--dialog-action-success); background: var(--dialog-action-success); color: var(--dialog-action-foreground); }
+.action-popup.action-success .success-done:hover { background: var(--dialog-action-success-hover); }
+@media print { .action-popup { display: none !important; } }

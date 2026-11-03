@@ -1,4 +1,6 @@
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import './ProductTaxSettings.css';
 import './ProductDiscountSettings.css';
 
@@ -10,6 +12,7 @@ interface Props {
 const nameOf = (product: Product) => typeof product.fields.name === 'string' && product.fields.name.trim() ? product.fields.name : 'Unnamed product';
 
 export function ProductDiscountSettings({ products, categories, outletId, token, onSaved, onClose, onSessionExpired }: Props) {
+  const { confirmAction, confirmation } = useActionConfirmation();
   const [category, setCategory] = useState<string | null>(null);
   const [selected, setSelected] = useState(() => new Set<string>());
   const [discount, setDiscount] = useState('');
@@ -17,6 +20,7 @@ export function ProductDiscountSettings({ products, categories, outletId, token,
   const [message, setMessage] = useState('');
   const [failures, setFailures] = useState<{ id: string; name: string; message: string }[]>([]);
   const busy = useRef(false), savedIds = useRef(new Set<string>()), selectAll = useRef<HTMLInputElement>(null);
+  useWorkspaceBack(true, () => { if (!saving) onClose(savedIds.current.size); });
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
     const controller = new AbortController(); request.current = controller;
@@ -45,6 +49,7 @@ export function ProductDiscountSettings({ products, categories, outletId, token,
     }
     const changes = rows.filter(product => selected.has(product.documentId) && product.fields.discount !== value);
     if (!changes.length) { setMessage('Selected products already use this discount.'); return; }
+    if (!await confirmAction('update', 'product discounts')) return;
     busy.current = true; setSaving(true); setMessage(''); setFailures([]);
     const queue = [...changes], failed: { id: string; name: string; message: string }[] = [];
     let expired = false, saved = 0;
@@ -81,6 +86,7 @@ export function ProductDiscountSettings({ products, categories, outletId, token,
     setMessage(`${saved} products updated; ${failed.length} failed. Failed products remain selected. Click Update to retry.`);
   };
   return <section className="products-page-shell product-tax-settings product-discount-settings" aria-label="Update Discount" aria-busy={saving}>
+    {confirmation}
     <div className="products-header tax-settings-header">
       <div><h1>Update Discount</h1><p>{selected.size} products selected across categories.</p></div>
       <div className="tax-settings-actions">

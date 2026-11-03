@@ -24,25 +24,61 @@ const tab = (label: string) => [...document.querySelectorAll<HTMLButtonElement>(
 const names = () => [...document.querySelectorAll('tbody tr td:first-child')].map(cell => cell.textContent).join(',');
 const headings = () => [...document.querySelectorAll('.bill-table-scroll thead th')].map(cell => cell.textContent).join('|');
 const cards = () => [...document.querySelectorAll('.stock-summary-grid small')].map(cell => cell.textContent).join('|');
+// Simulate the obsolete stylesheet still loaded by an existing browser tab.
+const legacy = document.createElement('style');
+legacy.textContent = `.stock-direction-tabs { border-top: 3px solid #b5001f; }
+.stock-direction-tab.in svg { color: #16a34a; }
+.stock-direction-tab.out svg { color: #b5001f; }
+.stock-direction-tab.in[aria-selected=true] { color:#3567f0; border-bottom-color:#16a34a; background:#f2fbf5; }
+.stock-direction-tab.out[aria-selected=true] { color:#b5001f; border-bottom-color:#b5001f; background:#fdf2f4; }`;
+document.head.append(legacy);
+function assertNeutralTabs() {
+  const reference = document.createElement('span'); document.body.append(reference);
+  for (const theme of ['light', 'dark']) {
+    document.documentElement.dataset.theme = theme;
+    const selected = document.querySelector<HTMLElement>('.stock-direction-tab[aria-selected=true]')!;
+    reference.style.color = 'var(--ink)'; reference.style.borderColor = 'var(--line)';
+    const bar = getComputedStyle(document.querySelector('.stock-direction-tabs')!);
+    assert(bar.borderTopWidth === '1px' && bar.borderTopColor === getComputedStyle(reference).borderTopColor, `${theme}: tab container has the themed box border, without a red top stripe`);
+    assert(getComputedStyle(selected).color === getComputedStyle(reference).color, `${theme}: selected tab uses the existing theme text color`);
+    for (const label of ['STOCK-IN', 'STOCK-OUT']) {
+      assert(getComputedStyle(tab(label).querySelector('svg')!).color === getComputedStyle(tab(label)).color, `${theme}: ${label} icon has no independent red/green color`);
+    }
+    reference.style.color = 'var(--muted)'; reference.style.backgroundColor = 'var(--workspace)';
+    assert(getComputedStyle(selected).borderBottomColor === getComputedStyle(reference).color && getComputedStyle(selected).backgroundColor === getComputedStyle(reference).backgroundColor, `${theme}: selected box uses neutral theme colors despite the old stylesheet`);
+  }
+  reference.remove(); document.documentElement.dataset.theme = 'light';
+}
 const root = createRoot(document.getElementById('root')!);
 root.render(<StockInOutReportPage outlet={{ id: 'outlet', name: 'OTP' } as OutletSummary} token="mock-token" onSessionExpired={() => {}} />);
 void (async () => {
   await waitFor(() => names(), 'stock-in rows');
   assert(tab('STOCK-IN').getAttribute('aria-selected') === 'true' && tab('STOCK-OUT').getAttribute('aria-selected') === 'false', 'Stock-In tab selected by default');
+  assertNeutralTabs();
   assert(requests[0]!.get('direction') === 'in', 'default request loads stock-in only');
   assert(names() === 'MASALA PAPAD,PAPAD ROASTED', `stock-in rows ${names()}`);
   assert(headings() === 'Product Name|Type|Quantity|Price|Supplier|Date / Time', `columns ${headings()}`);
   assert(cards() === 'Stock-In Transactions|Stock In Quantity|Total Amount', `cards ${cards()}`);
   assert(document.querySelector('tfoot')!.textContent!.includes('Total Stock-In') && document.querySelector('tfoot')!.textContent!.includes('150'), 'stock-in total');
   assert(!document.body.textContent!.includes('stock-2') && !document.querySelector('select'), 'no transaction numbers or direction dropdown');
+  document.querySelector<HTMLTableRowElement>('.bill-table-scroll tbody tr')!.click();
+  await waitFor(() => document.querySelector('.bill-detail-modal'), 'stock details');
+  const details = document.querySelector('.bill-detail-modal')!;
+  assert(!details.textContent!.includes('₹') && details.textContent!.includes('100.00') && details.textContent!.includes('0.00'), 'stock detail amounts have decimal places without rupee symbols');
+  document.querySelector<HTMLButtonElement>('[aria-label="Close transaction details"]')!.click(); await pause();
+  results.push('Stock detail amounts show numbers without rupee symbols');
   results.push('Stock-In tab is the default and shows only stock-in rows, cards and totals');
 
   tab('STOCK-OUT').click();
   await waitFor(() => names() === 'PAPAD ROASTED', 'stock-out rows');
   assert(requests.at(-1)!.get('direction') === 'out' && tab('STOCK-OUT').getAttribute('aria-selected') === 'true', 'Stock-Out tab loads stock-out only');
+  assertNeutralTabs();
   assert(cards() === 'Stock-Out Transactions|Stock Out Quantity|Total Amount' && document.querySelector('tfoot')!.textContent!.includes('Total Stock-Out'), 'stock-out cards and total');
   const before = requests.length; tab('STOCK-OUT').click(); await pause();
   assert(requests.length === before, 'clicking the active tab does not reload');
   results.push('Stock-Out tab shows only stock-out rows with its own cards and totals');
-  root.unmount(); document.getElementById('test-results')!.textContent = JSON.stringify({ passed: results });
+  results.push('Both directions retain neutral boxed colors in light and dark mode even with legacy red/green CSS loaded');
+  if (!location.hash.includes('preview')) root.unmount();
+  document.getElementById('test-results')!.style.display = 'none';
+  document.getElementById('test-results')!.textContent = JSON.stringify({ passed: results });
 })().catch(error => { document.getElementById('test-results')!.textContent = JSON.stringify({ failed: String(error), passed: results }); });

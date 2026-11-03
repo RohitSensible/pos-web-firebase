@@ -1,15 +1,19 @@
+import { beginDataLoading } from '../utils/dataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { OutletMasterDeleteButton } from './OutletMasterDeleteButton.tsx';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { DeleteConfirmation } from './DeleteConfirmation.tsx';
 import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
 import { SuccessPopup } from './SuccessPopup.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, MoreVertical, Plus, RefreshCw, Search, Store, Trash2, X } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Pencil, Plus, Search, Store, Trash2, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { createRequestId } from '../utils/requestId.ts';
 import { ANDROID_TAX_OPTIONS } from '../../../shared/androidTaxes.ts';
 import './CategoryPage.css';
 import './MasterForm.css';
+import './MasterRowList.css';
 import './PremisesPage.css';
 
 interface Premise { documentId: string; fields: Record<string, unknown> }
@@ -33,11 +37,15 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
   const [reload, setReload] = useState(0);
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
+  const { confirmAction, confirmation } = useActionConfirmation(!!draft);
   const [editing, setEditing] = useState<Premise | null>(null);
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useTimedNotice();
+  const [notice, setNotice] = useTimedNotice(false);
   const busy = useRef(false);
+  useWorkspaceBack(!!draft, () => { if (!saving) setDraft(null); });
+  // Opened from Products: with no form open, Back returns to Products like the Back to Products button.
+  useWorkspaceBack(!!onClose && !draft, () => onClose?.());
   const requests = useRef<AbortController | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteAllOpen, setDeleteAllOpen] = useState(false);
@@ -65,6 +73,7 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
     const controller = new AbortController(); requests.current = controller;
     setData(null); setError(''); setNotice('');
     void (async () => {
+      const finishLoading = beginDataLoading('Premises', controller.signal);
       try {
         const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal });
         const result = await response.json() as { data?: Configuration; message?: string };
@@ -75,7 +84,7 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
         const config = result.data;
         setDraft(current => current ? { ...current, code: current.code || String(config.nextCode),
           userId: current.userId || (config.userAccounts.length === 1 ? config.userAccounts[0]!.userId : '') } : current);
-      } catch (failure) { if (!controller.signal.aborted) setError((failure as Error).message); }
+      } catch (failure) { if (!controller.signal.aborted) setError((failure as Error).message); } finally { finishLoading(); }
     })();
     return () => controller.abort();
   }, [endpoint, token, onSessionExpired, reload]);
@@ -114,6 +123,7 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
     }
     const controller = requests.current;
     if (!controller || controller.signal.aborted) return;
+    if (!await confirmAction(editing ? 'update' : 'add', draft.name.trim())) return;
     busy.current = true; setSaving(true); setSaveError('');
     try {
       const { requestId: _requestId, ...editable } = body;
@@ -137,7 +147,7 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
 
   if (draft) return (
     <section className="category-modal master-form-page premises-form" aria-labelledby="premise-title">
-      <form onSubmit={save}>
+      <form onSubmit={save}>{confirmation}
         <div className="modal-header master-form-header">
           <div className="master-form-title"><span className="master-form-icon"><Store size={24} /></span>
             <div><h3 id="premise-title">{editing ? 'Edit Premises' : 'Premise Details'}</h3><p>{editing ? 'Edit' : 'Create'} premises for {outlet.name}.</p></div></div>
@@ -175,14 +185,13 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
   return (
     <section className="premises-page" aria-label="Premises" aria-busy={!data && !error}>
       {deleteAllOpen && <DeleteConfirmation kind="premises" name="all premises" busy={deletingAll} error={deleteAllError}
-        title="Delete all premises?" description={`Are you sure you want to delete all premises? This will permanently remove all ${data?.premises.length ?? 0} premises of this outlet. Products are kept.`}
-        confirmLabel="Yes" cancelLabel="No" onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllPremises()} />}
+        title="Delete all premises?"
+        onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllPremises()} />}
       {deleteAllDone && <SuccessPopup message="Premises deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
       <div className="category-header-row"><div className="category-title-group"><h1><Store size={22} color="#3567f0" />Premises</h1><p>Manage tables, rooms and bill premises.</p></div>
         <div className="category-header-actions">{onClose
           ? <button type="button" className="btn-secondary" onClick={onClose}><ArrowLeft size={16} />Back to Products</button>
           : <button type="button" className="btn-primary-add" onClick={openAdd}><Plus size={16} />Add New Premises</button>}
-          <button type="button" className="btn-secondary" onClick={() => setReload(value => value + 1)}><RefreshCw size={15} />Refresh</button>
           <div className="category-more-actions">
             <button type="button" className="category-menu-toggle" aria-label="Premises options" aria-expanded={menuOpen}
               aria-controls="premises-options-menu" onClick={() => setMenuOpen(value => !value)}><MoreVertical size={17} /></button>
@@ -190,17 +199,28 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
               <button type="button" disabled={!data || !!error || deletingAll || !data.premises.length} onClick={() => { setMenuOpen(false); setDeleteAllError(''); setDeleteAllOpen(true); }}><Trash2 size={14} />Delete All</button>
             </div>}
           </div></div></div>
-      {notice && <p className="premises-notice" role="status">{notice}</p>}
+      {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
       <div className="category-toolbar"><label className="toolbar-search-box"><span className="search-input-icon"><Search size={16} /></span>
         <input className="search-input" type="search" aria-label="Search premises" placeholder="Search premises name, code, type…" value={search} onChange={event => setSearch(event.target.value)} /></label>
         <span className="premises-total">Total Premises <strong>{data?.premises.length ?? '—'}</strong></span></div>
       {error ? <p role="alert" className="category-form-error">{error}<button type="button" className="btn-secondary" onClick={() => setReload(value => value + 1)}>Retry</button></p>
-        : !data ? <p role="status">Loading premises…</p>
+        : !data ? <p role="status" data-inline-loading>Loading premises…</p>
         : !visible.length ? <div className="premises-empty">{search ? 'No premises match your search.' : 'No premises created yet.'}</div>
-        : <div className="premises-list">{visible.map(row => <div className="premises-list-row" key={row.documentId}><button type="button" className="premises-list-item" key={row.documentId} onClick={() => openEdit(row)} aria-label={`Edit premise ${text(row.fields.name)}`}>
-          <div><h2><span>{text(row.fields.code)})</span> {text(row.fields.name)}</h2><p>Type {text(row.fields.type)}</p></div>
-          <div className="premises-list-count">No. of {row.fields.type === 'Room' ? 'Rooms' : row.fields.type === 'Bill' ? 'Bills' : 'Tables'}: <strong>{text(row.fields.tables)}</strong><small>Range starts at {text(row.fields.range)}</small></div>
-        </button><OutletMasterDeleteButton outletId={outlet.id} token={token} collection="premises" documentId={row.documentId} name={text(row.fields.name)} onSessionExpired={onSessionExpired} onDeleted={() => { setData(current => current ? { ...current, premises: current.premises.filter(premise => premise.documentId !== row.documentId) } : current); setNotice('Premises deleted successfully.'); }} /></div>)}</div>}
+        : <div className="premises-list master-row-list">{visible.map(row => {
+          const name = text(row.fields.name), unit = row.fields.type === 'Room' ? 'Rooms' : row.fields.type === 'Bill' ? 'Bills' : 'Tables';
+          return <div className="master-row" key={row.documentId}>
+            <button type="button" className="master-row-main premises-list-item" onClick={() => openEdit(row)} aria-label={`Edit premise ${name}`}>
+              <span className="master-row-number">{text(row.fields.code)}</span>
+              <span className="master-row-title"><strong>{name}</strong><span className="master-row-badge">Type: {text(row.fields.type)}</span></span>
+              <span className="master-row-divider" aria-hidden="true" />
+              <span className="master-row-info"><span>No. of {unit}: <strong>{text(row.fields.tables)}</strong></span><small>Range starts at {text(row.fields.range)}</small></span>
+            </button>
+            <div className="master-row-actions">
+              <button type="button" onClick={() => openEdit(row)}><Pencil size={14} />Edit</button>
+              <OutletMasterDeleteButton outletId={outlet.id} token={token} collection="premises" documentId={row.documentId} name={name} onSessionExpired={onSessionExpired} onDeleted={() => { setData(current => current ? { ...current, premises: current.premises.filter(premise => premise.documentId !== row.documentId) } : current); setNotice('Premises deleted successfully.'); }} />
+            </div>
+          </div>;
+        })}</div>}
     </section>
   );
 }

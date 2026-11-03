@@ -39,7 +39,7 @@ const navigate = (label: string) => {
   for (const title of document.querySelectorAll<HTMLElement>('.nav-group-title')) { if (navItem(label)) break; flushSync(() => title.click()); }
   navItem(label)!.click();
 };
-const tableHas = (text: string) => document.querySelector('.dashboard-workspace tbody')?.textContent?.includes(text);
+const tableHas = (text: string) => document.querySelector('.dashboard-workspace tbody, .dashboard-workspace .customers-list')?.textContent?.includes(text);
 void (async () => {
   await until(() => document.querySelector('.page-hero'));
   const masters = [...document.querySelectorAll('.nav-group')].find(group => group.querySelector('.nav-group-title')?.textContent?.includes('Masters'))!;

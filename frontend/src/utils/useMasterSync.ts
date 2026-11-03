@@ -1,3 +1,4 @@
+import { beginDataLoading, markDataLoadingBackground } from './dataLoading.ts';
 import { useEffect, useRef } from 'react';
 
 type Kind = 'products' | 'categories' | 'customers';
@@ -27,13 +28,17 @@ export function useMasterSync(outletId: string, token: string, kind: Kind, enabl
       if (refreshing) { pending = true; return; }
       refreshing = true; pending = false;
       const reconciled = new Map(seen);
+      const signal = AbortSignal.any([updates.signal, AbortSignal.timeout(30_000)]);
+      markDataLoadingBackground(signal);
+      const finishLoading = beginDataLoading(kind, signal);
       try {
-        await callback.current(AbortSignal.any([updates.signal, AbortSignal.timeout(30_000)]));
+        await callback.current(signal);
         for (const [collection, version] of reconciled) versions.set(collection, version);
         refreshDelay = 1000;
       }
       catch { pending = true; refreshDelay = Math.min(refreshDelay * 2, 15_000); }
       finally {
+        finishLoading();
         refreshing = false;
         if (pending && !stopped && !debounce) debounce = setTimeout(() => { debounce = undefined; void update(); }, refreshDelay);
       }

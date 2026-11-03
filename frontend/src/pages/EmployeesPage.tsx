@@ -1,4 +1,8 @@
+import { requestUnsavedNavigation, useUnsavedChanges } from '../utils/unsavedChanges.tsx';
+import { beginDataLoading, markDataLoadingBackground } from '../utils/dataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { readMasterSnapshot, masterSnapshotRevision, rememberMasterSnapshot } from '../utils/masterSnapshots.ts';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { OutletMasterDeleteButton } from './OutletMasterDeleteButton.tsx';
 import { DeleteConfirmation } from './DeleteConfirmation.tsx';
 import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
@@ -18,21 +22,36 @@ interface Employee {
   shortName: string; balanceAmt: string; dateOfJoining: string; userId: string;
 }
 interface EmployeeList { employees: Employee[]; nextSearchCode: number; userAccounts: { userId: string; name: string }[] }
-interface Draft { requestId: string; name: string; mobile: string; searchCode: string; shortName: string; balanceAmt: string; dateOfJoining: string; userId: string }
+interface Draft { documentId?: string; requestId: string; name: string; mobile: string; searchCode: string; shortName: string; balanceAmt: string; dateOfJoining: string; userId: string }
 
-export function EmployeesPage({ outlet, token, onSessionExpired }: {
+interface EmployeesPageProps {
   outlet: OutletSummary; token: string; onSessionExpired: () => void;
-}) {
+}
+
+export function EmployeesPage(props: EmployeesPageProps) {
+  return <EmployeesWorkspace key={JSON.stringify([props.outlet.id, props.token])} {...props} />;
+}
+
+function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPageProps) {
   const [data, setData] = useState<EmployeeList | null>(null);
+  const [search, setSearch] = useState('');
+  const searchInput = useRef<HTMLInputElement>(null);
+  const clearSearch = () => { setSearch(''); searchInput.current?.focus(); };
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
-  const [kind, setKind] = useState('Employee');
-  const [selectedId, setSelectedId] = useState('');
+  // Employees and salesmen share one record type and form; the page labels records as employees.
+  const kind = 'Employee';
   const [draft, setDraft] = useState<Draft | null>(null);
+  const baseline = useRef<Draft | null>(null);
+  const openDraft = (next: Draft) => { baseline.current = next; setDraft(next); };
+  const { confirmAction, confirmation } = useActionConfirmation(!!draft);
   const [saveError, setSaveError] = useState('');
-  const [notice, setNotice] = useTimedNotice();
+  const [notice, setNotice] = useTimedNotice(false);
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
+  useUnsavedChanges(!!draft && JSON.stringify(draft) !== JSON.stringify(baseline.current), saving);
+  const closeDraft = () => requestUnsavedNavigation(() => setDraft(null));
+  useWorkspaceBack(!!draft, () => { if (!saving) setDraft(null); });
   const requests = useRef<AbortController | null>(null);
   const shortNameEdited = useRef(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -45,9 +64,11 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
     const controller = new AbortController(); requests.current = controller;
     const url = `/api/outlets/${encodeURIComponent(outlet.id)}/employees`;
     const cached = readMasterSnapshot<EmployeeList>(url, token);
+    if (cached) markDataLoadingBackground(controller.signal);
     const revision = masterSnapshotRevision();
-    setData(cached ?? null); setError(''); setDraft(null); setNotice(''); setSelectedId(''); setSaving(false); busy.current = false;
+    setData(cached ?? null); setError(''); setDraft(null); setNotice(''); setSaving(false); busy.current = false;
     void (async () => {
+      const finishLoading = beginDataLoading('Employees', controller.signal);
       try {
         const response = await fetch(url, {
           headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal,
@@ -59,14 +80,14 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
         if (revision !== masterSnapshotRevision()) { setReload(value => value + 1); return; }
         rememberMasterSnapshot(url, token, result.data, revision);
         setData(result.data);
-      } catch (failure) { if (!controller.signal.aborted) setError((failure as Error).message); }
+      } catch (failure) { if (!controller.signal.aborted) setError((failure as Error).message); } finally { finishLoading(); }
     })();
     return () => controller.abort();
   }, [outlet.id, token, onSessionExpired, reload]);
 
   useEffect(() => {
     if (!draft) return;
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy.current) setDraft(null); };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy.current && !document.querySelector('dialog[open]')) closeDraft(); };
     document.addEventListener('keydown', escape);
     return () => document.removeEventListener('keydown', escape);
   }, [draft]);
@@ -74,8 +95,12 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
   const openAdd = () => {
     if (!data) return;
     shortNameEdited.current = false; setSaveError(''); setNotice('');
-    setDraft({ requestId: createRequestId(), name: '', mobile: '', searchCode: String(data.nextSearchCode),
+    openDraft({ requestId: createRequestId(), name: '', mobile: '', searchCode: String(data.nextSearchCode),
       shortName: '', balanceAmt: '0', dateOfJoining: '', userId: '' });
+  };
+  const openEdit = (employee: Employee) => {
+    shortNameEdited.current = true; setSaveError(''); setNotice('');
+    openDraft({ ...employee, requestId: createRequestId(), searchCode: String(employee.searchCode ?? ''), balanceAmt: employee.balanceAmt || '0' });
   };
   const change = (key: keyof Draft, value: string) => {
     setSaveError(''); setDraft(current => current ? { ...current, [key]: value } : current);
@@ -90,11 +115,13 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
     if (!/^\+?(?=.*\d)[\d ()-]+$/.test(draft.mobile.trim())) { setSaveError('Enter a valid mobile number.'); return; }
     const controller = requests.current;
     if (!controller || controller.signal.aborted) return;
+    if (!await confirmAction(draft.documentId ? 'update' : 'add', draft.name.trim())) return;
     busy.current = true; setSaving(true);
     try {
-      const response = await fetch(`/api/outlets/${encodeURIComponent(outlet.id)}/employees`, {
-        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...draft, name: draft.name.trim(), mobile: draft.mobile.trim(), shortName: draft.shortName.trim(), searchCode }), signal: controller.signal,
+      const { documentId, requestId, ...fields } = draft;
+      const response = await fetch(`/api/outlets/${encodeURIComponent(outlet.id)}/employees${documentId ? `/${encodeURIComponent(documentId)}` : ''}`, {
+        method: documentId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fields, ...(documentId ? {} : { requestId }), name: draft.name.trim(), mobile: draft.mobile.trim(), shortName: draft.shortName.trim(), searchCode }), signal: controller.signal,
       });
       const result = await response.json() as { data?: Employee; message?: string };
       if (controller.signal.aborted) return;
@@ -106,11 +133,10 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
           .sort((a, b) => (a.searchCode ?? Infinity) - (b.searchCode ?? Infinity)),
         nextSearchCode: Math.max(current.nextSearchCode, (saved.searchCode ?? 0) + 1),
       } : current);
-      setSelectedId(saved.documentId); setDraft(null); setNotice(`${kind} added successfully.`);
+      setDraft(null); setNotice(`${kind} ${draft.documentId ? 'updated' : 'added'} successfully.`);
     } catch (failure) { if (!controller.signal.aborted) setSaveError((failure as Error).message); }
     finally { if (!controller.signal.aborted) { busy.current = false; setSaving(false); } }
   };
-  const selected = data?.employees.find(row => row.documentId === selectedId);
   // Removes only this outlet's employee masters; bills and user accounts are kept.
   const deleteAllEmployees = async () => {
     if (busy.current) return;
@@ -118,7 +144,7 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
     try {
       await deleteAllRecords(outlet.id, token, 'employees');
       setData(current => current ? { ...current, employees: [] } : current);
-      setSelectedId(''); setDeleteAllOpen(false); setDeleteAllDone(true);
+      setDeleteAllOpen(false); setDeleteAllDone(true);
     } catch (failure) {
       if (failure instanceof DeleteAllError && failure.status === 401) { setDeleteAllOpen(false); onSessionExpired(); return; }
       setDeleteAllError((failure as Error).message);
@@ -126,8 +152,15 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
     } finally { busy.current = false; setDeletingAll(false); }
   };
 
-  if (draft) return <section className="category-modal employee-form-page master-form-page" aria-labelledby="employee-form-title"><form onSubmit={save}>
-        <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UserRoundCog size={24} /></span><div><h3 id="employee-form-title">Add {kind}</h3><p>{outlet.name} · Personal and work details</p></div></div><button type="button" className="modal-close-btn" aria-label="Close employee form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button></div>
+  const userNames = new Map(data?.userAccounts.map(user => [user.userId, user.name]));
+  const userDisplayName = (employee: Employee) => employee.userId ? userNames.get(employee.userId) || 'Assigned account' : 'Not assigned';
+  const query = search.trim().toLowerCase();
+  const visibleEmployees = data?.employees.filter(employee => !query || [employee.name, employee.mobile,
+    String(employee.searchCode ?? ''), employee.shortName, userDisplayName(employee)]
+    .some(value => value.toLowerCase().includes(query))) ?? [];
+
+  if (draft) return <section className="category-modal employee-form-page master-form-page" aria-labelledby="employee-form-title"><form onSubmit={save}>{confirmation}
+        <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UserRoundCog size={24} /></span><div><h3 id="employee-form-title">{draft.documentId ? 'Edit' : 'Add'} {kind}</h3><p>{outlet.name} · Personal and work details</p></div></div><button type="button" className="modal-close-btn" aria-label="Close employee form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div>
         <fieldset className="employees-form-fields" disabled={saving}>
           <div className="master-form-section-heading"><span>01</span><h4>Personal information</h4></div>
           <div className="form-field"><label htmlFor="employee-name">Employee Name*</label><input id="employee-name" placeholder="Full name" value={draft.name} required maxLength={200} autoFocus onChange={event => { const value = event.target.value; setSaveError(''); setDraft(current => current ? { ...current, name: value, shortName: shortNameEdited.current ? current.shortName : Array.from(value.trim())[0] ?? '' } : current); }} /></div>
@@ -142,15 +175,15 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
           <div className="form-field"><label htmlFor="employee-user">Assign To User Account</label><select id="employee-user" value={draft.userId} onChange={event => change('userId', event.target.value)}><option value="">Not assigned</option>{data?.userAccounts.map(user => <option key={user.userId} value={user.userId}>{user.name || 'User account'}</option>)}</select></div>
         </fieldset>
         {saveError && <p className="employees-save-error" role="alert">{saveError}</p>}
-        <div className="modal-footer"><button type="button" className="btn-secondary" disabled={saving} onClick={() => setDraft(null)}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}>{saving ? <RefreshCw size={16} /> : <Save size={16} />}{saving ? 'Saving…' : 'Save'}</button></div>
+        <div className="modal-footer"><button type="button" className="btn-secondary" disabled={saving} onClick={closeDraft}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}>{saving ? <RefreshCw size={16} /> : <Save size={16} />}{saving ? 'Saving…' : 'Save'}</button></div>
       </form></section>;
 
   return <section className="employees-page category-page-shell">
     {deleteAllOpen && <DeleteConfirmation kind="employee" name="all employees" busy={deletingAll} error={deleteAllError}
-      title="Delete all employees?" description={`Are you sure you want to delete all employees? This will permanently remove all ${data?.employees.length ?? 0} employees and salesmen of this outlet.`}
-      confirmLabel="Yes" cancelLabel="No" onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllEmployees()} />}
+      title="Delete all employees?"
+      onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllEmployees()} />}
     {deleteAllDone && <SuccessPopup message="Employees deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
-    <div className="category-header-row"><div className="category-title-group"><h1><UserRoundCog size={22} /> Employees / Salesman</h1><p>{outlet.name} · Select a person from your outlet’s employee list.</p></div>
+    <div className="category-header-row"><div className="category-title-group"><h1><UserRoundCog size={22} /> Employees / Salesman</h1><p>Click a person to edit their details.</p></div>
       <div className="category-header-actions category-master-actions">
         <button type="button" className="btn-primary-add" disabled={!data || !!error} onClick={openAdd}><Plus size={16} /> Add {kind}</button>
         <div className="category-more-actions">
@@ -161,16 +194,24 @@ export function EmployeesPage({ outlet, token, onSessionExpired }: {
           </div>}
         </div>
       </div></div>
-    <div className="employees-selection"><label htmlFor="employee-selection-kind">Select as</label><select id="employee-selection-kind" value={kind} disabled={!!draft} onChange={event => { setKind(event.target.value); setNotice(''); }}><option>Employee</option><option>Salesman</option></select>
-      {selected && <p role="status">Selected {kind.toLowerCase()}: <strong>{selected.name}</strong> · {selected.mobile}</p>}</div>
-    {notice && <p className="employees-notice" role="status">{notice}</p>}
-    {error ? <div className="employees-state"><p role="alert">{error}</p><button type="button" className="btn-secondary" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : !data ? <p className="employees-state" role="status">Loading employees…</p> : !data.employees.length ?
+    {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
+    {data && !error && <div className="employees-search-controls">
+      <div className="employees-search-field"><label htmlFor="employee-search">Search employees</label>
+        <input ref={searchInput} id="employee-search" type="search" value={search} aria-describedby="employee-search-count"
+          placeholder="Name, mobile, code, short name or user account" onChange={event => setSearch(event.target.value)} />
+      </div>
+      {search && <button type="button" className="btn-secondary" onClick={clearSearch}>Clear search</button>}
+      <p id="employee-search-count" role="status" aria-live="polite" aria-atomic="true">{visibleEmployees.length} of {data.employees.length} employees</p>
+    </div>}
+    {error ? <div className="employees-state"><p role="alert">{error}</p><button type="button" className="btn-secondary" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : !data ? <p className="employees-state" role="status" data-inline-loading>Loading employees…</p> : !data.employees.length ?
       <div className="employees-state"><UserRoundCog size={28} /><h2>No employees found</h2><p>Add a {kind.toLowerCase()} to get started.</p><button type="button" className="btn-primary-add" onClick={openAdd}><Plus size={16} /> Add {kind}</button></div> :
-      <div className="employees-table-scroll"><table><thead><tr><th>Select</th><th>Name</th><th>Mobile</th><th>Search code</th><th>Balance</th><th>Joining date</th><th>User account</th><th>Actions</th></tr></thead><tbody>{data.employees.map(employee => <tr key={employee.documentId} className={selectedId === employee.documentId ? 'selected' : ''}>
-        <td><input id={`employee-${employee.documentId}`} type="radio" name="selected-employee" aria-label={`Select ${employee.name}`} checked={selectedId === employee.documentId} onChange={() => setSelectedId(employee.documentId)} /></td>
-        <td><label htmlFor={`employee-${employee.documentId}`}>{employee.name}</label></td><td>{employee.mobile || '—'}</td><td>{employee.searchCode ?? '—'}</td><td>{employee.balanceAmt || '0'}</td><td>{employee.dateOfJoining || '—'}</td>
-        <td>{employee.userId ? data.userAccounts.find(user => user.userId === employee.userId)?.name || 'Assigned account' : 'Not assigned'}</td>
-        <td><OutletMasterDeleteButton outletId={outlet.id} token={token} collection="employees" documentId={employee.documentId} name={employee.name || 'Unnamed employee'} onSessionExpired={onSessionExpired} onDeleted={() => { setData(current => current ? { ...current, employees: current.employees.filter(row => row.documentId !== employee.documentId) } : current); if (selectedId === employee.documentId) setSelectedId(''); setNotice('Employee deleted successfully.'); }} /></td>
+      !visibleEmployees.length ? <div className="employees-state"><h2>No matching employees</h2><p>Try another search or clear it to see all employees.</p><button type="button" className="btn-secondary" onClick={clearSearch}>Clear search</button></div> :
+      <div className="employees-table-scroll"><table><thead><tr><th>Name</th><th>Mobile</th><th>Search code</th><th>Balance</th><th>Joining date</th><th>User account</th><th>Actions</th></tr></thead><tbody>{visibleEmployees.map(employee => <tr key={employee.documentId}
+        tabIndex={0} aria-label={`Edit employee ${employee.name}`} onClick={() => openEdit(employee)}
+        onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openEdit(employee); } }}>
+        <td>{employee.name}</td><td>{employee.mobile || '—'}</td><td>{employee.searchCode ?? '—'}</td><td>{employee.balanceAmt || '0'}</td><td>{employee.dateOfJoining || '—'}</td>
+        <td>{userDisplayName(employee)}</td>
+        <td><OutletMasterDeleteButton outletId={outlet.id} token={token} collection="employees" documentId={employee.documentId} name={employee.name || 'Unnamed employee'} onSessionExpired={onSessionExpired} onDeleted={() => { setData(current => current ? { ...current, employees: current.employees.filter(row => row.documentId !== employee.documentId) } : current); setNotice('Employee deleted successfully.'); }} /></td>
       </tr>)}</tbody></table></div>}
 
   </section>;

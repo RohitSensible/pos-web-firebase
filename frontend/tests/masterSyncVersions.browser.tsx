@@ -28,7 +28,7 @@ window.fetch = async (input, init) => {
   if (url.pathname.endsWith('/customers')) { reads++; return Response.json({ success: true, data: { customers } }); }
   throw new Error(`Unexpected request: ${url.pathname}`);
 };
-const rows = () => document.querySelector('tbody')?.textContent ?? '';
+const rows = () => document.querySelector('tbody, .customers-list')?.textContent ?? '';
 // The server ends each connection (bounded hosts); the page reconnects by itself.
 async function rotate() {
   const before = connections; feed!.close(); feed = null;

@@ -29,7 +29,7 @@ void (async () => {
   assert(letters === 'ABCDEFGHIJKLMN', 'column letters A to N');
   const rows = [...document.querySelectorAll('.sheet-grid tbody tr')];
   assert(rows.length === 20, '20 illustrative product rows');
-  assert(getComputedStyle(rows[0]!.querySelector('td')!).color === 'rgb(51, 65, 85)', 'sample cells have readable dark text');
+  assert(getComputedStyle(rows[0]!.querySelector('td')!).color === getComputedStyle(dialog()).color, 'sample cells have readable dark text');
   const values = rows.map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent ?? ''));
   assert(values.every(row => row.length === 14 && row[10] === 'number' && row[11] === '0'), 'sample rows match current unit and zero-stock rules');
   assert(rows[0]?.querySelector('th')?.textContent === '2' && rows.at(-1)?.querySelector('th')?.textContent === '21', 'spreadsheet row numbers');

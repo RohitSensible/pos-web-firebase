@@ -47,7 +47,7 @@ window.fetch = async (input, init) => {
 let root = createRoot(document.getElementById('root')!);
 const render = (id: string) => flushSync(() => root.render(<OutletLogoPage outletId={id} outletName={id} token="mock" />));
 const image = () => document.querySelector<HTMLImageElement>('.outlet-logo-preview img');
-const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === label)!;
+const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === label || node.getAttribute('aria-label') === label)!;
 const tab = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role=tab]')].find(node => node.textContent === label)!;
 const chooseFile = (data: BlobPart = bytes, type = 'image/png') => {
   const input = document.querySelector<HTMLInputElement>('.outlet-logo-actions input')!;
@@ -61,6 +61,14 @@ void (async () => {
   const preview = document.querySelector('.outlet-logo-preview')!.getBoundingClientRect(), picture = image()!.getBoundingClientRect();
   assert(Math.abs((picture.left + picture.right) / 2 - (preview.left + preview.right) / 2) <= 1 && Math.abs((picture.top + picture.bottom) / 2 - (preview.top + preview.bottom) / 2) <= 1, 'logo is centered horizontally and vertically');
   assert(changes.length === 0, 'opening the logo screen performs no mutations');
+  const card = document.querySelector('.outlet-logo-card')!.getBoundingClientRect(), pill = document.querySelector('.outlet-logo-switch')!.getBoundingClientRect();
+  assert(Math.abs((pill.left + pill.right) / 2 - (card.left + card.right) / 2) <= 1 && document.querySelectorAll('.outlet-logo-card').length === 1,
+    'one card with a centered pill switch for Header and Footer Logo');
+  assert(!document.querySelector('.outlet-logo-specs') && getComputedStyle(document.querySelector('.outlet-logo-dropzone')!).borderStyle === 'dashed',
+    'dashed dropzone shows only the logo, without file specification pills');
+  const upload = button('Upload Header Logo'), remove = button('Remove'), actions = upload.getBoundingClientRect();
+  assert(upload.textContent === 'Upload Logo' && Math.abs(actions.right - (card.right - 24)) <= 1 && remove.getBoundingClientRect().right <= actions.left
+    && getComputedStyle(upload).backgroundColor === 'rgb(79, 70, 229)', 'Remove and a Royal Blue Upload Logo sit in the bottom right');
   tab('Footer Logo').click(); await until(() => image()?.alt === 'Outlet A Footer Logo');
   assert(changes.length === 0 && !!button('Upload Footer Logo'), 'selecting Footer Logo is read-only and changes the upload target');
   chooseFile(); chooseFile(); await until(() => !!document.querySelector('.logo-success')); await settled();

@@ -42,7 +42,7 @@ const root = createRoot(document.getElementById('root')!);
 const outlet = { id: 'outlet', name: 'Outlet', active: true } as never;
 const onSessionExpired = () => { throw new Error('Unexpected session expiry'); };
 const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === label || node.getAttribute('aria-label') === label);
-const rows = () => (document.querySelector('tbody') ?? document.querySelector('.premises-list'))?.textContent ?? '';
+const rows = () => (document.querySelector('tbody') ?? document.querySelector('.premises-list, .customers-list'))?.textContent ?? '';
 const dialogText = () => document.querySelector('dialog[open]')?.textContent ?? '';
 
 async function deleteAll(menu: string, names: string[], route: string, confirm: string, success: string) {
@@ -50,18 +50,18 @@ async function deleteAll(menu: string, names: string[], route: string, confirm: 
   button(menu)!.click(); await until(() => button('Delete All'), `${route} menu`);
   assert(!button('Delete All')!.disabled, `${route}: Delete All is available in the three-dot menu`);
   button('Delete All')!.click(); await until(() => dialogText().includes('Are you sure'), `${route} confirmation`);
-  button('No')!.click(); await until(() => !dialogText(), `${route} cancel`);
+  button('Cancel')!.click(); await until(() => !dialogText(), `${route} cancel`);
   assert(!deletes.length && names.every(name => rows().includes(name)), `${route}: No deletes nothing`);
 
   failNext = true;
   button(menu)!.click(); await until(() => button('Delete All'), 'menu again'); button('Delete All')!.click();
-  await until(() => button('Yes'), 'confirm'); button('Yes')!.click();
+  await until(() => button('Delete'), 'confirm'); button('Delete')!.click();
   await until(() => dialogText().includes('Retry Delete All'), `${route} failure`);
   assert(!dialogText().includes('deleted successfully'), `${route}: a failure never shows success`);
-  button('Yes')!.click();
-  await until(() => dialogText().includes(success), `${route} success`);
+  button('Delete')!.click();
+  await until(() => dialogText().includes('Deleted successfully.'), `${route} success`);
   assert(deletes.length === 2 && deletes.every(call => call.path === `/api/outlets/outlet/${route}` && call.confirm === confirm), `${route}: sends the confirmed delete-all request`);
-  button('OK')!.click(); await until(() => !dialogText(), 'close success');
+  button('Done')!.click(); await until(() => !dialogText(), 'close success');
   assert(names.every(name => !rows().includes(name)), `${route}: the list is cleared`);
   await until(() => button(menu), 'menu after delete');
   button(menu)!.click(); await until(() => button('Delete All'), 'empty menu');

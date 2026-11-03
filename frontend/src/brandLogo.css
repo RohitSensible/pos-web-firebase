@@ -1,0 +1,34 @@
+/* Display the original logo artwork without its transparent source-image margins.
+   Source: 717 × 348; visible artwork: x 131–586, y 76–272. */
+.header-logo-crop,
+.crm-brand-crop,
+.outlet-logo-crop {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: var(--brand-logo-width);
+  height: auto;
+  aspect-ratio: 455 / 196;
+  overflow: hidden;
+}
+
+.header-logo-crop > img,
+.crm-brand-crop > img,
+.outlet-logo-crop > img {
+  position: absolute;
+  display: block;
+  width: calc(100% * 717 / 455);
+  max-width: none;
+  height: auto;
+  left: calc(-100% * 131 / 455);
+  top: calc(-100% * 76 / 196);
+}
+
+.header-logo-crop { --brand-logo-width: 148px; }
+.crm-brand-crop { --brand-logo-width: 176px; }
+.outlet-logo-crop { --brand-logo-width: 156px; }
+
+@media (max-width: 600px) {
+  .header-logo-crop { --brand-logo-width: 128px; }
+  .crm-brand-crop { --brand-logo-width: 136px; }
+}

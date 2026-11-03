@@ -49,6 +49,7 @@ export function salesTaxSummary(rows: TaxedSalesRow[]): ReportSummary {
 }
 
 export interface ReportExport {
+  signal?: AbortSignal;
   name: string;
   outlet: { name: string; gstin?: string };
   startDate?: string;
@@ -184,13 +185,20 @@ export function reportFilename(options: Pick<ReportExport, 'name' | 'startDate' 
 }
 
 export async function downloadReportExcel(options: ReportExport): Promise<void> {
+  options.signal?.throwIfAborted();
   const workbook = await createReportWorkbook(options);
+  options.signal?.throwIfAborted();
   const buffer = await workbook.xlsx.writeBuffer();
+  options.signal?.throwIfAborted();
   const blob = new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = reportFilename(options);
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  try {
+    options.signal?.throwIfAborted();
+    anchor.click();
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 }

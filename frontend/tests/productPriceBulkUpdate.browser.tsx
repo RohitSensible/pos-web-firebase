@@ -13,7 +13,7 @@ const store = new Map<string, Record<string, unknown>>([
   ['p4', { name: 'BROKEN', code: '4', price: 1, priceTable: 'not json' }],
 ]);
 const untouched = structuredClone([...store]);
-window.confirm = () => { confirms++; return confirmAnswer; };
+
 window.fetch = async (url, init) => {
   const path = String(url);
   if (path === '/api/outlets/outlet/products' && !init?.method) { listLoads++; return Response.json({ success: true, data: [...store].map(([documentId, fields]) => ({ documentId, fields: { ...fields } })) }); }
@@ -36,7 +36,12 @@ const pause = () => new Promise(resolve => setTimeout(resolve, 20));
 async function waitFor(check: () => unknown, message: string) { for (let i = 0; i < 150; i++) { if (check()) return; await pause(); } throw new Error(`Timed out: ${message}`); }
 const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === text)!;
 const field = (label: string) => document.querySelector<HTMLInputElement>(`[aria-label="${label}"]`);
-const click = async (element: HTMLElement) => { element.click(); await pause(); };
+const click = async (element: HTMLElement) => {
+  const label = element.textContent?.trim(); element.click(); await pause();
+  const prompt = document.querySelector('.action-popup-question')?.textContent ?? '';
+  if (label === 'Update' && prompt.includes('update')) { document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click(); await pause(); }
+  if (label === 'Cancel' && prompt.includes('discard')) { confirms++; document.querySelector<HTMLButtonElement>(confirmAnswer ? '.action-confirm-button' : '.delete-confirmation-cancel')!.click(); await pause(); }
+};
 async function type(element: HTMLInputElement, text: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(element, text);
   element.dispatchEvent(new Event('input', { bubbles: true })); await pause();
@@ -91,6 +96,7 @@ void (async () => {
   failIds.clear(); patches.length = 0;
   await click(button('Update'));
   await waitFor(() => document.querySelector('[aria-label="More options"]'), 'return to Products');
+  await waitFor(() => document.querySelector('.action-success[open]'), 'update success'); await click(button('Done'));
   assert(!document.querySelector('.products-notice'), 'Completed update leaves no success banner');
   assert(patches.length === 1 && patches[0]!.id === 'p2', 'retry resends only the failed product');
   await waitFor(() => listLoads === 3, 'list reloaded');

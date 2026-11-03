@@ -1,4 +1,5 @@
 import { gstDetailRows, loadGstExportBills, gstBillSummary } from '../src/utils/gstExcel.ts';
+import { dashboardShiftStatus } from '../../shared/shiftStatus.ts';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -70,7 +71,7 @@ async function pageExport(page, context) {
   let handler;
   const helpers = [];
   function visit(node) {
-    if (ts.isFunctionDeclaration(node)) helpers.push(node.getText(ast));
+    if (ts.isFunctionDeclaration(node)) helpers.push(node.getText(ast).replace(/^export\s+/, ''));
     if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'exportExcel') handler = node.initializer.getText(ast);
     ts.forEachChild(node, visit);
   }
@@ -78,12 +79,18 @@ async function pageExport(page, context) {
   assert.ok(handler, `${page} has an export handler`);
   let options;
   const args = {
-    outlet, appliedFilters, dayId: '2026-08-15', billRange, gstSummary, sumPayments, paymentSummary, gstDetailRows, gstBillSummary, salesTaxRows, salesTaxSummary,
+    outlet, appliedFilters, dayId: '2026-08-15', billRange, gstSummary, sumPayments, paymentSummary, gstDetailRows, gstBillSummary, salesTaxRows, salesTaxSummary, dashboardShiftStatus,
     token: 'test-token', onSessionExpired() {},
     loadGstExportBills: async (_id, _token, bills) => bills.map(bill => ({ ...gstReport.bills[0], ...bill, gross: bill.finalTotal })),
+    ...(page === 'ShiftSummary' ? { appliedFilters: { month: '2026-08' } } : {}),
+    // Workbook fixtures represent a successfully loaded report with output enabled.
+    exportJob: { current: null }, currentScope: { current: null }, scope: {}, loading: false, canOutput: true, report: {},
+    runExport: async task => task(new AbortController().signal),
+    setExportScope() {}, setExportFailure(value) { if (value) throw new Error(value.message); },
     setExporting() {}, setError(error) { if (error) throw new Error(error); },
     downloadReportExcel: async value => { options = value; },
     ...context,
+    ...(page === 'ProductWise' ? { report: { ...context.report, products: context.sortedProducts } } : {}),
   };
   const js = ts.transpileModule(`${helpers.join('\n')}\nconst handler = ${handler};`, {
     compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.None },
@@ -250,9 +257,9 @@ test('stock and inventory exports keep quantities/values without inventing sales
   const stock = await pageExport('Stock', { reportName: 'Stock Report', rows: [{ code: '009', name: 'Item', category: 'Food', tracked: true, currentStock: 2, reorderLevel: 1, status: 'In stock', price: 50, stockValue: 100 }], summary: { tracked: 1, totalStock: 2, stockValue: 100 } });
   assert.equal((await roundTrip(stock)).getCell('B7').value, 0);
   for (const [page, key] of [['StockTransfer', 'transfers'], ['StockInOut', 'movements']]) {
-    const options = await pageExport(page, { reportName: page, report: {
+    const options = await pageExport(page, { reportName: page, isIn: true, directionLabel: 'Stock-In', report: {
       [key]: [{ transferNo: 'T01', transactionNo: 'M01', dayId: '2026-08-15', createdDate: 1786755600000, type: 'Transfer', direction: 'in', supplier: 'Supplier', finalTotal: 50, remark: '', references: [], items: [] }],
-      summary: { totalQuantity: 2, netQuantity: 2, totalAmount: 50 },
+      summary: { totalQuantity: 2, netQuantity: 2, stockInQuantity: 2, stockOutQuantity: 0, totalTransactions: 1, totalAmount: 50 },
     } });
     const sheet = await roundTrip(options);
     assert.equal(sheet.getRow(32).actualCellCount, 14);
@@ -260,7 +267,7 @@ test('stock and inventory exports keep quantities/values without inventing sales
   }
 });
 
-test('day export omits the removed sections and shift export retains its 18 columns', async () => {
+test('day export omits the removed sections and shift export omits the device column', async () => {
   const day = await pageExport('Daywise', { reportName: 'Day Wise Report', report: { dayId: '2026-08-15', billCount: 1, cashSale: 10, digitalSale: 20, creditSale: 0, expensesAmtTotal: 0, totalSale: 30, tax: 2, billDeletesNumber: 0, payments: { cash: 10, card: 20 } }, bills: [], metrics: [['Total Tax', 2]] });
   const daySheet = await roundTrip(day);
   assert.equal(daySheet.getCell('A32').value, 'DATE');
@@ -272,9 +279,11 @@ test('day export omits the removed sections and shift export retains its 18 colu
   const shift = { dayId: '2026-08-15', shiftNo: 1, inActive: false, deviceId: '001', startTime: 1786755600000, endTime: 0, startBillNo: '01', lastBillNo: '03', billCount: 3, openingAmt: 0, cashSale: 10, digitalSale: 20, creditSale: 0, discount: 0, tax: 2, expensesAmtTotal: 0, expCash: 0, totalSale: 30, payments: { cash: 10, card: 20 } };
   const options = await pageExport('ShiftSummary', { reportName: 'Shift Summary Report', report: { shifts: [shift], summary: { totalSale: 30, cashSale: 10, digitalSale: 20, creditSale: 0 } } });
   const sheet = await roundTrip(options);
-  assert.equal(sheet.getRow(32).actualCellCount, 18);
+  assert.equal(sheet.getRow(32).actualCellCount, 17);
+  assert(!options.rows[0].includes('Device ID'));
+  assert(!options.rows[1].includes('001'));
   assert.equal(sheet.getCell('B5').value, '01 to 03');
-  assert.equal(sheet.getCell('R33').value, 30);
+  assert.equal(sheet.getCell('Q33').value, 30);
 });
 
 test('browser download uses xlsx MIME, filename and a valid workbook', async () => {
@@ -497,4 +506,76 @@ test('category export splits category and product amounts by rate without doubli
   assert.ok(details.every(row => !String(row[2]).includes(',')));
   assert.ok(details.every(row => !String(row[1]).includes('↳')));
   assert.deepEqual(f, before);
+});
+
+test('GST export propagates cancellation and rejects late responses even when fetch ignores abort', async () => {
+  const originalFetch = globalThis.fetch;
+  const controller = new AbortController();
+  let respond;
+  let receivedSignal;
+  let expired = 0;
+  try {
+    globalThis.fetch = (_url, options) => {
+      receivedSignal = options.signal;
+      return new Promise(resolve => { respond = resolve; });
+    };
+    const pending = loadGstExportBills('shop', 'token', [{ documentId: 'one', finalTotal: 104.75 }], '2026-11-01', '2026-11-03', () => { expired++; }, controller.signal);
+    assert.equal(receivedSignal, controller.signal);
+    controller.abort();
+    respond({ status: 401 });
+    await assert.rejects(pending, { name: 'AbortError' });
+    assert.equal(expired, 0, 'cancelled requests cannot expire a replacement session');
+
+    const bodyController = new AbortController();
+    let body;
+    globalThis.fetch = async () => ({ status: 200, ok: true, json: () => new Promise(resolve => { body = resolve; }) });
+    const pendingBody = loadGstExportBills('shop', 'token', [{ documentId: 'one', finalTotal: 104.75 }], '2026-11-01', '2026-11-03', () => {}, bodyController.signal);
+    await new Promise(resolve => setImmediate(resolve));
+    bodyController.abort();
+    body({ data: { bills: [] } });
+    await assert.rejects(pendingBody, { name: 'AbortError' });
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('Excel download blocks late workbook buffers and checks cancellation immediately before anchor click', async () => {
+  const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+  const originalCreate = URL.createObjectURL;
+  const originalRevoke = URL.revokeObjectURL;
+  const xlsxPrototype = Object.getPrototypeOf(new ExcelJS.Workbook().xlsx);
+  const originalWrite = xlsxPrototype.writeBuffer;
+  const controller = new AbortController();
+  let finish;
+  let clicks = 0;
+  let urls = 0;
+  const revoked = [];
+  try {
+    globalThis.document = { createElement: () => ({ click() { clicks++; } }) };
+    globalThis.window = { setTimeout(callback) { callback(); } };
+    URL.createObjectURL = () => { urls++; return 'blob:cancel'; };
+    URL.revokeObjectURL = url => { revoked.push(url); };
+    xlsxPrototype.writeBuffer = () => new Promise(resolve => { finish = resolve; });
+    const options = { name: 'Bill report', outlet, rows: [['Bill', 'Sale']], signal: controller.signal };
+    const pending = downloadReportExcel(options);
+    while (!finish) await new Promise(resolve => setImmediate(resolve));
+    controller.abort(); finish(new ArrayBuffer(0));
+    await assert.rejects(pending, { name: 'AbortError' });
+    assert.equal(clicks, 0);
+    assert.equal(urls, 0, 'cancelled workbook does not allocate a download URL');
+
+    const clickController = new AbortController();
+    xlsxPrototype.writeBuffer = async () => new ArrayBuffer(0);
+    globalThis.document = { createElement: () => ({ set download(_value) { clickController.abort(); }, click() { clicks++; } }) };
+    await assert.rejects(downloadReportExcel({ ...options, signal: clickController.signal }), { name: 'AbortError' });
+    assert.equal(clicks, 0);
+    assert.deepEqual(revoked, ['blob:cancel'], 'URL is revoked even when cancelled immediately before click');
+    await assert.rejects(downloadReportExcel(options), { name: 'AbortError' });
+    assert.equal(urls, 1, 'already-aborted export stops before workbook generation');
+  } finally {
+    xlsxPrototype.writeBuffer = originalWrite;
+    globalThis.document = originalDocument;
+    globalThis.window = originalWindow;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+  }
 });

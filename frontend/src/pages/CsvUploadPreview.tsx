@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSuccessDismiss } from '../utils/useTimedNotice.ts';
+import { useDataLoading } from '../utils/useDataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { SuccessPopup } from './SuccessPopup.tsx';
 import { useRowBatches } from '../utils/useRowBatches.ts';
-import { CheckCircle2, FileSpreadsheet, X } from 'lucide-react';
+import { FileSpreadsheet, CloudUpload, Info, X } from 'lucide-react';
 import { fileSelectionError, namedPremisesHeaders, PRODUCT_COLUMNS, PREMISES_TEMPLATE_COLUMNS, type ProductUploadMode, type CsvPreview } from './productCsvPreview.ts';
 
-export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessAcknowledged, mode = 'standard' }: { mode?: ProductUploadMode; outletId: string; token: string; onSessionExpired: () => void; onSuccessAcknowledged: () => void }) {
+export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessAcknowledged, footerAction, mode = 'standard' }: { footerAction?: ReactNode; mode?: ProductUploadMode; outletId: string; token: string; onSessionExpired: () => void; onSuccessAcknowledged: () => void }) {
+  const { confirmAction, confirmation } = useActionConfirmation();
   const inputRef = useRef<HTMLInputElement>(null);
   const workerRef = useRef<Worker | null>(null);
+  const selectionGenerationRef = useRef(0);
+  const selectionQuotaRef = useRef<AbortController | null>(null);
   const [filename, setFilename] = useState('');
   const [preview, setPreview] = useState<CsvPreview | null>(null);
   const [error, setError] = useState('');
@@ -14,6 +19,7 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
   const [quotaChecked, setQuotaChecked] = useState(false);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
   const [parsing, setParsing] = useState(false);
+  useDataLoading(parsing, 'Spreadsheet Preview');
   const [source, setSource] = useState('');
   const [assignedCodes, setAssignedCodes] = useState<(string | number)[] | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -21,13 +27,33 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
   const [uploadStatus, setUploadStatus] = useState('');
   const busyRef = useRef(false);
   const requestRef = useRef<AbortController | null>(null);
-  const successDialogRef = useRef<HTMLDialogElement>(null);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const successVisible = useRef(false);
   const acknowledgeSuccess = () => {
-    successDialogRef.current?.close();
+    successVisible.current = false; setSuccessOpen(false);
     onSuccessAcknowledged();
   };
-  useSuccessDismiss(uploaded ? 'Products uploaded successfully' : '', acknowledgeSuccess);
-  const quotaControllerRef = useRef<AbortController | null>(null);
+
+  const cancelSelection = useCallback(() => {
+    selectionGenerationRef.current++;
+    selectionQuotaRef.current?.abort();
+    selectionQuotaRef.current = null;
+    workerRef.current?.terminate();
+    workerRef.current = null;
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    cancelSelection();
+    setSource(''); setAssignedCodes(null); setUploaded(false); setUploadStatus('');
+    setFilename(''); setPreview(null); setError(''); setParsing(false);
+    if (inputRef.current) inputRef.current.value = '';
+  }, [cancelSelection]);
+
+  useLayoutEffect(() => {
+    clearSelection();
+    setQuotaChecked(false); setRemainingAttempts(null); setUploadLimitMessage('');
+    return cancelSelection;
+  }, [outletId, token, mode, clearSelection, cancelSelection]);
 
   useEffect(() => () => { workerRef.current?.terminate(); requestRef.current?.abort(); }, []);
 
@@ -56,33 +82,30 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
 
   useEffect(() => {
     const controller = new AbortController();
-    quotaControllerRef.current = controller;
     const refresh = () => {
-      if (document.visibilityState !== 'hidden' && !busyRef.current && !successDialogRef.current?.open) void checkQuota(controller.signal);
+      if (document.visibilityState !== 'hidden' && !busyRef.current && !successVisible.current) void checkQuota(controller.signal);
     };
     void checkQuota(controller.signal);
     const timer = window.setInterval(refresh, 10_000);
     window.addEventListener('focus', refresh);
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener('focus', refresh); };
-  }, [checkQuota]);
+  }, [checkQuota, mode]);
 
   const removeFile = () => {
     if (busyRef.current) return;
-    setSource(''); setAssignedCodes(null); setUploaded(false); setUploadStatus('');
-    workerRef.current?.terminate();
-    workerRef.current = null;
-    setFilename('');
-    setPreview(null);
-    setError('');
-    setParsing(false);
-    if (inputRef.current) inputRef.current.value = '';
+    clearSelection();
   };
 
   const selectFile = async (file: File) => {
-    const signal = quotaControllerRef.current?.signal;
-    if (!signal || !await checkQuota(signal)) return;
-    removeFile();
+    if (busyRef.current) return;
+    // Invalidate old quota reads and queued worker callbacks before awaiting anything.
+    clearSelection();
+    const generation = selectionGenerationRef.current;
+    const controller = new AbortController();
+    selectionQuotaRef.current = controller;
     setFilename(file.name);
+    if (!await checkQuota(controller.signal) || controller.signal.aborted || generation !== selectionGenerationRef.current) return;
+    selectionQuotaRef.current = null;
     const selectionError = fileSelectionError(file.name, file.size, mode);
     if (selectionError) { setError(selectionError); return; }
     setParsing(true);
@@ -92,7 +115,7 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
         : new Worker(new URL('./productCsvPreview.worker.ts', import.meta.url), { type: 'module' });
       workerRef.current = worker;
       worker.onmessage = (event: MessageEvent<{ preview?: CsvPreview; error?: string; source?: string }>) => {
-        if (workerRef.current !== worker) return;
+        if (generation !== selectionGenerationRef.current || workerRef.current !== worker) return;
         setPreview(event.data.preview ?? null);
         setSource(event.data.source ?? '');
         setError(event.data.error ?? '');
@@ -102,14 +125,17 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
 
       };
       worker.onerror = () => {
-        if (workerRef.current !== worker) return;
-        setError('Unable to read or parse this file. Choose a UTF-8 CSV or TSV file.');
+        if (generation !== selectionGenerationRef.current || workerRef.current !== worker) return;
+        setError(mode === 'premises'
+          ? 'Unable to read or parse this file. Choose an XLSX spreadsheet or a UTF-8 CSV or TSV file.'
+          : 'Unable to read or parse this file. Choose a UTF-8 CSV or TSV file.');
         setParsing(false);
         worker.terminate();
         workerRef.current = null;
       };
       worker.postMessage(file);
     } catch {
+      if (generation !== selectionGenerationRef.current) return;
       workerRef.current?.terminate();
       workerRef.current = null;
       setParsing(false);
@@ -120,6 +146,8 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
   const upload = async () => {
     if (mode === 'premises' && !namedPremisesHeaders(preview?.headers ?? []).length) return;
     if (busyRef.current || uploaded || !source || !preview || preview.headerErrors.length || !preview.rows.length || preview.rows.some(row => row.errors.length)) return;
+    const generation = selectionGenerationRef.current;
+    if (!await confirmAction('add', `${preview.rows.length} products`) || generation !== selectionGenerationRef.current) return;
     busyRef.current = true; setUploading(true); setError(''); setUploadStatus('Checking categories, tax and product mappings…');
     const controller = new AbortController(); requestRef.current = controller;
     let writeAttempted = false;
@@ -130,10 +158,10 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
       let codes = assignedCodes;
       if (!codes) {
         const validation = await fetch(`/api/outlets/${encodeURIComponent(outletId)}/products/import/validate`, options);
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || generation !== selectionGenerationRef.current) return;
         if (validation.status === 401) { onSessionExpired(); return; }
         const checked = await validation.json() as { writesEnabled?: boolean; message?: string; data?: { canUpload: boolean; headerErrors: string[]; documents: { rowNumber: number; fields: { code: string | number } }[]; categorySummary?: { reused: number; toCreate: number }; rows: { rowNumber: number; errors: { column: string; message: string }[] }[] } };
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || generation !== selectionGenerationRef.current) return;
         if (validation.status === 429) {
           setUploadLimitMessage(checked.message || 'Upload limit reached. This outlet allows only 2 upload attempts within 24 hours. Please try again when a 24-hour slot becomes available.');
           return;
@@ -153,10 +181,10 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
       setUploadStatus('Uploading products…');
       writeAttempted = true;
       const response = await fetch(`/api/outlets/${encodeURIComponent(outletId)}/products/import${mode === 'premises' ? '/premises' : ''}`, { ...options, body: JSON.stringify({ source, codes }) });
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || generation !== selectionGenerationRef.current) return;
       if (response.status === 401) { onSessionExpired(); return; }
       const result = await response.json() as { success: boolean; message?: string; data?: { success: boolean; created: number; existing: number; confirmedRows: number[]; unconfirmedRows: number[]; message: string } };
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || generation !== selectionGenerationRef.current) return;
       if (response.status === 429) {
         setUploadLimitMessage(result.message || 'Upload limit reached. This outlet allows only 2 upload attempts within 24 hours. Please try again when a 24-hour slot becomes available.');
         return;
@@ -173,9 +201,9 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
         throw new Error(result.data ? `${result.data.message} Confirmed rows: ${result.data.confirmedRows.join(', ') || 'none'}. Unconfirmed rows: ${result.data.unconfirmedRows.join(', ') || 'none'}.` : result.message || 'Upload outcome is unknown. Retry the same file to reconcile its document IDs.');
       }
       setUploaded(true); setUploadStatus('');
-      successDialogRef.current?.showModal();
+      successVisible.current = true; setSuccessOpen(true);
     } catch (requestError) {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && generation === selectionGenerationRef.current) {
         setAssignedCodes(null);
         setError((requestError as Error).message);
         setUploadStatus(writeAttempted
@@ -186,7 +214,7 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
       busyRef.current = false;
       if (!controller.signal.aborted) setUploading(false);
       requestRef.current = null;
-      if (writeAttempted && !controller.signal.aborted && !successDialogRef.current?.open) {
+      if (writeAttempted && !controller.signal.aborted && generation === selectionGenerationRef.current && !successVisible.current) {
         await checkQuota(controller.signal);
       }
     }
@@ -196,35 +224,31 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
   // Every row is in one scrolling table; rows mount in batches as it scrolls.
   const { rows: visibleRows, hasMore, sentinelRef } = useRowBatches(rows, filename);
 
-  if (uploadLimitMessage) return <p className="csv-upload-error" role="alert">{uploadLimitMessage}</p>;
-  if (!quotaChecked) return <p role="status">{error || 'Checking upload limit…'}</p>;
+  if (uploadLimitMessage) return <><p className="csv-upload-error" role="alert">{uploadLimitMessage}</p>{footerAction && <div className="upload-excel-dialog-actions">{footerAction}</div>}</>;
+  if (!quotaChecked) return <><p role="status">{error || 'Checking upload limit…'}</p>{footerAction && <div className="upload-excel-dialog-actions">{footerAction}</div>}</>;
 
   const validRows = rows.filter(row => !row.errors.length).length;
   const warningRows = rows.filter(row => row.warnings.length).length;
   const headers = preview && (mode === 'premises' || preview.headerErrors.length) ? preview.headers : [...(mode === 'premises' ? PREMISES_TEMPLATE_COLUMNS : PRODUCT_COLUMNS)];
   const columns = Math.max(headers.length, ...visibleRows.map(row => row.cells.length));
 
+  const renderUploadButton = (label: string) => <button type="button" className="csv-upload-submit" disabled={(mode === 'premises' && !namedPremisesHeaders(preview?.headers ?? []).length) || uploading || uploaded || parsing || !source || !rows.length || validRows !== rows.length || !!preview?.headerErrors.length} onClick={() => void upload()}>{mode === 'premises' && !namedPremisesHeaders(preview?.headers ?? []).length ? 'Confirm Upload' : uploading ? 'Uploading…' : label}</button>;
+
   return (
-    <div className="csv-upload-preview">
-      {remainingAttempts !== null && <p className="csv-upload-help" role="status">Upload attempts remaining for this outlet: {remainingAttempts} within the rolling 24-hour period.</p>}
-      <dialog ref={successDialogRef} className="upload-excel-dialog csv-upload-success-dialog" aria-labelledby="csv-upload-success-title" aria-describedby="csv-upload-success-description"
-        onClose={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); event.stopPropagation(); acknowledgeSuccess(); }}>
-        <span className="csv-upload-success-icon"><CheckCircle2 size={32} aria-hidden="true" /></span>
-        <h2 id="csv-upload-success-title">Products uploaded successfully</h2>
-        <p id="csv-upload-success-description">You can view the uploaded products on the Products page.</p>
-        <div className="upload-excel-dialog-actions">
-          <button type="button" autoFocus onClick={acknowledgeSuccess}>OK</button>
-        </div>
-      </dialog>
-      <div className="csv-upload-file-controls">
-        <input ref={inputRef} type="file" accept={mode === 'premises' ? '.xlsx,.csv,.tsv' : '.csv,.tsv'} aria-label={mode === 'premises' ? 'Select premises product spreadsheet' : 'Select product CSV or TSV file'} hidden
+    <div className="csv-upload-preview">{confirmation}
+      {remainingAttempts !== null && <p className="csv-upload-help csv-upload-quota" role="status"><Info size={17} aria-hidden="true" /><span>Upload attempts remaining for this outlet: {remainingAttempts} within the rolling 24-hour period.</span></p>}
+      {successOpen && <SuccessPopup message="Uploaded successfully." onDismiss={acknowledgeSuccess} />}
+      <div className="csv-upload-drop-zone">
+        <input ref={inputRef} type="file" accept={mode === 'premises' ? '.xlsx,.csv,.tsv' : '.csv,.tsv'} aria-label={mode === 'premises' ? 'Select premises product spreadsheet' : 'Select product CSV or TSV file'} className="csv-upload-drop-input" disabled={uploading}
           onChange={event => { const file = event.target.files?.[0]; if (file) selectFile(file); }} />
-        <button type="button" disabled={uploading} onClick={() => inputRef.current?.click()}><FileSpreadsheet size={16} />Select File</button>
-        {filename && <button type="button" className="csv-upload-secondary" disabled={uploading} onClick={removeFile}><X size={16} />Remove File</button>}
+        <span className="csv-upload-cloud"><CloudUpload size={32} aria-hidden="true" /></span>
+        <strong className="csv-upload-drop-title">Drag &amp; drop your {mode === 'premises' ? 'spreadsheet' : 'CSV file'} here or browse</strong>
+        <span className="csv-upload-drop-description">Choose a file to validate and preview before uploading.</span>
+        <button type="button" className="csv-upload-browse" disabled={uploading} onClick={() => inputRef.current?.click()}><FileSpreadsheet size={16} />Select File</button>
+        <ul className="csv-upload-format-pills" aria-label="File requirements"><li>{mode === 'premises' ? 'XLSX / CSV / TSV' : 'CSV / TSV'}</li><li>UTF-8</li><li>Max 5 MB</li><li>Up to 10,000 rows</li></ul>
       </div>
-      <p className="csv-upload-help">{mode === 'premises' ? 'XLSX or UTF-8 CSV / TSV · Maximum 5 MB and 10,000 product rows. Keep the 14 product columns, then add selling-price columns named after your premises, such as AC Table or Non AC Table. Missing premises are created on confirmation. Numbered Premises columns and the legacy single Premises column remain preview-only. Prices must be non-negative; decimals are accepted. XLS is not supported.' : 'CSV / TSV · UTF-8 · Maximum 5 MB and 10,000 product rows. Comma, tab and semicolon delimiters are detected. XLS/XLSX are not supported.'}</p>
-      {filename && <div className="csv-upload-filename">Selected file: <strong>{filename}</strong></div>}
-      {parsing && <p role="status">Reading and validating locally…</p>}
+      {filename && <div className="csv-upload-filename"><span className="csv-upload-file-icon"><FileSpreadsheet size={24} aria-hidden="true" /></span><div><span>Selected file</span><strong>{filename}</strong></div>{renderUploadButton('Upload File')}<button type="button" className="csv-upload-secondary" disabled={uploading} onClick={removeFile}><X size={16} />Remove File</button></div>}
+      {parsing && <p role="status" data-inline-loading>Reading and validating locally…</p>}
       {error && <p className="csv-upload-error" role="alert">{error}</p>}
       {preview && <>
         <dl className="csv-upload-summary">
@@ -256,7 +280,7 @@ export function CsvUploadPreview({ outletId, token, onSessionExpired, onSuccessA
           {hasMore && <div ref={sentinelRef} className="csv-upload-help" role="status">Showing {visibleRows.length} of {rows.length} rows…</div>}
         </div>
       </>}
-      <div className="csv-upload-import-note"><button type="button" disabled={(mode === 'premises' && !namedPremisesHeaders(preview?.headers ?? []).length) || uploading || uploaded || parsing || !source || !rows.length || validRows !== rows.length || !!preview?.headerErrors.length} onClick={() => void upload()}>{mode === 'premises' && !namedPremisesHeaders(preview?.headers ?? []).length ? 'Confirm Upload' : uploading ? 'Uploading…' : 'Upload'}</button><span role="status">{uploadStatus || (mode === 'premises' && !namedPremisesHeaders(preview?.headers ?? []).length ? 'Preview only. Saving premises requires a supported premises mapping. Use named premises columns to upload.' : '')}</span>{mode === 'premises' && <button type="button" className="csv-upload-secondary" onClick={onSuccessAcknowledged}>Cancel</button>}</div>
+      <div className="csv-upload-import-note">{renderUploadButton('Upload')}<span role="status">{uploadStatus || (mode === 'premises' && !namedPremisesHeaders(preview?.headers ?? []).length ? 'Preview only. Saving premises requires a supported premises mapping. Use named premises columns to upload.' : '')}</span>{mode === 'premises' && <button type="button" className="csv-upload-secondary" onClick={onSuccessAcknowledged}>Cancel</button>}{footerAction}</div>
     </div>
   );
 }

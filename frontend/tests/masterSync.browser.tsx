@@ -39,7 +39,7 @@ window.fetch = async (input, init) => {
 const root = createRoot(document.getElementById('root')!);
 const outlet = { id: 'outlet', name: 'Outlet', active: true };
 const onSessionExpired = () => { throw new Error('Unexpected session expiry'); };
-const rows = () => document.querySelector('tbody')?.textContent ?? '';
+const rows = () => document.querySelector('tbody, .customers-list')?.textContent ?? '';
 const button = (label: string) => [...document.querySelectorAll('button')].find(node => node.textContent?.trim() === label)!;
 void (async () => {
   flushSync(() => root.render(<ProductsPage outlet={outlet} token="token" onSessionExpired={onSessionExpired} />));

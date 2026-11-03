@@ -9,7 +9,7 @@ const serverSource = readFileSync(new URL('../../backend/src/server.ts', import.
 // contacting Firebase. The fixture provides read-only Firestore-shaped objects.
 export async function reportResponse(kind, query, bills, source = serverSource) {
   const ast = ts.createSourceFile('server.ts', source, ts.ScriptTarget.Latest, true);
-  const helperNames = new Set(['stringValue', 'numberValue', 'assignedOutletIds', 'datesBetween', 'historicalReportTaxRate', 'reportTaxRateLabel', 'addReportTaxGroup', 'reportTaxBreakdown', 'reportTaxAmount']);
+  const helperNames = new Set(['stringValue', 'numberValue', 'assignedOutletIds', 'datesBetween', 'readReportDays', 'parsePayment', 'historicalReportTaxRate', 'reportTaxRateLabel', 'addReportTaxGroup', 'reportTaxBreakdown', 'reportTaxAmount']);
   const helpers = ast.statements.filter(node => ts.isFunctionDeclaration(node) && helperNames.has(node.name?.text)).map(node => node.getText(ast));
   const route = ast.statements.find(node => ts.isExpressionStatement(node)
     && ts.isCallExpression(node.expression)
@@ -171,5 +171,18 @@ for (const kind of ['categories', 'products']) {
         close(children.reduce((sum, child) => sum + child.taxAmount, 0), group.taxAmount);
       }
     }
+  });
+}
+
+for (const kind of ['bills', 'categories', 'products', 'gst']) {
+  test(`${kind}: a multi-month report includes records beyond day 31 and on the end date`, async () => {
+    const records = ['2026-01-01', '2026-02-15', '2026-03-31'].map((dayId, index) =>
+      bill(`long-${index}`, [item('p1', 'Meal', 0, 1, 10)], { dayId, finalTotal: 10 }));
+    const { data, reads } = await reportResponse(kind, { startDate: '2026-01-01', endDate: '2026-03-31' }, records);
+    assert.equal(data.summary.totalBills, 3);
+    if (kind !== 'gst') assert.equal(data.summary.totalAmount, 30);
+    const days = reads.filter(read => read.path.endsWith('/BILL_SALE_SUMMARY')).map(read => read.filters.find(([key]) => key === 'dayId')[1]);
+    assert.equal(days.length, 90); assert.equal(new Set(days).size, 90);
+    assert.ok(days.includes('2026-03-31'));
   });
 }

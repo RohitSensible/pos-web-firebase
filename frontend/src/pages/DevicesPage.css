@@ -21,3 +21,17 @@
 .device-status input { width: 16px; height: 16px; margin: 0; accent-color: var(--green); }
 .device-status.active span { color: var(--green); font-weight: 600; }
 @media (max-width: 680px) { .devices-table-scroll th, .devices-table-scroll td { padding: 14px 12px; } }
+.devices-discovery-page .devices-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; min-width: 0; }
+.devices-discovery-page .devices-filters label { display: grid; gap: 6px; color: var(--muted); font-size: 13px; max-width: 100%; }
+.devices-discovery-page .devices-filters label:first-child { flex: 1 1 240px; }
+.devices-discovery-page .devices-filters input, .devices-discovery-page .devices-filters select, .devices-discovery-page .devices-copy-feedback input { box-sizing: border-box; min-width: 0; max-width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; }
+.devices-discovery-page .devices-result-count { margin: 0; color: var(--muted); font-size: 13px; }
+.devices-discovery-page .devices-table-scroll { min-width: 0; max-width: 100%; }
+.devices-discovery-page .devices-table-scroll table { table-layout: fixed; min-width: 550px; }
+.devices-discovery-page .devices-table-scroll th:last-child { width: 130px; }
+.devices-discovery-page .devices-table-scroll td { overflow-wrap: anywhere; }
+.devices-discovery-page .devices-copy { display: flex; margin-top: 8px; font-family: inherit; }
+.devices-discovery-page .devices-copy-feedback { margin-top: 8px; font: 12px/1.5 sans-serif; }
+.devices-discovery-page .devices-copy-feedback p { margin: 0 0 6px; }
+.devices-discovery-page .devices-copy-feedback input { width: 100%; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.devices-discovery-page :is(button, input, select, .devices-table-scroll):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }

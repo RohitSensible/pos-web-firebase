@@ -1,4 +1,6 @@
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { Search } from 'lucide-react';
 import './ProductFlagsBulkUpdate.css';
 import './CategoryPage.css';
@@ -27,6 +29,7 @@ export function ProductFlagsBulkUpdate({ products, outletId, token, onClose, onS
   products: FlagProduct[]; outletId: string; token: string; onClose: (updatedCount?: number) => void;
   onSaved: (product: FlagProduct) => void; onSessionExpired: () => void;
 }) {
+  const { confirmAction, confirmation } = useActionConfirmation();
   const rows = useMemo(() => [...products].sort((left, right) => codeText(left).localeCompare(codeText(right), 'en', { numeric: true, sensitivity: 'base' })), [products]);
   const [search, setSearch] = useState('');
   const visibleRows = useMemo(() => {
@@ -64,6 +67,7 @@ export function ProductFlagsBulkUpdate({ products, outletId, token, onClose, onS
   const update = async () => {
     if (busy.current) return;
     if (!changes.length) { setFailures([]); setMessage('No changes to update.'); return; }
+    if (!await confirmAction('update', 'product flags')) return;
     busy.current = true; setSaving(true); setMessage(''); setFailures([]);
     const queue = [...changes], failed: Failure[] = [];
     let saved = 0, expired = false;
@@ -97,15 +101,18 @@ export function ProductFlagsBulkUpdate({ products, outletId, token, onClose, onS
     setMessage(`${saved} of ${changes.length} products updated; ${failed.length} failed. Your unsaved selections for the failed products are kept — review and click Update to try again.`);
   };
 
-  const cancel = () => {
+  const cancel = async () => {
     if (saving) return;
-    if (changes.length && !window.confirm('Discard unsaved Stockable & Weighable changes?')) return;
+    if (changes.length && !await confirmAction('discard', 'unsaved Stockable & Weighable changes')) return;
     onClose();
   };
+  // Back behaves like Cancel, including the unsaved-changes confirmation.
+  useWorkspaceBack(true, () => { void cancel(); });
 
   const stock = column('stockable'), weigh = column('weighable');
   const failedIds = new Map(failures.map(failure => [failure.documentId, failure.message]));
   return <section className="products-page-shell product-flags-bulk" aria-label="Update Stockable & Weighable" aria-busy={saving}>
+    {confirmation}
     <div className="products-header flags-header">
       <div>
         <h1>Update Stockable &amp; Weighable</h1>

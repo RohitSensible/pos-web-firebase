@@ -1,4 +1,6 @@
 import { createOutletLogoHandler } from './outletLogo.js';
+import { categoryReferenceMap } from '../../shared/categoryReferences.js';
+import { readComboDetails, updateComboDetails } from './comboDetails.js';
 import { createMasterSyncHandler } from './masterSync.js';
 import express from "express";
 import { listOutletServicePoints, createOutletServicePoint, updateOutletServicePoint, deleteOutletServicePoint, deleteAllOutletServicePoints, assignCategoryServicePoint } from './servicePoints.js';
@@ -12,7 +14,7 @@ import { issueTransferAuthorization, transferOutletMasters } from "./masterTrans
 import { listOutletDevices } from "./devices.js";
 import { authorizedCustomers, customerDetails, listOutletCustomers, createOutletCustomer, updateOutletCustomer } from "./customers.js";
 import { deleteOutletMaster } from './outletMasterDeletion.js';
-import { listOutletEmployees, createOutletEmployee } from "./employees.js";
+import { listOutletEmployees, createOutletEmployee, updateOutletEmployee } from "./employees.js";
 import { readUserAccount, updateUserAccount, UserAccountError } from "./userAccount.js";
 import { updateOutletProduct } from "./productUpdate.js";
 import { updateProductPrices } from "./productPriceUpdate.js";
@@ -39,6 +41,7 @@ import { z } from "zod";
 import { FirebaseConfigurationError, getFirebaseApp, getFirebaseStorageBucket, getFirestoreDb, logFirebaseConfigurationError, verifyFirebaseConnection } from "./firebase.js";
 import { ImageStorageError, readMasterImage, removeMasterImage, uploadMasterImage, type MasterImageCollection, type MasterImageKind } from "./imageStorage.js";
 import { summarizeDay } from "./daywiseSummary.js";
+import { readShiftCreatorNames } from "./shiftCreators.js";
 import { productRate, stockDirection, stockMovementRecord, unpricedProductIds } from "./stockMovementReport.js";
 import { isStockTransfer, stockTransferRecord } from "./stockTransferReport.js";
 import { checkAuthorizedProductImport, nextProductCode, PRODUCT_IMPORT_WRITES_ENABLED } from "./productImportValidation.js";
@@ -524,6 +527,10 @@ app.get("/api/outlets/:outletId/dashboard", async (req: Request, res: Response):
       return;
     }
 
+    const creatorNames = shiftSnapshot.docs.some(doc => stringValue(doc.data().userId).trim())
+      ? await readShiftCreatorNames(db, shiftSnapshot.docs.map(doc => doc.data()))
+      : new Map<string, string>();
+    const billText = (value: unknown) => typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)) ? String(value) : '';
     const formatShiftData = (docId: string, shift: Record<string, unknown>) => {
       const payments = shift.payments && typeof shift.payments === "object" && !Array.isArray(shift.payments)
         ? Object.fromEntries(Object.entries(shift.payments as Record<string, unknown>).map(([key, val]) => [key, numberValue(val)]))
@@ -534,11 +541,13 @@ app.get("/api/outlets/:outletId/dashboard", async (req: Request, res: Response):
         dayId: stringValue(shift.dayId),
         shiftNo: numberValue(shift.shiftNo),
         deviceId: stringValue(shift.deviceId),
+        userId: stringValue(shift.userId),
+        creatorName: creatorNames.get(stringValue(shift.userId).trim()) ?? 'Not Available',
         inActive: shift.inActive === true,
         startTime: numberValue(shift.startTime),
         endTime: numberValue(shift.endTime),
-        startBillNo: stringValue(shift.startBillNo),
-        lastBillNo: stringValue(shift.lastBillNo),
+        startBillNo: billText(shift.startBillNo),
+        lastBillNo: billText(shift.lastBillNo),
         lastBillTime: numberValue(shift.lastBillTime),
         billCount: numberValue(shift.billCount),
         billDeletesNumber: numberValue(shift.billDeletesNumber),
@@ -607,16 +616,27 @@ app.get("/api/outlets/:outletId/dashboard", async (req: Request, res: Response):
 });
 
 function datesBetween(startDate: string, endDate: string): string[] {
+  const valid = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
+    && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+  if (!valid(startDate) || !valid(endDate) || startDate > endDate) return [];
   const dates: string[] = [];
   const cursor = new Date(`${startDate}T00:00:00Z`);
   const end = new Date(`${endDate}T00:00:00Z`);
-
-  while (cursor <= end && dates.length < 31) {
+  while (cursor <= end) {
     dates.push(cursor.toISOString().slice(0, 10));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
-
   return dates;
+}
+
+// Keep existing indexed daily queries while bounding reads for longer reports.
+async function readReportDays<T>(days: string[], read: (day: string) => Promise<T>): Promise<T[]> {
+  const results: T[] = [];
+  for (let offset = 0; offset < days.length; offset += 16) {
+    results.push(...await Promise.all(days.slice(offset, offset + 16).map(read)));
+  }
+  return results;
 }
 
 function parsePayment(value: unknown): Record<string, number> {
@@ -652,7 +672,7 @@ app.get("/api/outlets/:outletId/reports/stock-transfers", async (req: Request, r
   }
   const days = datesBetween(startDate, endDate);
   if (days.at(-1) !== endDate) {
-    res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+    res.status(400).json({ success: false, message: "Choose valid start and end dates." });
     return;
   }
   const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
@@ -669,7 +689,7 @@ app.get("/api/outlets/:outletId/reports/stock-transfers", async (req: Request, r
       return;
     }
     const goods = db.collection("OUTLET").doc(outletId).collection("GOODS_RECEIVED");
-    const snapshots = await Promise.all(days.map(day => goods.where("dayID", "==", day).get()));
+    const snapshots = await readReportDays(days, day => goods.where("dayID", "==", day).get());
     const transfers = snapshots.flatMap(snapshot => snapshot.docs)
       .filter(document => isStockTransfer(document.data()))
       .map(document => stockTransferRecord(document.id, document.data()))
@@ -713,7 +733,7 @@ app.get("/api/outlets/:outletId/reports/stock-movements", async (req: Request, r
   }
   const days = datesBetween(startDate, endDate);
   if (days.at(-1) !== endDate) {
-    res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+    res.status(400).json({ success: false, message: "Choose valid start and end dates." });
     return;
   }
   const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
@@ -735,7 +755,7 @@ app.get("/api/outlets/:outletId/reports/stock-movements", async (req: Request, r
       return;
     }
     const goods = db.collection("OUTLET").doc(outletId).collection("GOODS_RECEIVED");
-    const snapshots = await Promise.all(days.map(day => goods.where("dayID", "==", day).get()));
+    const snapshots = await readReportDays(days, day => goods.where("dayID", "==", day).get());
     const documents = snapshots.flatMap(snapshot => snapshot.docs).filter(document => stockDirection(document.data()) !== null);
     const productIds = [...new Set(documents.flatMap(document => unpricedProductIds(document.data())))];
     const productDocuments = productIds.length
@@ -785,8 +805,8 @@ app.get("/api/outlets/:outletId/reports/bills", async (req: Request, res: Respon
   }
 
   const dateIds = datesBetween(startDate, endDate);
-  if (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate)) {
-    res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+  if (dateIds.length === 0) {
+    res.status(400).json({ success: false, message: "Choose valid start and end dates." });
     return;
   }
 
@@ -810,13 +830,13 @@ app.get("/api/outlets/:outletId/reports/bills", async (req: Request, res: Respon
       return;
     }
 
-    const snapshots = await Promise.all(dateIds.map(dayId => db
+    const snapshots = await readReportDays(dateIds, dayId => db
       .collection("OUTLET")
       .doc(outletId)
       .collection("BILL_SALE_SUMMARY")
       .where("dayId", "==", dayId)
       .where("inActive", "==", false)
-      .get()));
+      .get());
 
     const bills = snapshots
       .flatMap(snapshot => snapshot.docs)
@@ -923,8 +943,8 @@ app.get("/api/outlets/:outletId/reports/categories", async (req: Request, res: R
   }
 
   const dateIds = datesBetween(startDate, endDate);
-  if (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate)) {
-    res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+  if (dateIds.length === 0) {
+    res.status(400).json({ success: false, message: "Choose valid start and end dates." });
     return;
   }
 
@@ -945,9 +965,9 @@ app.get("/api/outlets/:outletId/reports/categories", async (req: Request, res: R
     }
 
     const outletRef = db.collection("OUTLET").doc(outletId);
-    const [categorySnapshot, ...billSnapshots] = await Promise.all([
+    const [categorySnapshot, billSnapshots] = await Promise.all([
       outletRef.collection("CATEGORY").get(),
-      ...dateIds.map(dayId => outletRef
+      readReportDays(dateIds, dayId => outletRef
         .collection("BILL_SALE_SUMMARY")
         .where("dayId", "==", dayId)
         .where("inActive", "==", false)
@@ -1083,9 +1103,16 @@ app.get("/api/outlets/:outletId/categories", async (req: Request, res: Response)
 
     const includeCounts = req.header('x-category-counts') !== 'omit';
     const categorySnapshot = await categoriesRead;
-    // Count per category with aggregation queries instead of reading every product.
-    const productCounts = new Map(includeCounts ? await Promise.all(categorySnapshot.docs.map(async document => [document.id,
-      (await outletRef.collection("PRODUCT").where("category", "==", document.id).count().get()).data().count] as const)) : []);
+    // Mobile products may reference the category name instead of its document ID.
+    // Keep counts read-only and aggregated; never rewrite product references.
+    const references = categoryReferenceMap(categorySnapshot.docs.map(document => ({ id: document.id, name: stringValue(document.data().name) })));
+    const aliases = new Map(categorySnapshot.docs.map(document => [document.id, [] as string[]]));
+    for (const [reference, id] of references) aliases.get(id)!.push(reference);
+    const productCounts = new Map(includeCounts ? await Promise.all(categorySnapshot.docs.map(async document => {
+      const values = aliases.get(document.id)!;
+      const query = outletRef.collection("PRODUCT").where("category", values.length === 1 ? "==" : "in", values.length === 1 ? values[0] : values);
+      return [document.id, (await query.count().get()).data().count] as const;
+    })) : []);
 
     const categories = categorySnapshot.docs
       .map(document => {
@@ -1521,6 +1548,19 @@ app.post("/api/outlets/:outletId/employees", async (req: Request, res: Response)
   }
 });
 
+app.patch('/api/outlets/:outletId/employees/:documentId', async (req: Request, res: Response): Promise<void> => {
+  const token = readAccessToken(req);
+  if (!token) { res.status(401).json({ success: false, message: 'Your session has expired. Please sign in again.' }); return; }
+  try {
+    const data = await updateOutletEmployee(getFirestoreDb(), String(req.params.outletId ?? ''), String(req.params.documentId ?? ''),
+      token.profileDocId, assignedOutletIds, req.body);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(error instanceof ProductCreationError ? error.status : 503).json({ success: false,
+      message: error instanceof ProductCreationError ? error.message : 'Unable to save employee changes. Please try again.' });
+  }
+});
+
 app.get('/api/outlets/:outletId/premises', async (req: Request, res: Response): Promise<void> => {
   res.setHeader('Cache-Control', 'no-store');
   const token = readAccessToken(req);
@@ -1609,6 +1649,31 @@ app.get("/api/outlets/:outletId/products", async (req: Request, res: Response): 
   } catch (error) {
     console.error("Loading outlet products failed:", error);
     res.status(503).json({ success: false, message: "Unable to load products right now" });
+  }
+});
+
+app.get('/api/outlets/:outletId/products/:documentId/combo', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const token = readAccessToken(req);
+    if (!token) throw new ProductCreationError(401, 'Your session has expired. Please sign in again.');
+    const data = await readComboDetails(getFirestoreDb(), String(req.params.outletId ?? ''), String(req.params.documentId ?? ''),
+      token.profileDocId, assignedOutletIds);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(error instanceof ProductCreationError ? error.status : 503).json({ success: false,
+      message: error instanceof ProductCreationError ? error.message : 'Unable to load the combo products right now.' });
+  }
+});
+
+app.patch('/api/outlets/:outletId/products/:documentId/combo', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const token = readAccessToken(req);
+    const data = await updateComboDetails(getFirestoreDb(), String(req.params.outletId ?? ''), String(req.params.documentId ?? ''),
+      token?.profileDocId ?? null, assignedOutletIds, req.body);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(error instanceof ProductCreationError ? error.status : 503).json({ success: false,
+      message: error instanceof ProductCreationError ? error.message : 'Unable to save the combo products right now.' });
   }
 });
 
@@ -2057,8 +2122,8 @@ app.get("/api/outlets/:outletId/reports/gst", async (req: Request, res: Response
   }
 
   const dateIds = datesBetween(startDate, endDate);
-  if (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate)) {
-    res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+  if (dateIds.length === 0) {
+    res.status(400).json({ success: false, message: "Choose valid start and end dates." });
     return;
   }
 
@@ -2079,13 +2144,13 @@ app.get("/api/outlets/:outletId/reports/gst", async (req: Request, res: Response
       return;
     }
 
-    const snapshots = await Promise.all(dateIds.map(dayId => db
+    const snapshots = await readReportDays(dateIds, dayId => db
       .collection("OUTLET")
       .doc(outletId)
       .collection("BILL_SALE_SUMMARY")
       .where("dayId", "==", dayId)
       .where("inActive", "==", false)
-      .get()));
+      .get());
 
     interface GstTotals { taxable: number; cgst: number; sgst: number; igst: number; gst: number; gross: number }
     const emptyTotals = (): GstTotals => ({ taxable: 0, cgst: 0, sgst: 0, igst: 0, gst: 0, gross: 0 });
@@ -2216,8 +2281,8 @@ app.get("/api/outlets/:outletId/reports/products", async (req: Request, res: Res
   }
 
   const dateIds = datesBetween(startDate, endDate);
-  if (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate)) {
-    res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+  if (dateIds.length === 0) {
+    res.status(400).json({ success: false, message: "Choose valid start and end dates." });
     return;
   }
 
@@ -2238,10 +2303,10 @@ app.get("/api/outlets/:outletId/reports/products", async (req: Request, res: Res
     }
 
     const outletRef = db.collection("OUTLET").doc(outletId);
-    const [categorySnapshot, productSnapshot, ...billSnapshots] = await Promise.all([
+    const [categorySnapshot, productSnapshot, billSnapshots] = await Promise.all([
       outletRef.collection("CATEGORY").get(),
       outletRef.collection("PRODUCT").get(),
-      ...dateIds.map(dayId => outletRef
+      readReportDays(dateIds, dayId => outletRef
         .collection("BILL_SALE_SUMMARY")
         .where("dayId", "==", dayId)
         .where("inActive", "==", false)
@@ -2355,9 +2420,9 @@ app.get("/api/outlets/:outletId/reports/shifts", async (req: Request, res: Respo
   }
 
   // A specific day ID takes precedence over the date range.
-  const dateIds = dayIdFilter ? [dayIdFilter] : datesBetween(startDate, endDate);
-  if (!dayIdFilter && (dateIds.length === 0 || (dateIds.at(-1) !== endDate && startDate !== endDate))) {
-    res.status(400).json({ success: false, message: "Date range cannot exceed 31 days" });
+  const dateIds = dayIdFilter ? datesBetween(dayIdFilter, dayIdFilter) : datesBetween(startDate, endDate);
+  if (dateIds.length === 0) {
+    res.status(400).json({ success: false, message: "Choose valid start and end dates." });
     return;
   }
 
@@ -2377,14 +2442,15 @@ app.get("/api/outlets/:outletId/reports/shifts", async (req: Request, res: Respo
       return;
     }
 
-    const snapshots = await Promise.all(dateIds.map(dayId => db
+    const snapshots = await readReportDays(dateIds, dayId => db
       .collection("OUTLET")
       .doc(outletId)
       .collection("SHIFT")
       .where("dayId", "==", dayId)
-      .get()));
+      .get());
 
-    const shifts = snapshots
+    const billText = (value: unknown) => typeof value === "string" || (typeof value === "number" && Number.isFinite(value)) ? String(value) : "";
+    const selectedShifts = snapshots
       .flatMap(snapshot => snapshot.docs)
       .map(document => {
         const shift = document.data();
@@ -2393,11 +2459,12 @@ app.get("/api/outlets/:outletId/reports/shifts", async (req: Request, res: Respo
           dayId: stringValue(shift.dayId),
           shiftNo: numberValue(shift.shiftNo),
           deviceId: stringValue(shift.deviceId),
+          userId: stringValue(shift.userId).trim(),
           inActive: shift.inActive === true,
           startTime: numberValue(shift.startTime),
           endTime: numberValue(shift.endTime),
-          startBillNo: stringValue(shift.startBillNo),
-          lastBillNo: stringValue(shift.lastBillNo),
+          startBillNo: billText(shift.startBillNo),
+          lastBillNo: billText(shift.lastBillNo),
           lastBillTime: numberValue(shift.lastBillTime),
           billCount: numberValue(shift.billCount),
           billDeletesNumber: numberValue(shift.billDeletesNumber),
@@ -2424,12 +2491,22 @@ app.get("/api/outlets/:outletId/reports/shifts", async (req: Request, res: Respo
           receiveAmtTotal: numberValue(shift.receiveAmtTotal),
           swiggyTotal: numberValue(shift.swiggyTotal),
           zomatoTotal: numberValue(shift.zomatoTotal),
-          payments: parsePayment(shift.paymentJson)
+          payments: shift.payments && typeof shift.payments === "object" && !Array.isArray(shift.payments)
+            ? Object.fromEntries(Object.entries(shift.payments as Record<string, unknown>).map(([key, val]) => [key, numberValue(val)]))
+            : parsePayment(shift.paymentJson)
         };
       })
       .filter(shift => Number.isNaN(shiftNo) || shift.shiftNo === shiftNo)
       .filter(shift => !deviceId || shift.deviceId.toLowerCase().includes(deviceId))
       .sort((left, right) => right.dayId.localeCompare(left.dayId) || right.shiftNo - left.shiftNo);
+
+    // Only enrich the authorized, selected shifts; the helper projects names and tolerates failed reads.
+    const creatorNames = await readShiftCreatorNames(db, selectedShifts);
+    const shifts = selectedShifts.map(shift => ({
+      ...shift,
+      userId: shift.userId || "Not Available",
+      creatorName: creatorNames.get(shift.userId) ?? "Not Available"
+    }));
 
     const summary = shifts.reduce((totals, shift) => {
       totals.totalBills += shift.billCount;

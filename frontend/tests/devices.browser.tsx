@@ -70,7 +70,7 @@ void (async () => {
   await until(() => release, 'retry request'); release!(); await until(() => boxes().length === 3, 'retry list');
   assert(boxes().every(box => !box.checked), 'Retry retrieves the saved statuses');
   devices = []; await refreshList();
-  assert(document.querySelector('.devices-state h2')?.textContent === 'No devices found' && !boxes().length, 'Empty outlets show a clear state without sample devices');
+  assert(document.querySelector('.devices-state h2')?.textContent === 'No registered devices' && !boxes().length, 'Empty outlets show a clear state without sample devices');
   offline = true; await refreshList();
   assert(document.querySelector('[role=alert]')?.textContent === 'Network unavailable', 'Network failures are displayed'); offline = false;
   status = 403; await refreshList();

@@ -37,5 +37,15 @@ export declare function createOutletEmployee(db: Firestore, outletId: string, pr
     dateOfJoining: string;
     userId: string;
 }>;
+export declare function updateOutletEmployee(db: Firestore, outletId: string, documentId: string, profileId: string | null, assigned: Assignments, raw: unknown): Promise<{
+    documentId: string;
+    name: string;
+    mobile: string;
+    searchCode: number | null;
+    shortName: string;
+    balanceAmt: string;
+    dateOfJoining: string;
+    userId: string;
+}>;
 export {};
 //# sourceMappingURL=employees.d.ts.map

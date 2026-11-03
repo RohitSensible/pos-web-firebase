@@ -1,3 +1,4 @@
+import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useEffect, useState } from 'react';
 import { Radio, RefreshCw } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
@@ -21,6 +22,7 @@ function useOutletOverview<T>(outletId: string, token: string, resource: 'device
     const controller = new AbortController();
     setData(null); setLoading(true); setError('');
     void (async () => {
+      const finishLoading = beginDataLoading(resource, controller.signal);
       try {
         const response = await fetch(`/api/outlets/${encodeURIComponent(outletId)}/${resource}`, {
           method: 'GET', headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal,
@@ -34,6 +36,7 @@ function useOutletOverview<T>(outletId: string, token: string, resource: 'device
       } catch (failure) {
         if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : `Unable to load ${resource}.`);
       } finally {
+        finishLoading();
         if (!controller.signal.aborted) setLoading(false);
       }
     })();

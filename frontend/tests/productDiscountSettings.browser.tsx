@@ -45,7 +45,9 @@ const button = (label: string) => [...document.querySelectorAll<HTMLButtonElemen
 const box = (label: string) => document.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
 const selectAll = () => box('Select all displayed products');
 const input = () => document.getElementById('bulk-product-discount') as HTMLInputElement;
-async function click(element: HTMLElement) { element.click(); await pause(); }
+async function click(element: HTMLElement) { const label = element.textContent?.trim(); element.click(); await pause();
+  if (label === 'Update' && document.querySelector('.action-confirm-button')) { document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click(); await pause(); }
+}
 async function value(next: string) {
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input(), next);
   input().dispatchEvent(new Event('input', { bubbles: true })); await pause();
@@ -94,13 +96,14 @@ void (async () => {
   assert(products.get('p1')!.discount === 0 && patches.length === 1, 'Zero removes the selected discount');
   await open(); await until(() => input(), 'reopen after zero');
   await click(selectAll()); await value('12.5');
-  button('Update').click(); button('Update').click(); await pause();
+  button('Update').click(); button('Update').click(); await until(() => document.querySelector('.action-confirm-button'), 'discount confirmation'); const confirm = document.querySelector<HTMLButtonElement>('.action-confirm-button')!; confirm.click(); confirm.click(); await pause();
   assert(button('Updating…').disabled && button('Cancel').disabled && input().disabled, 'Duplicate saves and edits blocked during update');
   await until(() => document.querySelector('[aria-label="Failed products"]'), 'partial failure');
   assert(patches.length === 4 && box('Select Masala Papad').checked && !box('Select Papad Roasted').checked && !box('Select Veg Burger').checked, 'Only failed products remain selected for retry');
   failId = ''; await click(button('Update'));
   await until(() => document.querySelector('[aria-label="More options"]'), 'retry completed');
   assert(patches.length === 5 && patches.at(-1)!.id === 'p2', 'Retry saves only the failed product');
+  await until(() => document.querySelector('.success-done'), 'discount success'); await click(button('Done'));
   assert(!document.querySelector('.products-notice'), 'Completed discount updates leave no success banner');
   for (const [id, fields] of original) assert(JSON.stringify(products.get(id)) === JSON.stringify({ ...fields, discount: 12.5 }), `Stock, prices and other fields preserved for ${id}`);
   await open(); await until(() => input(), 'saved discount values');

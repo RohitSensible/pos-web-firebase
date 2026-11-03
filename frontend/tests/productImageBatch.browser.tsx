@@ -8,9 +8,9 @@ void (async () => {
 const passed: string[] = [];
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
 const pause = () => new Promise(resolve => setTimeout(resolve, 20));
-const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === text)!;
-async function wait(check: () => unknown, label: string) {
-  for (let i = 0; i < 250; i++) { if (check()) return; await pause(); }
+const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === text || node.getAttribute('aria-label') === text)!;
+async function wait(check: () => unknown, label: string, tries = 250) {
+  for (let i = 0; i < tries; i++) { if (check()) return; await pause(); }
   throw new Error(`Timeout ${label}: ${document.body.textContent}`);
 }
 const products = [
@@ -41,7 +41,12 @@ window.fetch = async (url, init) => {
     assert(new Headers(init?.headers).get('X-Image-Token') === 'image-grant', 'Backend grant supplied');
     const body = JSON.parse(String(init?.body)); requests.push(body);
     const encoded = Uint8Array.from(atob(body.base64), value => value.charCodeAt(0));
-    assert(encoded.length > 0 && encoded.length <= 30720, 'Actual processed bytes fit the limit');
+    assert(encoded.length > 0 && encoded.length <= 25600, 'Actual processed bytes fit the limit');
+    // PNG sources are uploaded as real JPEG bytes, the format the Android POS displays.
+    assert(body.contentType === 'image/jpeg' && encoded[0] === 0xff && encoded[1] === 0xd8 && encoded[2] === 0xff, 'Uploads are JPEG');
+    // Baseline (SOF0), three colour channels: the same encoding as images the device shows.
+    const frame = encoded.findIndex((value, index) => value === 0xff && [0xc0, 0xc2].includes(encoded[index + 1]!));
+    assert(frame > 0 && encoded[frame + 1] === 0xc0 && encoded[frame + 9] === 3, 'Uploads are baseline RGB JPEGs');
     const decoded = await createImageBitmap(new Blob([encoded], { type: body.contentType })); decoded.close();
     if (!objects.has(body.requestId)) objects.set(body.requestId, `${objects.size + 1}`.padStart(64, '0') + '.png');
     const image = objects.get(body.requestId)!;
@@ -83,7 +88,7 @@ function selectFile(file: File) {
   const transfer = new DataTransfer(); transfer.items.add(file); input.files = transfer.files;
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
-const reviewRow = (filename: string) => [...document.querySelectorAll<HTMLDivElement>('.batch-assignment-item')].find(row => row.dataset.filename === filename)!;
+const reviewRow = (filename: string) => [...document.querySelectorAll<HTMLTableRowElement>('.batch-image-table tbody tr')].find(row => row.dataset.filename === filename)!;
 function chooseProduct(id: string) {
   const input = [...document.querySelectorAll<HTMLInputElement>('.batch-product-choices input')].find(node => node.value === id)!;
   input.click();
@@ -110,7 +115,7 @@ void (async () => {
   assert(preview.naturalWidth === 64 && preview.naturalHeight === 48, 'Uncropped source preserves aspect ratio without upscaling');
   assert(!document.querySelector('.batch-image-table select, .batch-image-table input'), 'Matching and approval controls are outside the clean image rows');
   assert(!document.querySelector('.batch-image-table')?.textContent?.includes('Masala.png') && !document.body.textContent?.includes('bytes ·'), 'Main rows omit filenames');
-  assert(document.querySelector('.batch-image-table')?.textContent?.includes('30 KB target achieved'), 'Processed size target is shown beside the exact preview');
+  assert(!document.querySelector('.batch-image-table')?.textContent?.includes('KB'), 'Image rows show no size text');
   assert(!document.body.textContent?.includes('product image(s) saved;'), 'Redundant bottom progress counters are removed');
   button('Crop / Adjust').click();
   await wait(() => button('Save') && !button('Save').disabled, 'crop available from the row');
@@ -150,23 +155,31 @@ void (async () => {
   selectFile(new File(['not a zip'], 'bad.zip'));
   await wait(() => document.querySelector('[role="alert"]'), 'malformed ZIP error');
   const zip = new JSZip();
-  for (const name of [' MASALA  DOSA.png', 'Tea.png', 'missing.png', 'nested/Coffee.png', 'Coffee.png']) zip.file(name, bytes);
+  for (const name of [' MASALA  DOSA.png', 'tea.png', 'missing.png', 'nested/Coffee.png', 'Coffee.png']) zip.file(name, bytes);
   zip.file('invalid.png', 'not an image');
   selectFile(new File([await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })], 'images.zip'));
-  await wait(() => document.querySelectorAll('.batch-assignment-item').length === 6 && !document.body.textContent?.includes('Reading and preparing'), 'bulk prepared');
+  await wait(() => document.querySelectorAll('.batch-image-table tbody tr').length === 6 && !document.body.textContent?.includes('Reading and preparing'), 'bulk prepared', 1500);
+  assert(!document.querySelector('.batch-assignment-review') && !document.body.textContent?.includes('Review assignments'), 'Bulk uploads have no separate review section');
+  const headerButtons = [...document.querySelectorAll('.batch-header-actions button')].map(node => node.textContent);
+  assert(headerButtons.join() === 'Upload Images,Choose another ZIP', 'Choose another ZIP sits next to Upload Images');
+  const title = document.querySelector('.batch-header h1')!.getBoundingClientRect(), upload = button('Upload Images').getBoundingClientRect();
+  assert(upload.top >= title.bottom && Math.abs(upload.left - title.left) < 2, 'Upload Images sits below the Product Images title');
+  assert(reviewRow(' MASALA  DOSA.png').querySelector('select')!.value === 'a' && reviewRow('tea.png').textContent?.includes('Ambiguous'), 'Case-insensitive matching; case-only duplicates still ask');
   assert(reviewRow(' MASALA  DOSA.png').querySelector('select')!.value === 'a', 'Normalized exact name auto-matches');
-  assert(reviewRow('Tea.png').querySelector('select')!.value === '', 'Ambiguous duplicate product names require manual selection');
+  assert(reviewRow('tea.png').querySelector('select')!.value === '', 'Ambiguous duplicate product names require manual selection');
   assert(reviewRow('Coffee.png').querySelector('select')!.value === '' && document.body.textContent?.includes('Duplicate filename'), 'Duplicate filenames do not auto-assign');
   assert(reviewRow('invalid.png').textContent?.includes('Failed'), 'Invalid image is reported per image');
-  const rows = [...document.querySelectorAll<HTMLDivElement>('.batch-assignment-item')];
-  for (const index of [2, 3, 5]) { rows[index]!.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click(); await pause(); }
-  const select = (row: HTMLDivElement, value: string) => { const input = row.querySelector('select')!; input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); };
-  select(rows[1]!, 'd'); await pause(); select(rows[4]!, 'a'); await pause();
+  // The nested Coffee.png is listed first, so removing the first match removes it.
+  for (const name of ['missing.png', 'Coffee.png', 'invalid.png']) {
+    [...reviewRow(name).querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === 'Remove')!.click(); await pause();
+  }
+  assert(document.querySelectorAll('.batch-image-table tbody tr').length === 3, 'Remove excludes an image from the upload');
+  const select = (name: string, value: string) => { const input = reviewRow(name).querySelector('select')!; input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); };
+  select('tea.png', 'd'); await pause(); select('Coffee.png', 'a'); await pause();
   assert(document.body.textContent?.includes('Multiple images target this product') && button('Upload Images').disabled, 'Conflicting image targets block upload');
-  select(rows[4]!, 'f'); await pause();
-  confirmReplacements(); await pause();
+  select('Coffee.png', 'f'); await pause();
+  assert(!button('Upload Images').disabled && reviewRow(' MASALA  DOSA.png').textContent?.includes('Replaces the current image'), 'Replacements no longer block the Upload Images button');
   if (location.hash === '#preview') {
-    document.querySelector<HTMLDetailsElement>('.batch-assignment-review')!.open = false;
     document.body.style.background = '#f5f7fb';
     document.getElementById('root')!.style.padding = '24px';
     window.scrollTo(0, 0);
@@ -178,11 +191,17 @@ void (async () => {
     document.getElementById('test-results')!.style.display = 'none';
     return;
   }
-  failProduct = 'd'; button('Upload Images').click(); button('Upload Images')?.click();
-  await wait(() => button('Retry failed assignments for Tea.png') && !button('Retry failed assignments for Tea.png').disabled, 'bulk partial failure');
+  failProduct = 'd'; button('Upload Images').click();
+  await wait(() => button('Replace and Upload'), 'replacement confirmation dialog');
+  assert(document.querySelector('dialog[open]')?.textContent?.includes('1 product already has an image'), 'One dialog confirms all replacements');
+  button('Cancel').click(); await pause();
+  assert(requests.length === 2 && !document.querySelector('dialog[open]'), 'Cancel uploads nothing');
+  button('Upload Images').click(); await wait(() => button('Replace and Upload'), 'replacement dialog again');
+  button('Replace and Upload').click();
+  await wait(() => button('Retry failed assignments for tea.png') && !button('Retry failed assignments for tea.png').disabled, 'bulk partial failure');
   assert(!document.querySelector('dialog[open]'), 'Partial failure does not show a success popup');
   const requestCount = requests.length, objectCount = objects.size;
-  failProduct = ''; button('Retry failed assignments for Tea.png').click();
+  failProduct = ''; button('Retry failed assignments for tea.png').click();
   await wait(() => document.querySelectorAll('.batch-image-table .batch-status.complete, .batch-image-table .batch-status.saved, .batch-image-table .batch-status.unchanged').length === 3, 'bulk retry');
   await wait(() => document.body.textContent?.includes('Product images uploaded successfully for 3 product(s).'), 'bulk upload success confirmation');
   assert(requests.length === requestCount + 1 && objects.size === objectCount, 'Bulk retry does not repeat completed uploads');
@@ -191,7 +210,7 @@ void (async () => {
   passed.push('ZIP validation, exact matching, ambiguity, duplicate filenames, invalid images, exclusion, target conflicts, confirmation, partial upload and retry');
   const shell = document.querySelector<HTMLElement>('.product-image-batch')!;
   assert(shell.scrollWidth <= shell.clientWidth + 2, 'Image layout fits the viewport without horizontal overflow');
-  passed.push('Clean rows, header upload/count, crop, removal, separate assignment review, no bottom counters, responsive layout');
+  passed.push('Clean rows, header upload/count, crop, removal, in-row product choice, no bottom counters, responsive layout');
   await wait(() => document.querySelector('dialog[open]') && button('OK'), 'bulk success popup');
   const readsBeforeBulkOK = previewReads;
   button('OK').click(); await wait(() => document.querySelector('section[aria-label="Products"]'), 'bulk OK returns to Products');

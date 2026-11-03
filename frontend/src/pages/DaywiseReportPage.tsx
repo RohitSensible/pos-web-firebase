@@ -1,5 +1,8 @@
+import { useScopedReportRead, useScopedReportExport } from '../utils/useScopedReportRead.ts';
+import { useDataLoading } from '../utils/useDataLoading.ts';
 import { gstDetailRows, loadGstExportBills, gstBillSummary } from '../utils/gstExcel.ts';
 import { downloadReportExcel, billRange, sumPayments, paymentSummary } from '../utils/reportExcel.ts';
+import { reportDateError } from './reportDates.ts';
 import { ReportDateInput } from './ReportDateInput.tsx';
 import { isProvided, tableLabel } from './billReceipt.ts';
 import { useEffect, useState } from 'react';
@@ -111,10 +114,6 @@ function detailLabel(value: unknown): string {
 
 export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName = 'Day Wise Report' }: DaywiseReportPageProps) => {
   const [dayId, setDayId] = useState(todayId);
-  const [report, setReport] = useState<DaySummary | null>(null);
-  const [bills, setBills] = useState<DayBill[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<DayBill | null>(null);
@@ -128,60 +127,34 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
     return () => window.removeEventListener('keydown', closeOnEscape);
   }, [selectedBill]);
 
-  useEffect(() => {
-    const controller = new AbortController();
+  const scopeKey = JSON.stringify([outlet.id, token, dayId, reloadKey]);
+  const { data, loading, error } = useScopedReportRead<{ report: DaySummary | null; bills: DayBill[] }>(scopeKey, token, onSessionExpired, async request => {
+    const dateError = reportDateError(dayId, dayId);
+    if (dateError) throw new Error(dateError);
     const params = new URLSearchParams({ dayId, scope: 'day' });
-    // Clear the previous day's data while synchronizing with the report service.
-    // eslint-disable-next-line react/set-state-in-effect
-    setLoading(true);
-    setError('');
-    setReport(null);
-    setBills([]);
-    setDetailsOpen(false);
-    setSelectedBill(null);
-
-    const request = async <T,>(path: string, allowMissing = false): Promise<T | null> => {
-      const response = await fetch(path, {
-        headers: { Authorization: `Bearer ${token}` }, signal: controller.signal,
-      });
-      const result = await response.json() as { message?: string; data?: T };
-        if (response.status === 401) {
-          if (!controller.signal.aborted) onSessionExpired();
-          throw new Error('Your session has expired.');
-        }
-        if (allowMissing && response.status === 404) return null;
-        if (!response.ok || !result.data) throw new Error(result.message || 'Unable to load the daywise report.');
-        return result.data;
-    };
-    const requestBills = async (page: number): Promise<BillsResponse> => {
+    const requestBills = async (page: number) => {
       const billParams = new URLSearchParams({ startDate: dayId, endDate: dayId, page: String(page), limit: '50' });
-      const data = await request<BillsResponse>(`/api/outlets/${encodeURIComponent(outlet.id)}/reports/bills?${billParams}`);
-      if (!data) throw new Error('Unable to load bills for the selected date.');
-      return data;
+      return (await request<BillsResponse>(`/api/outlets/${encodeURIComponent(outlet.id)}/reports/bills?${billParams}`))!;
     };
-    const loadDay = async () => {
-      const [summary, firstPage] = await Promise.all([
-        request<DaySummary>(`/api/outlets/${encodeURIComponent(outlet.id)}/dashboard?${params}`, true),
-        requestBills(1),
-      ]);
-      const allBills = [...firstPage.bills];
-      // The bill service returns at most 50 bills per page; include every page.
-      for (let page = 2; page <= firstPage.pagination.totalPages; page += 1) {
-        const nextPage = await requestBills(page);
-        allBills.push(...nextPage.bills);
-      }
-      if (!controller.signal.aborted) {
-        setReport(summary);
-        setBills(allBills);
-      }
-    };
-    void loadDay()
-      .catch(requestError => {
-        if (!controller.signal.aborted) setError((requestError as Error).message);
-      })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
-  }, [outlet.id, token, dayId, reloadKey, onSessionExpired]);
+    const [summary, firstPage] = await Promise.all([
+      request<DaySummary>(`/api/outlets/${encodeURIComponent(outlet.id)}/dashboard?${params}`, true), requestBills(1),
+    ]);
+    if (summary && summary.dayId !== dayId) throw new Error('The day summary does not match the selected date. Refresh to try again.');
+    const allBills = [...firstPage.bills];
+    // Sequential pages bound concurrency and retain the service's bill order.
+    for (let page = 2; page <= firstPage.pagination.totalPages; page++) {
+      allBills.push(...(await requestBills(page)).bills);
+    }
+    if (allBills.some(bill => bill.dayId && bill.dayId !== dayId)) throw new Error('Bill dates do not match the selected date. Refresh to try again.');
+    return { report: summary, bills: allBills };
+  });
+  const report = data?.report ?? null;
+  const bills = data?.bills ?? [];
+  useDataLoading(loading, 'Daywise Report');
+  const { runExport, exporting, exportError } = useScopedReportExport(JSON.stringify([scopeKey, dayId]));
+  // The keyed read already hides old details; reset local selection for the next result.
+  // eslint-disable-next-line react/set-state-in-effect
+  useEffect(() => { setDetailsOpen(false); setSelectedBill(null); }, [scopeKey]);
 
   const cashInHand = report ? report.openingAmt + report.cashSale - report.expCash : 0;
   const metrics: [string, number][] = report ? [
@@ -196,12 +169,16 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
     ['Deleted Bill Amount', report.billDeletesAmount], ['Swiggy', report.swiggyTotal], ['Zomato', report.zomatoTotal],
   ] : [];
 
+  const canOutput = !loading && !error && ((report?.billCount ?? 0) > 0 || bills.length > 0);
+
   const exportExcel = async () => {
-    if (!report && !bills.length) return;
-    try {
-      const gstBills = await loadGstExportBills(outlet.id, token, bills, dayId, dayId, onSessionExpired);
+    if (!canOutput) return;
+    await runExport(async signal => {
+      const gstBills = await loadGstExportBills(outlet.id, token, bills, dayId, dayId, onSessionExpired, signal);
+      signal.throwIfAborted();
       const rows = gstDetailRows(gstBills, 'day');
       await downloadReportExcel({
+        signal,
         name: reportName, outlet, startDate: dayId, endDate: dayId,
         summary: {
           ...sumPayments(bills),
@@ -214,9 +191,7 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
         },
         rows,
       });
-    } catch (exportError) {
-      setError((exportError as Error).message);
-    }
+    });
   };
 
   return (
@@ -224,15 +199,17 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
       <div className="bill-report-heading">
         <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Daywise Report</h1><p>{outlet.name} · Sales totals across all shifts for the selected date.</p></div>
         <div className="bill-report-actions">
-          <button type="button" onClick={exportExcel} disabled={(!report && !bills.length) || loading || !!error}><Download /> Export Excel</button>
-          <button type="button" onClick={() => window.print()}><Printer /> Print / PDF</button>
+          <button type="button" onClick={exportExcel} disabled={!canOutput || exporting}><Download /> Export Excel</button>
+          <button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / PDF</button>
         </div>
       </div>
 
       <div className="bill-report-filters">
         <label><span>Report date</span><ReportDateInput aria-label="Report date" value={dayId} onChange={value => { if (value) setDayId(value); }} /></label>
-        <div className="bill-filter-buttons"><button type="button" className="apply" disabled={loading} onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Refresh</button></div>
+        <div className="bill-filter-buttons"><button type="button" className="apply" disabled={loading} onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Refresh</button><button type="button" onClick={() => setDayId(todayId())}>Today</button></div>
       </div>
+
+      {exportError && <div role="alert">Export failed: {exportError} Use Export Excel to try again.</div>}
 
       <div className="bill-summary-grid">
         <article><span><ReceiptText /></span><div><small>Total Bills</small><strong>{report?.billCount ?? 0}</strong></div></article>
@@ -242,8 +219,8 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
       </div>
 
       <div className="bill-table-card">
-        {loading && <div className="bill-report-state"><RefreshCw className="bill-report-spinner" /><strong>Loading daywise report…</strong></div>}
-        {!loading && error && <div className="bill-report-state error"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
+        {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading daywise report…</strong></div>}
+        {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
         {!loading && !error && !report && <div className="bill-report-state"><CalendarDays /><strong>No shift data found for this date.</strong><p>Choose another date or refresh to load recorded sales.</p></div>}
         {!loading && !error && report && <div className="bill-table-scroll"><table>
           <thead><tr><th>Day ID</th><th>Bills</th><th className="amount">Cash</th><th className="amount">Digital</th><th className="amount">Credit</th><th className="amount">Expenses</th><th className="amount">Total Sale</th></tr></thead>
@@ -280,7 +257,7 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
         </table></div>}
       </div>}
 
-      {selectedBill && <div className="bill-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedBill(null); }}>
+      {!loading && !error && selectedBill && <div className="bill-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedBill(null); }}>
         <article className="bill-detail-modal daywise-bill-detail" role="dialog" aria-modal="true" aria-label={`Bill ${selectedBill.billNo}`}>
           <header><div><span>BILL DETAILS</span><h2>{selectedBill.billNo}</h2><p>{dateTime(selectedBill.createdDate)}</p></div><button type="button" onClick={() => setSelectedBill(null)} aria-label="Close bill details" autoFocus><X /></button></header>
           <div className="bill-detail-body">
@@ -319,7 +296,7 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
             <div className="bill-payment-detail"><h3>Payments</h3>{Object.entries(report.payments).filter(([, amount]) => amount > 0).map(([mode, amount]) => <div key={mode}><span>{paymentLabel(mode)}</span><strong>{money(amount)}</strong></div>)}{!Object.values(report.payments).some(amount => amount > 0) && <div><span>No payments recorded</span><strong>{money(0)}</strong></div>}</div>
             <div className="bill-total-detail">{metrics.map(([label, amount]) => <div key={label}><span>{label}</span><strong>{money(amount)}</strong></div>)}<div className="grand-total"><span>Total Sale</span><strong>{money(report.totalSale)}</strong></div></div>
           </div>
-          <footer><button type="button" onClick={() => window.print()}><Printer /> Print / Save PDF</button></footer>
+          <footer><button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / Save PDF</button></footer>
         </article>
       </div>}
     </section>

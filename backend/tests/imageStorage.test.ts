@@ -93,7 +93,7 @@ test('declared type mismatch and oversized files are rejected', async () => {
   const db = fakeDatabase(new Map([['OUTLET/outlet/PRODUCT/product', new FakeDocument({ name: 'Tea' })]]));
   const { bucket, objects } = fakeBucket();
   await assert.rejects(uploadMasterImage(db, bucket, 'products', 'outlet', 'product', png, 'image/jpeg'), /does not match/);
-  await assert.rejects(uploadMasterImage(db, bucket, 'products', 'outlet', 'product', Buffer.alloc(PRODUCT_IMAGE_MAX_BYTES + 1), 'image/png'), /512 KB or smaller/);
+  await assert.rejects(uploadMasterImage(db, bucket, 'products', 'outlet', 'product', Buffer.alloc(PRODUCT_IMAGE_MAX_BYTES + 1), 'image/png'), /25 KB or smaller/);
   assert.equal(objects.size, 0);
 });
 
@@ -312,7 +312,7 @@ test('new product upload creates only image and no imagePath', async () => {
   assert.equal(typeof saved.image, 'string'); assert.equal(saved.imagePath, undefined);
 });
 
- test('product upload accepts the exact safety boundary above the preferred 30 KB target; reading larger legacy images remains supported', async () => {
+ test('product upload accepts exactly 25 KB; reading larger legacy images remains supported', async () => {
   const document = new FakeDocument({ image: 'legacy.png' });
   const db = fakeDatabase(new Map([['OUTLET/outlet/PRODUCT/product', document]]));
   const { bucket, objects } = fakeBucket();
@@ -322,4 +322,36 @@ test('new product upload creates only image and no imagePath', async () => {
   const boundary = Buffer.concat([png, Buffer.alloc(PRODUCT_IMAGE_MAX_BYTES - png.length)]);
   const result = await uploadMasterImage(db, bucket, 'products', 'outlet', 'product', boundary, 'image/png');
   assert.equal(objects.get(`product_images/${result.image}`)?.length, PRODUCT_IMAGE_MAX_BYTES);
+});
+
+// Records the Storage metadata of every save made through a fake bucket.
+function recordingBucket(bucket: Bucket) {
+  const saved: { path: string; metadata: { contentType?: string; metadata?: Record<string, string> } }[] = [];
+  const file = (path: string) => {
+    const inner = (bucket as unknown as { file(path: string): Record<string, (...args: any[]) => any> }).file(path);
+    return { ...inner, save: (bytes: Buffer, options: { metadata: (typeof saved)[number]['metadata'] }) => {
+      saved.push({ path, metadata: options.metadata }); return inner.save!(bytes, options);
+    } };
+  };
+  return { bucket: { file } as unknown as Bucket, saved };
+}
+const downloadToken = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+test('product, category and transferred images carry a fresh download token for the Android POS', async () => {
+  const documents = new Map([
+    ['OUTLET/outlet/PRODUCT/product', new FakeDocument({ name: 'Tea' })],
+    ['OUTLET/outlet/CATEGORY/category', new FakeDocument({ name: 'Drinks' })],
+    ['OUTLET/source/PRODUCT/product', new FakeDocument({ image: 'source.png' })],
+  ]);
+  const db = fakeDatabase(documents); const fake = fakeBucket(); fake.objects.set('product_images/source.png', png);
+  const { bucket, saved } = recordingBucket(fake.bucket);
+  await uploadMasterImage(db, bucket, 'products', 'outlet', 'product', png, 'image/png');
+  await uploadMasterImage(db, bucket, 'categories', 'outlet', 'category', png, 'image/png');
+  await copyMasterImage(db, bucket, 'products', 'source', 'product', 'destination', 'target');
+  assert.equal(saved.length, 3);
+  for (const { metadata } of saved) {
+    assert.equal(metadata.contentType, 'image/png');
+    assert.match(metadata.metadata?.firebaseStorageDownloadTokens ?? '', downloadToken);
+  }
+  assert.equal(new Set(saved.map(entry => entry.metadata.metadata!.firebaseStorageDownloadTokens)).size, 3);
 });

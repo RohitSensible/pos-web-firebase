@@ -1,3 +1,4 @@
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { productImageSizeLabel } from './productImageProcessing.ts';
 import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
@@ -9,6 +10,7 @@ export function ProductImageUpload({ outletId, documentId, image, token, name, o
   outletId: string; documentId: string; image?: string; token: string; name: string;
   onSaved: (reference: string) => void; onUploadStart: () => void; onSessionExpired: () => void; paused?: boolean;
 }) {
+  const { confirmAction, confirmation } = useActionConfirmation();
   const input = useRef<HTMLInputElement>(null);
   const busy = useRef(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
@@ -24,6 +26,7 @@ export function ProductImageUpload({ outletId, documentId, image, token, name, o
   }, [preview, uploaded, image, savedReference]);
   const upload = async (file: File) => {
     if (busy.current) return;
+    if (!await confirmAction(image ? 'update' : 'add', `${name} image`)) return;
     busy.current = true; onUploadStart(); setSaving(true); setUploaded(false); setError(''); setPending(file); setPreview(URL.createObjectURL(file));
     try {
       const reference = await uploadMasterImage(outletId, 'products', documentId, token, file, image ?? null);
@@ -37,7 +40,7 @@ export function ProductImageUpload({ outletId, documentId, image, token, name, o
     } finally { busy.current = false; setSaving(false); }
   };
   const showPreview = !!preview && (!uploaded || image === savedReference);
-  return <div className="product-image-upload">
+  return <div className="product-image-upload">{confirmation}
     <input ref={input} type="file" className="local-image-file-input" accept="image/jpeg,image/png,image/webp" aria-label={`Choose image for ${name}`}
       onChange={event => { const file = event.currentTarget.files?.[0]; if (file) { onUploadStart(); setPending(null); setError(''); setCropFile(file); } event.currentTarget.value = ''; }} />
     <button type="button" className="product-image-upload-button" disabled={saving} aria-label={`Upload image for ${name}`} title="Upload from device" onClick={() => input.current?.click()}>

@@ -101,7 +101,7 @@ test('declared type mismatch and oversized files are rejected', async () => {
     const db = fakeDatabase(new Map([['OUTLET/outlet/PRODUCT/product', new FakeDocument({ name: 'Tea' })]]));
     const { bucket, objects } = fakeBucket();
     await assert.rejects(uploadMasterImage(db, bucket, 'products', 'outlet', 'product', png, 'image/jpeg'), /does not match/);
-    await assert.rejects(uploadMasterImage(db, bucket, 'products', 'outlet', 'product', Buffer.alloc(PRODUCT_IMAGE_MAX_BYTES + 1), 'image/png'), /512 KB or smaller/);
+    await assert.rejects(uploadMasterImage(db, bucket, 'products', 'outlet', 'product', Buffer.alloc(PRODUCT_IMAGE_MAX_BYTES + 1), 'image/png'), /20 KB or smaller/);
     assert.equal(objects.size, 0);
 });
 test('image routes reuse active-profile and assigned-outlet authorization rules', () => {
@@ -324,7 +324,7 @@ test('new product upload creates only image and no imagePath', async () => {
     assert.equal(typeof saved.image, 'string');
     assert.equal(saved.imagePath, undefined);
 });
-test('product upload accepts the exact safety boundary above the preferred 30 KB target; reading larger legacy images remains supported', async () => {
+test('product upload accepts exactly 20 KB; reading larger legacy images remains supported', async () => {
     const document = new FakeDocument({ image: 'legacy.png' });
     const db = fakeDatabase(new Map([['OUTLET/outlet/PRODUCT/product', document]]));
     const { bucket, objects } = fakeBucket();

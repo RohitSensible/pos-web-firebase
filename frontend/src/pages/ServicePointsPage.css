@@ -1,6 +1,6 @@
 .category-modal.service-point-form-page { width: 100%; max-width: none; min-height: calc(100dvh - 132px); background: var(--card); }
 .service-point-form-page > form { display: flex; flex-direction: column; min-height: inherit; }
-.service-point-form-page .modal-footer { margin-top: auto; }
+.service-point-form-page > form > .modal-footer { margin-top: auto; }
 .service-point-fields { display: grid; gap: 22px; width: 100%; max-width: 860px; box-sizing: border-box; margin: 0 auto; padding: 30px 32px; border: 0; min-width: 0; }
 .service-point-fields .form-field { min-width: 0; }
 .service-point-fields .form-field :is(input, textarea) { width: 100%; box-sizing: border-box; }

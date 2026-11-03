@@ -44,9 +44,27 @@ function edit(name: string, value: string) {
   element.dispatchEvent(new Event('input', { bubbles: true }));
 }
 const save = () => document.querySelector<HTMLButtonElement>('.user-account-page button[type=submit]')!;
+async function navigate(label: string) {
+  if (!nav(label)) {
+    const group = label === 'Dashboard' ? 'Home' : 'Masters';
+    [...document.querySelectorAll<HTMLButtonElement>('.nav-group-title')].find(button => button.textContent?.trim() === group)!.click();
+    await until(() => nav(label), `${label} navigation`);
+  }
+  nav(label).click();
+  await pause();
+}
+async function confirmedSave() {
+  save().click();
+  await until(() => document.querySelector('.action-confirm-button'), 'save confirmation');
+  document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click();
+}
+async function dismissSuccess() {
+  document.querySelector<HTMLButtonElement>('.action-success .success-done')!.click();
+  await pause();
+}
 async function openAccount() {
   releaseGet = undefined;
-  nav('User Account').click();
+  await navigate('User Account');
   await until(() => releaseGet, 'account request');
   assert(document.querySelector('.user-account-page [role=status]')?.textContent?.includes('Loading'), 'Account form shows loading while fetching');
   releaseGet!();
@@ -62,40 +80,45 @@ void (async () => {
   assert(getComputedStyle(document.querySelector('.user-account-card')!).backgroundColor !== light, 'Account form follows the existing dark theme');
   assert(input('name').value === 'Database Name' && input('email').value === 'database@example.com', 'Fields come from the database rather than cached session values');
   const pin = document.querySelector<HTMLInputElement>('#account-login-pin')!;
-  assert(pin.readOnly && pin.type === 'text' && pin.value === '012345' && !pin.name, 'Current login PIN is displayed read-only with leading zeroes and is never submitted');
+  assert(pin.readOnly && pin.type === 'password' && pin.value === '012345' && !pin.name, 'Current login PIN is concealed read-only with leading zeroes and is never submitted');
+  document.querySelector<HTMLButtonElement>('[aria-controls="account-login-pin"]')!.click(); await pause();
+  assert(pin.type === 'text' && save().disabled, 'Revealing the read-only PIN does not create a change to save');
   assert(save().disabled, 'Unchanged form cannot be saved');
   edit('name', 'Edited Name'); await pause(); waitForSave = true;
-  save().click(); await until(() => releaseSave, 'save request');
+  await confirmedSave(); await until(() => releaseSave && input('name').matches(':disabled') && save().disabled, 'save request and disabled controls');
   assert(input('name').matches(':disabled') && save().disabled, 'Controls are disabled during save');
-  assert(!document.querySelector('.user-account-success'), 'Success is not shown before the update succeeds');
-  releaseSave!(); await until(() => document.querySelector('.user-account-success'), 'saved name'); waitForSave = false;
+  assert(!document.querySelector('.action-success'), 'Success is not shown before the update succeeds');
+  releaseSave!(); await until(() => document.querySelector('.action-success'), 'saved name'); waitForSave = false;
   assert(JSON.stringify(patches[0]) === JSON.stringify({ name: 'Edited Name' }), 'Name save submits only the edited name');
+  assert(pin.type === 'password' && pin.value === '012345' && !JSON.stringify(patches).includes('012345'), 'Confirmed save conceals the unchanged PIN and sends no PIN value');
   assert(input('email').value === 'database@example.com' && save().disabled, 'Unedited email stays unchanged and saved values become the baseline');
   const session = JSON.parse(localStorage.getItem('pos_user_session')!);
   assert(session.name === 'Edited Name' && session.id === 'signed-user' && session.token === 'mock-token' && session.role === 'Admin', 'Confirmed save updates display state while preserving session identity and permissions');
   assert(document.querySelector('.profile-menu-trigger strong')?.textContent === 'Edited Name', 'Header reflects the confirmed name');
-  edit('email', 'edited@example.com'); await pause(); save().click();
-  await until(() => patches.length === 2 && !!document.querySelector('.user-account-success'), 'saved email');
+  await dismissSuccess();
+  edit('email', 'edited@example.com'); await pause(); await confirmedSave();
+  await until(() => patches.length === 2 && !!document.querySelector('.action-success'), 'saved email');
   assert(JSON.stringify(patches[1]) === JSON.stringify({ email: 'edited@example.com' }), 'Email save submits only the edited email');
+  await dismissSuccess();
   edit('email', 'invalid'); await pause(); save().click(); await pause();
   assert(!input('email').validity.valid && patches.length === 2, 'Invalid emails are blocked before submission');
   edit('email', 'edited@example.com'); edit('name', '   '); await pause(); save().click(); await pause();
   assert(document.querySelector('[role=alert]')?.textContent === 'Name is required.' && patches.length === 2, 'Whitespace-only names are rejected');
-  edit('name', 'Unsaved Name'); await pause(); saveStatus = 503; save().click();
+  edit('name', 'Unsaved Name'); await pause(); saveStatus = 503; await confirmedSave();
   await until(() => document.querySelector('[role=alert]')?.textContent?.includes('Save failed'), 'save error');
   assert(input('name').value === 'Unsaved Name' && !save().disabled && profile.name === 'Edited Name', 'Failed saves retain editable values and do not claim a database update');
   saveStatus = 200;
-  nav('Dashboard').click(); await pause(); getStatus = 503;
+  await navigate('Dashboard'); getStatus = 503;
   await openAccount(); await until(() => document.querySelector('.user-account-page [role=alert]'), 'load error');
   assert(!input('name'), 'Fetch errors never display stale account details');
   getStatus = 200; releaseGet = undefined;
   document.querySelector<HTMLButtonElement>('.user-account-state button')!.click();
   await until(() => releaseGet, 'retry'); releaseGet!(); await until(() => input('name'), 'retry loaded');
   assert(input('name').value === 'Edited Name', 'Retry fetches the current saved record');
-  nav('Dashboard').click(); await pause(); profile = { name: null, email: null, hasLoginPin: false, loginPin: null };
+  await navigate('Dashboard'); profile = { name: null, email: null, hasLoginPin: false, loginPin: null };
   await openAccount(); await until(() => document.querySelector('.user-account-page form'), 'missing fields');
   assert(!document.querySelector('.user-account-page input') && save().disabled, 'Fields absent from the database are not invented');
-  nav('Dashboard').click(); await pause(); getStatus = 401;
+  await navigate('Dashboard'); getStatus = 401;
   await openAccount(); await until(() => document.querySelector('.crm-login-page'), 'expired session');
   assert(localStorage.getItem('pos_user_session') === null, 'Expired session uses existing logout behavior');
   root.unmount();

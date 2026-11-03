@@ -144,3 +144,18 @@ test('single-product operation keeps legacy references and rejects malformed ret
   assert.equal(f.documents.get('OUTLET/o/PRODUCT/a')!.image, result.image);
   await assert.rejects(uploadMasterImage(f.db, f.bucket, 'products', 'o', 'a', png, 'image/png', { requestId: '../unsafe', expectedReference: null }));
 });
+
+test('bulk and single product images are stored with a download token for the Android POS', async () => {
+  const f = fixture(); const saved: { path: string; metadata: { contentType: string; metadata?: Record<string, string> } }[] = [];
+  const bucket = { file: (path: string) => {
+    const inner = f.bucket.file(path) as Record<string, (...args: any[]) => any>;
+    return { ...inner, save: (bytes: Buffer, options: any) => { saved.push({ path, metadata: options.metadata }); return inner.save!(bytes, options); } };
+  } } as MasterImageStorageBucket;
+  const bulk = await assignProductImage(f.db, bucket, 'o', 'user', assigned, request([target('a'), target('b')]));
+  const single = await uploadMasterImage(f.db, bucket, 'products', 'o', 'c', Buffer.concat([png, Buffer.from([1])]), 'image/png', { requestId, expectedReference: null });
+  assert.deepEqual(saved.map(entry => entry.path), [`product_images/${bulk.image}`, `product_images/${single.image}`]);
+  for (const { metadata } of saved) {
+    assert.equal(metadata.contentType, 'image/png');
+    assert.match(metadata.metadata?.firebaseStorageDownloadTokens ?? '', /^[0-9a-f-]{36}$/);
+  }
+});

@@ -1,3 +1,5 @@
+import { beginDataLoading } from '../utils/dataLoading.ts';
+import { ActionConfirmation } from './ActionPopup.tsx';
 import { useEffect, useRef, useState } from 'react';
 import './CategoryPage.css';
 import './ProductServicePointAssignment.css';
@@ -17,6 +19,7 @@ export function ProductServicePointAssignment({ outletId, token, categories, onC
     if (!categoryId) return;
     const controller = new AbortController();
     void (async () => {
+      const finishLoading = beginDataLoading('Service Points', controller.signal);
       try {
         const response = await fetch(`/api/outlets/${encodeURIComponent(outletId)}/service-points`, {
           headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: controller.signal,
@@ -26,7 +29,7 @@ export function ProductServicePointAssignment({ outletId, token, categories, onC
         if (response.status === 401) { onSessionExpired(); return; }
         if (!response.ok || result.success !== true || !Array.isArray(result.data?.servicePoints)) throw new Error(result.message || 'Unable to load service points.');
         setPoints(result.data.servicePoints);
-      } catch (failure) { if (!controller.signal.aborted) setError((failure as Error).message); }
+      } catch (failure) { if (!controller.signal.aborted) setError((failure as Error).message); } finally { finishLoading(); }
     })();
     return () => controller.abort();
   }, [categoryId, outletId, token, reload, onSessionExpired]);
@@ -49,15 +52,14 @@ export function ProductServicePointAssignment({ outletId, token, categories, onC
     finally { if (!controller.signal.aborted) { pending.current = null; setSaving(false); } }
   };
   const category = categories.find(row => row.id === categoryId), point = points?.find(row => row.documentId === servicePointId);
-  return <dialog ref={dialog} className="category-modal service-point-assignment" aria-labelledby="assign-service-point-title"
+  return <><dialog ref={dialog} className="category-modal service-point-assignment" aria-labelledby="assign-service-point-title"
     onCancel={event => { event.preventDefault(); if (!pending.current) onCancel(); }} aria-busy={saving}>
-    <div className="modal-header"><h3 id="assign-service-point-title">{confirm ? 'Confirm Service Point Assignment' : 'Assign Service Point'}</h3></div>
+    <div className="modal-header"><h3 id="assign-service-point-title">Assign Service Point</h3></div>
     <div className="modal-body">
-      {confirm ? <p>Are you sure you want to assign <strong>{point?.name}</strong> to all products in <strong>{category?.name}</strong>? This replaces their current service point assignments.</p>
-        : !categoryId ? <><p>Choose a category</p>{categories.length ? <div className="assignment-choice-list" aria-label="Categories">{categories.map(row => <button type="button" className="btn-secondary" key={row.id}
+      {!categoryId ? <><p>Choose a category</p>{categories.length ? <div className="assignment-choice-list" aria-label="Categories">{categories.map(row => <button type="button" className="btn-secondary" key={row.id}
           onClick={() => { setError(''); setPoints(null); setServicePointId(''); setCategoryId(row.id); }}>{row.name}</button>)}</div> : <p>No categories found for this outlet.</p>}</>
         : <><p>Category: <strong>{category?.name}</strong></p><p>Choose a service point</p>
-          {points === null ? !error && <p role="status">Loading service points…</p> : !points.length ? <p>No service points found. Add one under Masters → Service Point.</p>
+          {points === null ? !error && <p role="status" data-inline-loading>Loading service points…</p> : !points.length ? <p>No service points found. Add one under Masters → Service Point.</p>
             : <fieldset className="assignment-choice-list"><legend>Service points</legend>{points.map(row => <label key={row.documentId}><input type="radio" name="assignedServicePoint" value={row.documentId} checked={servicePointId === row.documentId} onChange={() => setServicePointId(row.documentId)} />{row.name || 'Unnamed service point'}</label>)}</fieldset>}
         </>}
       {error && <p className="category-form-error" role="alert">{error}</p>}
@@ -65,8 +67,10 @@ export function ProductServicePointAssignment({ outletId, token, categories, onC
     </div>
     <div className="modal-footer">
       <button type="button" className="btn-secondary" disabled={saving} onClick={onCancel}>Cancel</button>
-      {confirm ? <><button type="button" className="btn-secondary" disabled={saving} onClick={() => { setConfirm(false); setError(''); }}>No</button><button type="button" className="btn-primary-add" disabled={saving} onClick={() => void assign()}>{saving ? 'Assigning…' : 'Yes'}</button></>
-        : categoryId && <><button type="button" className="btn-secondary" onClick={() => { setCategoryId(''); setServicePointId(''); setError(''); }}>Back</button><button type="button" className="btn-primary-add" disabled={!servicePointId} onClick={() => setConfirm(true)}>Assign</button></>}
+      {categoryId && <><button type="button" className="btn-secondary" onClick={() => { setCategoryId(''); setServicePointId(''); setError(''); }}>Back</button><button type="button" className="btn-primary-add" disabled={!servicePointId} onClick={() => setConfirm(true)}>Assign</button></>}
     </div>
-  </dialog>;
+  </dialog>
+    {confirm && <ActionConfirmation action="assign" item={`${point?.name || 'service point'} to products in ${category?.name || 'category'}`} busy={saving} error={error}
+      onCancel={() => { setConfirm(false); setError(''); }} onConfirm={() => void assign()} confirmLabel="Assign" />}
+  </>;
 }

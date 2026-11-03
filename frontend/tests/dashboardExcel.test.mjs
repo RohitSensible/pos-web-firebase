@@ -28,10 +28,10 @@ test('dashboard workbook has the outlet heading, selected day, context and actua
   assert.equal(sheet.getCell('A1').value, 'Rohit Testing');
   assert.equal(sheet.getCell('A2').value, 'Retail POS Dashboard');
   assert.equal(cells.get('Report Date'), data.dayId);
-  assert.equal(cells.get('Cashier'), options.cashier);
+  assert.equal(cells.get('Exported By'), options.cashier);
   assert.equal(cells.get('Branch'), 'Pune');
   assert.equal(cells.get('Terminal'), 'POS Workspace');
-  assert.equal(cells.get('Scope'), 'Shift 3 for the selected date');
+  assert.equal(cells.get('Scope'), 'All 1 shift for the selected date');
   assert.equal(cells.get('Cash In Hand'), 470);
   assert.equal(cells.get('Total Sale'), 516.25);
   assert.equal(cells.get('Total Digital Sale'), 116.25);
@@ -43,9 +43,10 @@ test('dashboard workbook has the outlet heading, selected day, context and actua
   assert.equal(cells.get('Deleted Bills'), 1); assert.equal(cells.get('Deleted Bill Amount'), 50);
   assert.equal(cells.get('Total Expenses'), 40); assert.equal(cells.get('Received Customer Credit'), 12);
   assert.equal(cells.get('Swiggy'), 14); assert.equal(cells.get('Zomato'), 15);
-  assert.equal(cells.get('First Bill No.'), '001'); assert.equal(cells.get('Status'), 'Active');
-  assert.equal(cells.get('End Time'), '—');
-  assert.ok(cells.get('Start Time') instanceof Date);
+  assert.equal(cells.get('First Bill No.'), '001');
+  assert.equal(cells.get('Day Status'), 'At least one shift active');
+  assert.equal(cells.get('Last Shift End'), '—');
+  assert.ok(cells.get('First Shift Start') instanceof Date);
   assert.deepEqual(data.payments, options.data.payments);
 });
 

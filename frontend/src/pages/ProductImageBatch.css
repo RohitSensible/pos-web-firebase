@@ -1,7 +1,13 @@
-.product-image-batch .batch-header { align-items: center; gap: 16px; }
-.product-image-batch .batch-header-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+/* Title first; the upload actions sit directly below it, left-aligned. */
+.product-image-batch .batch-header { flex-direction: column; align-items: flex-start; gap: 14px; }
+.product-image-batch .batch-header-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 .product-image-batch .batch-image-count { color: var(--muted, #7188ad); font-size: 13px; white-space: nowrap; }
 .product-image-batch .batch-upload { width: auto; min-height: 36px; padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+.product-image-batch .batch-choose { width: auto; min-height: 36px; padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+.product-image-batch .batch-product-select { display: block; width: 100%; max-width: 360px; padding: 9px 12px; border: 1px solid var(--line, #e5ecf5); border-radius: 6px; background: var(--card, #fff); color: var(--ink, #263e60); font: inherit; font-size: 13px; }
+.product-image-batch .batch-row-note, .product-image-batch .batch-row-error { display: block; margin-top: 6px; font-size: 12px; font-weight: 400; }
+.product-image-batch .batch-row-note { color: var(--muted, #7188ad); }
+.product-image-batch .batch-row-error { color: var(--red, #dc2626); }
 .product-image-batch .batch-empty { margin: 24px 0; color: var(--muted, #7188ad); }
 .product-image-batch .batch-image-list { padding: 0 12px; }
 .product-image-batch .batch-image-table { min-width: 0; table-layout: fixed; }

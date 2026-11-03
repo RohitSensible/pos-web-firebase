@@ -8,3 +8,12 @@
 .stock-status.out-of-stock { color: #b52c32; background: #fff0f1; }
 .stock-status.not-tracked { color: #5d6f80; background: #eef2f5; }
 .stock-report-page tfoot td { border-top: 2px solid #e2e7eb; color: #173b53; background: #f6f8fa; font-weight: 800; }
+
+.stock-report-page .stock-print-only-row { display: none; }
+@media print {
+  .stock-report-page .stock-print-only-row { display: table-row; }
+  .stock-report-page .bill-table-scroll { overflow: visible; }
+  .stock-report-page thead { display: table-header-group; }
+  .stock-report-page tfoot { display: table-row-group; }
+  .stock-report-page tr { break-inside: avoid; }
+}

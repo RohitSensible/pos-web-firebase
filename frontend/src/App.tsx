@@ -1,51 +1,62 @@
-import { OutletLogoPage } from './pages/OutletLogoPage.tsx';
-import { memo, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { RouteLoadBoundary } from './components/RouteLoadBoundary.tsx';
+import { requestUnsavedNavigation, hasUnsavedChanges, UnsavedChangesPrompt } from './utils/unsavedChanges.tsx';
+import { DataLoadingModal } from './components/DataLoadingModal.tsx';
+import { useDashboardShiftRead } from './utils/useDashboardShiftRead.ts';
+import { ActionConfirmation } from './pages/ActionPopup.tsx';
+import { PrintPageSettings } from './components/PrintPageSettings.tsx';
+import { lazy, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useBrowserHistoryState } from './utils/useBrowserHistoryState.ts';
+import { runWorkspaceBack } from './utils/useWorkspaceBack.ts';
 import { useWebUsage } from './utils/useWebUsage.ts';
 import { useSidebarSections } from './utils/useSidebarSections.ts';
 import { OutletAccessPaused, OutletAdmission } from './pages/OutletAccessPaused.tsx';
 import { LoginPage, type UserSession } from './pages/LoginPage.tsx';
 import { OutletSelectionPage, type OutletSummary } from './pages/OutletSelectionPage.tsx';
-import { CategoryPage } from './pages/CategoryPage.tsx';
 import { ReportDateInput } from './pages/ReportDateInput.tsx';
 import { ProfileMenu } from './pages/ProfileMenu.tsx';
-import { EmployeesPage } from './pages/EmployeesPage.tsx';
-import { CustomersPage } from './pages/CustomersPage.tsx';
-import { DevicesPage } from './pages/DevicesPage.tsx';
-import { BroadcastPage } from './pages/BroadcastPage.tsx';
-import { TransferPreviewPage } from './pages/TransferPreviewPage.tsx';
-import { MulticounterPage } from './pages/MulticounterPage.tsx';
-import { UserAccountPage } from './pages/UserAccountPage.tsx';
-import { ProductsPage } from './pages/ProductsPage.tsx';
-import { ServicePointsPage } from './pages/ServicePointsPage.tsx';
-import { PremisesPage } from './pages/PremisesPage.tsx';
-import { UploadExcelPage } from './pages/UploadExcelPage.tsx';
-import { BillWiseReportPage } from './pages/BillWiseReportPage.tsx';
-import { ShiftSummaryReportPage } from './pages/ShiftSummaryReportPage.tsx';
-import { DaywiseReportPage } from './pages/DaywiseReportPage.tsx';
-import { CategoryWiseReportPage } from './pages/CategoryWiseReportPage.tsx';
-import { ProductWiseReportPage } from './pages/ProductWiseReportPage.tsx';
-import { GstReportPage } from './pages/GstReportPage.tsx';
-import { GstDaywiseReportPage } from './pages/GstDaywiseReportPage.tsx';
-import { StockReportPage } from './pages/StockReportPage.tsx';
-import { StockInOutReportPage } from './pages/StockInOutReportPage.tsx';
-import { StockAdjustmentPage } from './pages/StockAdjustmentPage.tsx';
-import { GoodsReceivedPage } from './pages/GoodsReceivedPage.tsx';
-import { StockTransferReportPage } from './pages/StockTransferReportPage.tsx';
+import type { StockTransferPreview } from './pages/stockTransferPreviews.ts';
 import {
-  Accessibility, BadgeIndianRupee, Banknote, Bot, Calculator, Download,
+  ArrowLeft, ArrowRightLeft, BadgeIndianRupee, Banknote, Bot, Calculator, Download,
   CalendarCheck, CalendarDays, ChevronDown, CircleHelp, ClipboardCheck,
-  ClipboardList, ContactRound, CreditCard, Database, Gauge, Home,
-  LayoutDashboard, LogOut, Menu, Monitor, Package, Radio, ReceiptText,
+  ClipboardList, CreditCard, Gauge, Home, Image as ImageIcon,
+  LayoutDashboard, LayoutGrid, LogOut, MapPin, Menu, Monitor, Package, PackageCheck, Radio, ReceiptText,
   PackageSearch, RefreshCw, SlidersHorizontal, Store, TrendingUp, Upload,
-  UserRoundCog, Users, UsersRound, WalletCards, X,
+  ShieldUser, UserRound, Users, UsersRound, WalletCards, X,
 } from 'lucide-react';
 import { downloadDashboardExcel, type ShiftDashboardData } from './utils/dashboardExcel.ts';
+import { dashboardShiftStatus } from '../../shared/shiftStatus.ts';
 import './App.css';
 import './Theme.css';
 
-const hiddenNavigationGroups = new Set(['Inventory']);
-const disabledNavigationItems = new Set(['Inventory:Products', 'Operations:Broadcast', 'Operations:Device', 'Operations:Multicounter']);
+// Keep lazy component identities stable across clock, session and navigation updates.
+const OutletLogoPage = lazy(() => import('./pages/OutletLogoPage.tsx').then(module => ({ default: module.OutletLogoPage })));
+const CategoryPage = lazy(() => import('./pages/CategoryPage.tsx').then(module => ({ default: module.CategoryPage })));
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage.tsx').then(module => ({ default: module.EmployeesPage })));
+const CustomersPage = lazy(() => import('./pages/CustomersPage.tsx').then(module => ({ default: module.CustomersPage })));
+const DevicesPage = lazy(() => import('./pages/DevicesPage.tsx').then(module => ({ default: module.DevicesPage })));
+const BroadcastPage = lazy(() => import('./pages/BroadcastPage.tsx').then(module => ({ default: module.BroadcastPage })));
+const TransferPreviewPage = lazy(() => import('./pages/TransferPreviewPage.tsx').then(module => ({ default: module.TransferPreviewPage })));
+const MulticounterPage = lazy(() => import('./pages/MulticounterPage.tsx').then(module => ({ default: module.MulticounterPage })));
+const UserAccountPage = lazy(() => import('./pages/UserAccountPage.tsx').then(module => ({ default: module.UserAccountPage })));
+const ProductsPage = lazy(() => import('./pages/ProductsPage.tsx').then(module => ({ default: module.ProductsPage })));
+const ServicePointsPage = lazy(() => import('./pages/ServicePointsPage.tsx').then(module => ({ default: module.ServicePointsPage })));
+const PremisesPage = lazy(() => import('./pages/PremisesPage.tsx').then(module => ({ default: module.PremisesPage })));
+const UploadExcelPage = lazy(() => import('./pages/UploadExcelPage.tsx').then(module => ({ default: module.UploadExcelPage })));
+const BillWiseReportPage = lazy(() => import('./pages/BillWiseReportPage.tsx').then(module => ({ default: module.BillWiseReportPage })));
+const ShiftSummaryReportPage = lazy(() => import('./pages/ShiftSummaryReportPage.tsx').then(module => ({ default: module.ShiftSummaryReportPage })));
+const DaywiseReportPage = lazy(() => import('./pages/DaywiseReportPage.tsx').then(module => ({ default: module.DaywiseReportPage })));
+const CategoryWiseReportPage = lazy(() => import('./pages/CategoryWiseReportPage.tsx').then(module => ({ default: module.CategoryWiseReportPage })));
+const ProductWiseReportPage = lazy(() => import('./pages/ProductWiseReportPage.tsx').then(module => ({ default: module.ProductWiseReportPage })));
+const GstReportPage = lazy(() => import('./pages/GstReportPage.tsx').then(module => ({ default: module.GstReportPage })));
+const GstDaywiseReportPage = lazy(() => import('./pages/GstDaywiseReportPage.tsx').then(module => ({ default: module.GstDaywiseReportPage })));
+const StockReportPage = lazy(() => import('./pages/StockReportPage.tsx').then(module => ({ default: module.StockReportPage })));
+const StockInOutReportPage = lazy(() => import('./pages/StockInOutReportPage.tsx').then(module => ({ default: module.StockInOutReportPage })));
+const StockAdjustmentPage = lazy(() => import('./pages/StockAdjustmentPage.tsx').then(module => ({ default: module.StockAdjustmentPage })));
+const GoodsReceivedPage = lazy(() => import('./pages/GoodsReceivedPage.tsx').then(module => ({ default: module.GoodsReceivedPage })));
+const StockTransferReportPage = lazy(() => import('./pages/StockTransferReportPage.tsx').then(module => ({ default: module.StockTransferReportPage })));
+const StockTransferPage = lazy(() => import('./pages/StockTransferPage.tsx').then(module => ({ default: module.StockTransferPage })));
+
+const disabledNavigationItems = new Set(['Operations:Broadcast', 'Operations:Multicounter']);
 
 function Sparkline({ tone = 'cyan', compact = false }: { tone?: 'cyan' | 'green' | 'muted'; compact?: boolean }) {
   return (
@@ -92,21 +103,7 @@ function MetricRow({ icon, label, value }: { icon?: ReactNode; label: string; va
 }
 
 function LogoutConfirmation({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <div className="logout-modal-backdrop" role="presentation" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onCancel();
-    }}>
-      <section className="logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title">
-        <span className="logout-modal-icon"><LogOut /></span>
-        <h2 id="logout-modal-title">Confirm logout</h2>
-        <p>Are you sure you want to logout?</p>
-        <div className="logout-modal-actions">
-          <button type="button" onClick={onCancel} autoFocus>Cancel</button>
-          <button type="button" className="confirm" onClick={onConfirm}><LogOut /> Logout</button>
-        </div>
-      </section>
-    </div>
-  );
+  return <ActionConfirmation action="log out" item="of your account" title="Log out?" confirmLabel="Logout" onCancel={onCancel} onConfirm={onConfirm}>{hasUnsavedChanges() && <p>Unsaved edits will be lost when you log out.</p>}</ActionConfirmation>;
 }
 
 
@@ -124,27 +121,26 @@ function formatMoney(value = 0): string {
     currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(Number.isFinite(value) ? value : 0);
 }
 
 const navigationGroups = [
     { label: 'Home', icon: <Home />, items: [{ label: 'Dashboard', icon: <LayoutDashboard /> }] },
     { label: 'Masters', icon: <ClipboardList />, items: [
-      { label: 'Logo', icon: <Store /> },
-      { label: 'Category', icon: <SlidersHorizontal /> },
+      { label: 'Logo', icon: <ImageIcon /> },
+      { label: 'Category', icon: <LayoutGrid /> },
       { label: 'Products', icon: <Package /> },
-      { label: 'Service Point', icon: <Store /> },
+      { label: 'Service Point', icon: <MapPin /> },
       { label: 'Premises', icon: <Store /> },
-      { label: 'Stock In and Out', icon: <ClipboardCheck /> },
-      { label: 'Goods Received', icon: <ReceiptText /> },
-      { label: 'User Account', icon: <ContactRound /> },
-      { label: 'Employees/Salesman', icon: <UserRoundCog /> },
-      { label: 'Product Transfer', icon: <Database /> },
-      { label: 'Customer', icon: <UsersRound /> },
+      { label: 'Goods Received', icon: <PackageCheck /> },
+      { label: 'User Account', icon: <ShieldUser /> },
+      { label: 'Employees/Salesman', icon: <UsersRound /> },
+      { label: 'Product Transfer', icon: <ArrowRightLeft /> },
+      { label: 'Customer', icon: <UserRound /> },
     ] },
     { label: 'Inventory', icon: <Package />, items: [
-      { label: 'Products', icon: <Store /> },
-      { label: 'Upload Excel', icon: <Upload /> },
+      { label: 'Stock In and Out', icon: <ClipboardCheck /> },
+      { label: 'Stock Transfer', icon: <ArrowRightLeft /> },
     ] },
     { label: 'Operations', icon: <Bot />, items: [
       { label: 'Upload Excel', icon: <Upload /> },
@@ -159,7 +155,7 @@ const navigationGroups = [
       { label: 'Product Wise', icon: <PackageSearch /> },
       { label: 'Stock Report', icon: <ClipboardCheck /> },
       { label: 'Stock In-Out Report', icon: <ClipboardList /> },
-      { label: 'Stock Transfer Report', icon: <Accessibility /> },
+      { label: 'Stock Transfer Report', icon: <ArrowRightLeft /> },
       { label: 'GST Report', icon: <Calculator /> },
       { label: 'GST Report Day Wise', icon: <CalendarCheck /> },
       { label: 'Bill Wise Sale Report', icon: <ReceiptText /> },
@@ -168,7 +164,7 @@ const navigationGroups = [
     ? { ...group, items: [...group.items].sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' })) } : group);
 
 const screens = navigationGroups.flatMap(group => group.items.map(item => ({ id: `${group.label}:${item.label}`, label: item.label })))
-  .filter(screen => !hiddenNavigationGroups.has(screen.id.split(':')[0]!) && !disabledNavigationItems.has(screen.id));
+  .filter(screen => !disabledNavigationItems.has(screen.id));
 const validScreen = (value: unknown): value is string => typeof value === 'string' && screens.some(screen => screen.id === value);
 
 const MemoProductsPage = memo(ProductsPage);
@@ -178,7 +174,11 @@ const MemoEmployeesPage = memo(EmployeesPage);
 const MemoOutletLogoPage = memo(OutletLogoPage);
 
 export default function App() {
-  const [screenId, navigate] = useBrowserHistoryState('pos-screen', 'Home:Dashboard', validScreen);
+  return <><Application /><DataLoadingModal /><UnsavedChangesPrompt /></>;
+}
+
+function Application() {
+  const [screenId, navigate, back] = useBrowserHistoryState('pos-screen', 'Home:Dashboard', validScreen, false);
   const activeNavigation = screens.find(screen => screen.id === screenId)!;
   const setActiveNavigation = (screen: { id: string; label: string }) => navigate(screen.id);
   const { openGroup, toggleGroup } = useSidebarSections(activeNavigation.id);
@@ -208,13 +208,14 @@ export default function App() {
     if (!saved) return null;
     try { return JSON.parse(saved) as OutletSummary; } catch { return null; }
   });
+  const previewSessionKey = session ? JSON.stringify([session.id, session.token]) : '';
+  const [transferPreviews, setTransferPreviews] = useState<{ sessionKey: string; records: StockTransferPreview[]; reportDate?: string }>({ sessionKey: '', records: [] });
+  const sessionTransferPreviews = transferPreviews.sessionKey === previewSessionKey ? transferPreviews.records : [];
+  const previewReportDate = transferPreviews.sessionKey === previewSessionKey ? transferPreviews.reportDate : undefined;
   const [usageExit, setUsageExit] = useState<{ outlet: { name: string; branch: string }; userName: string } | null>(null);
   const [externalInvalidated, setExternalInvalidated] = useState<'account' | 'outlet' | null>(null);
   const usage = useWebUsage(externalInvalidated ? undefined : session?.token, selectedOutlet?.id);
   const releaseUsage = usage.release;
-  const [dashboardData, setDashboardData] = useState<ShiftDashboardData | null>(null);
-  const [dashboardLoading, setDashboardLoading] = useState(false);
-  const [dashboardError, setDashboardError] = useState('');
   const [dashboardReloadKey, setDashboardReloadKey] = useState(0);
   const [dashboardDay, setDashboardDay] = useState(localDayId);
   const [selectedShiftId, setSelectedShiftId] = useState<string>('all');
@@ -238,15 +239,15 @@ export default function App() {
   }, []);
 
   const handleLoginSuccess = useCallback((user: UserSession) => {
+    setTransferPreviews({ sessionKey: '', records: [] });
+    navigate('Home:Dashboard');
     setUsageExit(null);
     setSession(user);
     setSelectedOutlet(null);
-    setDashboardData(null);
     setSelectedShiftId('all');
-    setDashboardError('');
     localStorage.setItem('pos_user_session', JSON.stringify(user));
     localStorage.removeItem('pos_selected_outlet');
-  }, []);
+  }, [navigate]);
 
   const handleAccountSaved = (details: { name: string | null; email: string | null }) => {
     if (!session) return;
@@ -257,15 +258,14 @@ export default function App() {
   };
 
   const handleLogout = useCallback(() => {
+    setTransferPreviews({ sessionKey: '', records: [] });
     setUsageExit(null);
     setExternalInvalidated(null);
     void releaseUsage().catch(() => undefined);
     setLogoutConfirmationOpen(false);
     setSession(null);
     setSelectedOutlet(null);
-    setDashboardData(null);
     setSelectedShiftId('all');
-    setDashboardError('');
     localStorage.removeItem('pos_user_session');
     localStorage.removeItem('pos_selected_outlet');
   }, [releaseUsage]);
@@ -292,7 +292,7 @@ export default function App() {
         if (usage.dailyLimitApplies === true) { setExternalInvalidated(reason); return; }
         void releaseUsage().catch(() => undefined);
         if (reason === 'account') setSession(null);
-        setSelectedOutlet(null); setDashboardData(null);
+        setSelectedOutlet(null);
         // Preserve the new login/selection owned by the other tab.
       };
       try {
@@ -309,7 +309,7 @@ export default function App() {
     void releaseUsage().catch(() => undefined);
     setExternalInvalidated(null);
     if (externalInvalidated === 'account') setSession(null);
-    setSelectedOutlet(null); setDashboardData(null);
+    setSelectedOutlet(null);
     // Another tab may now own a different login. Do not overwrite its storage.
   }, [releaseUsage, externalInvalidated]);
 
@@ -318,97 +318,62 @@ export default function App() {
   }, []);
 
   const handleOutletSelect = useCallback((outlet: OutletSummary) => {
+    navigate('Home:Dashboard');
     setSelectedOutlet(outlet);
-    setDashboardData(null);
     setSelectedShiftId('all');
-    setDashboardError('');
     localStorage.setItem('pos_selected_outlet', JSON.stringify(outlet));
-  }, []);
+  }, [navigate]);
 
   const handleChangeOutlet = useCallback(() => {
     void releaseUsage().catch(() => undefined);
     setSelectedOutlet(null);
-    setDashboardData(null);
     setSelectedShiftId('all');
-    setDashboardError('');
     localStorage.removeItem('pos_selected_outlet');
   }, [releaseUsage]);
+
+  const requestChangeOutlet = useCallback(() => {
+    requestUnsavedNavigation(handleChangeOutlet);
+  }, [handleChangeOutlet]);
 
   useEffect(() => {
     if (usage.denied === 'account') handleLogout();
     else if (usage.denied === 'outlet') handleChangeOutlet();
   }, [usage.denied, handleLogout, handleChangeOutlet]);
 
-  useEffect(() => {
-    if (!session || !selectedOutlet || !usage.ready || activeNavigation.id !== 'Home:Dashboard') return;
-
-    const controller = new AbortController();
-    let inFlight = false;
-    const loadDashboard = async (background = false) => {
-      if (controller.signal.aborted || inFlight || (background && document.visibilityState === 'hidden')) return;
-      inFlight = true;
-      if (!background) {
-        setDashboardLoading(true);
-        setDashboardError('');
-        setDashboardData(null);
-      }
-      try {
-        const dayId = dashboardDay;
-        const response = await fetch(`/api/outlets/${encodeURIComponent(selectedOutlet.id)}/dashboard?dayId=${dayId}`, {
-          headers: { Authorization: `Bearer ${session.token}` },
-          cache: 'no-store',
-          signal: controller.signal,
-        });
-        const result = await response.json() as { success: boolean; message?: string; data?: ShiftDashboardData };
-        if (controller.signal.aborted) return;
-        if (response.status === 401) {
-          handleLogout();
-          return;
-        }
-        if (!response.ok || !result.data) {
-          if (response.status === 403 || response.status === 404) setDashboardData(null);
-          setDashboardError(result.message || 'Unable to load shift data.');
-          return;
-        }
-        setDashboardData(result.data);
-        setDashboardError('');
-      } catch (requestError) {
-        if (!controller.signal.aborted && (requestError as Error).name !== 'AbortError') {
-          setDashboardError('Cannot reach the shift service.');
-        }
-      } finally {
-        inFlight = false;
-        if (!controller.signal.aborted && !background) setDashboardLoading(false);
-      }
-    };
-
-    void loadDashboard();
-    const refresh = () => { void loadDashboard(true); };
-    const timer = window.setInterval(refresh, 10_000);
-    document.addEventListener('visibilitychange', refresh);
-    window.addEventListener('focus', refresh);
-    window.addEventListener('online', refresh);
+  const { data: dashboardData, loading: dashboardLoading, error: dashboardError, updated: dashboardUpdated } = useDashboardShiftRead({
+    outletId: selectedOutlet?.id, token: session?.token, day: dashboardDay,
+    enabled: !!session && !!selectedOutlet && usage.ready && !externalInvalidated && activeNavigation.id === 'Home:Dashboard',
+    reload: dashboardReloadKey, onUnauthorized: handleLogout,
+  });
+  const dashboardExportController = useRef<AbortController | null>(null);
+  useLayoutEffect(() => {
+    dashboardExportBusy.current = false;
+    setDashboardExporting(false); setDashboardExportError('');
     return () => {
-      controller.abort();
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', refresh);
-      window.removeEventListener('focus', refresh);
-      window.removeEventListener('online', refresh);
+      dashboardExportController.current?.abort();
+      dashboardExportController.current = null;
     };
-  }, [session, selectedOutlet, dashboardDay, dashboardReloadKey, handleLogout, usage.ready, activeNavigation.id]);
+  }, [selectedOutlet?.id, session?.token, dashboardDay, dashboardReloadKey, activeNavigation.id]);
+  const effectiveShiftId = selectedShiftId === 'all' || dashboardData?.shifts?.some(shift => shift.id === selectedShiftId)
+    ? selectedShiftId : 'all';
+  useEffect(() => {
+    if (dashboardData && selectedShiftId !== 'all' && !dashboardData.shifts?.some(shift => shift.id === selectedShiftId)) setSelectedShiftId('all');
+  }, [dashboardData, selectedShiftId]);
 
   const exportDashboard = async () => {
     if (!session || !selectedOutlet || !dashboardData || dashboardLoading || dashboardError
       || dashboardData.dayId !== dashboardDay || dashboardExportBusy.current) return;
+    const controller = new AbortController();
+    dashboardExportController.current = controller;
     dashboardExportBusy.current = true;
     setDashboardExporting(true); setDashboardExportError('');
     try {
       await downloadDashboardExcel({ outlet: selectedOutlet, dayId: dashboardDay,
-        cashier: session.name, terminal: session.terminal, data: dashboardData });
+        cashier: session.name, terminal: session.terminal, data: dashboardData, signal: controller.signal });
     } catch {
-      setDashboardExportError('Unable to download the dashboard Excel file. Please try Export again.');
+      if (!controller.signal.aborted) setDashboardExportError('Unable to download the dashboard Excel file. Please try Export again.');
     } finally {
-      dashboardExportBusy.current = false; setDashboardExporting(false);
+      if (dashboardExportController.current === controller) { dashboardExportBusy.current = false; setDashboardExporting(false); }
     }
   };
 
@@ -430,17 +395,27 @@ export default function App() {
   const accessPaused = restrictedSession && ((!usage.ready && !usage.silentResume) || Boolean(externalInvalidated));
   const reconnecting = !restrictedSession && !usage.ready && !usage.silentResume;
 
-  const shifts: ShiftDashboardData[] = dashboardData?.shifts && dashboardData.shifts.length > 0
-    ? dashboardData.shifts
-    : (dashboardData ? [dashboardData] : []);
-
-  const activeShift = shifts.find(s => !s.inActive) ?? shifts.at(-1);
-
-  const displayData: ShiftDashboardData | null = selectedShiftId === 'all'
-    ? dashboardData
-    : (shifts.find(s => s.id === selectedShiftId) ?? dashboardData);
-
-  const shiftToShow = selectedShiftId === 'all' ? (activeShift ?? displayData) : displayData;
+  const shifts = dashboardData?.shifts ?? [];
+  const displayData = effectiveShiftId === 'all' ? dashboardData : shifts.find(shift => shift.id === effectiveShiftId) ?? null;
+  const orderedShifts = [...shifts].sort((a, b) => (a.startTime - b.startTime) || (a.shiftNo - b.shiftNo) || a.id.localeCompare(b.id));
+  const shiftToShow = effectiveShiftId === 'all'
+    ? (orderedShifts.filter(shift => !shift.inActive).at(-1) ?? orderedShifts.at(-1))
+    : shifts.find(shift => shift.id === effectiveShiftId);
+  const shiftLabel = (shift: ShiftDashboardData) => {
+    const label = `Shift ${shift.shiftNo || '—'}`;
+    if (shifts.filter(other => other.shiftNo === shift.shiftNo).length < 2) return label;
+    const date = new Date(shift.startTime);
+    const time = shift.startTime > 0 && Number.isFinite(date.getTime()) ? date.toLocaleTimeString() : 'Time unavailable';
+    const peers = orderedShifts.filter(other => other.shiftNo === shift.shiftNo && other.deviceId === shift.deviceId && other.startTime === shift.startTime);
+    return `${label} · ${shift.deviceId?.trim() || 'Device unavailable'} · ${time}${peers.length > 1 ? ` · ${peers.indexOf(shift) + 1}` : ''}`;
+  };
+  const shiftTabs = [{ id: 'all', label: 'All Shifts' }, ...shifts.map(shift => ({ id: shift.id, label: shiftLabel(shift) }))];
+  const selectedTabIndex = Math.max(0, shiftTabs.findIndex(tab => tab.id === effectiveShiftId));
+  const shiftTime = (value: number | undefined) => {
+    if (!value || !Number.isFinite(value)) return 'Not Available';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Not Available' : date.toLocaleString();
+  };
 
   const payments = displayData?.payments ?? {};
   const cashInHand = displayData
@@ -459,6 +434,7 @@ export default function App() {
       onResume={externalInvalidated ? leaveInvalidatedSession : usage.retry}
       onChangeOutlet={externalInvalidated ? leaveInvalidatedSession : handleChangeOutlet} onSignOut={handleLogout} />}
     <div className="retail-dashboard-shell" inert={accessPaused} aria-hidden={accessPaused || undefined} style={accessPaused ? { visibility: 'hidden', display: 'none' } : undefined}>
+      <PrintPageSettings outletName={selectedOutlet.name} />
       {sidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
       <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`} aria-label="Primary navigation">
         <button type="button" className="sidebar-close" aria-label="Close navigation" onClick={() => setSidebarOpen(false)}><X /></button>
@@ -469,10 +445,10 @@ export default function App() {
             <span className="business-avatar">{selectedOutlet.name.slice(0, 2).toUpperCase()}</span>
             <div className="business-outlet-details"><strong><span className="business-outlet-name">{selectedOutlet.name}</span></strong><span>{selectedOutlet.branch || selectedOutlet.country}</span></div>
           </div>
-          <button type="button" className="business-outlet-switch" aria-label="Change Outlet" title="Change Outlet" onClick={handleChangeOutlet}><RefreshCw aria-hidden="true" />Change Outlet</button>
+          <button type="button" className="business-outlet-switch" aria-label="Change Outlet" title="Change Outlet" onClick={requestChangeOutlet}><RefreshCw aria-hidden="true" />Change Outlet</button>
         </div>
         <nav className="sidebar-nav">
-          {navigationGroups.filter(group => !hiddenNavigationGroups.has(group.label)).map((group) => (
+          {navigationGroups.map((group) => (
             <section
               className={`nav-group ${group.label === 'Masters' ? 'masters-group' : ''} ${group.label === 'Reports' ? 'reports-group' : ''}`}
               key={group.label}
@@ -502,7 +478,7 @@ export default function App() {
                         setSidebarOpen(false);
                       }}
                     >
-                      {item.icon}<span>{item.label}</span>
+                      <span className="nav-item-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span>
                     </button>
                   ))}
                 </div>
@@ -531,7 +507,7 @@ export default function App() {
           </div>
           <div className="header-actions">
             <button className="theme-button" type="button" aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} aria-pressed={darkMode} title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={() => setDarkMode(current => !current)}><span aria-hidden="true">☾</span></button>
-            <ProfileMenu key={`${session.id}:${selectedOutlet.id}`} session={session} outletId={selectedOutlet.id} onSessionExpired={handleLogout} onChangeOutlet={handleChangeOutlet} />
+            <ProfileMenu key={`${session.id}:${selectedOutlet.id}`} session={session} outletId={selectedOutlet.id} onSessionExpired={handleLogout} onChangeOutlet={requestChangeOutlet} />
           </div>
         </header>
 
@@ -542,11 +518,16 @@ export default function App() {
         </div>}
         <main className="dashboard-workspace" inert={reconnecting} aria-hidden={reconnecting || undefined}
           style={reconnecting ? { visibility: 'hidden' } : undefined}>
+          {/* Back first leaves an open in-page form or sub-screen; otherwise it returns to the previous
+              screen (as browser Back), or to the Dashboard when the tab has no earlier entry. */}
+          {activeNavigation.id !== 'Home:Dashboard' && <button type="button" className="workspace-back" aria-label="Back to previous screen"
+            onClick={() => { if (runWorkspaceBack()) return; if (window.history.length > 1) back(); else navigate('Home:Dashboard'); }}><ArrowLeft aria-hidden="true" />Back</button>}
+          <RouteLoadBoundary key={activeNavigation.id}>
           {!usage.authorized ? null : activeNavigation.id === 'Masters:Logo' ? (
             <MemoOutletLogoPage outletId={selectedOutlet.id} outletName={selectedOutlet.name} token={session.token} />
           ) : activeNavigation.id === 'Masters:Goods Received' ? (
             <GoodsReceivedPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} onCancel={() => setActiveNavigation({ id: 'Home:Dashboard', label: 'Dashboard' })} />
-          ) : activeNavigation.id === 'Masters:Stock In and Out' ? (
+          ) : activeNavigation.id === 'Inventory:Stock In and Out' ? (
             <StockAdjustmentPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Operations:Multicounter' ? (
             <MulticounterPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} />
@@ -554,6 +535,11 @@ export default function App() {
             <DevicesPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Operations:Broadcast' ? (
             <BroadcastPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} />
+          ) : activeNavigation.id === 'Inventory:Stock Transfer' ? (
+            <StockTransferPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout}
+              onPreviewConfirmed={preview => setTransferPreviews(current => ({ ...(current.sessionKey === previewSessionKey ? current : {}), sessionKey: previewSessionKey,
+                records: [preview, ...(current.sessionKey === previewSessionKey ? current.records.filter(record => record.id !== preview.id) : [])] }))}
+              onViewReport={date => { setTransferPreviews(current => ({ sessionKey: previewSessionKey, records: current.sessionKey === previewSessionKey ? current.records : [], reportDate: date })); navigate('Reports:Stock Transfer Report'); }} />
           ) : activeNavigation.id === 'Masters:Product Transfer' ? (
             <TransferPreviewPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Masters:Service Point' ? (
@@ -575,7 +561,7 @@ export default function App() {
           ) : activeNavigation.id === 'Reports:Stock In-Out Report' ? (
             <StockInOutReportPage outlet={selectedOutlet} reportName={activeNavigation.label} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Reports:Stock Transfer Report' ? (
-            <StockTransferReportPage outlet={selectedOutlet} reportName={activeNavigation.label} token={session.token} onSessionExpired={handleLogout} />
+            <StockTransferReportPage key={`${session.id}:${selectedOutlet.id}:${previewReportDate ?? ''}`} outlet={selectedOutlet} reportName={activeNavigation.label} token={session.token} onSessionExpired={handleLogout} previews={sessionTransferPreviews} initialPreviewDate={previewReportDate} />
           ) : activeNavigation.id === 'Reports:GST Report' ? (
             <GstReportPage outlet={selectedOutlet} reportName={activeNavigation.label} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Reports:GST Report Day Wise' ? (
@@ -597,17 +583,26 @@ export default function App() {
               <section className="page-hero">
                 <div><h1>Retail POS Dashboard</h1><p>{selectedOutlet.name} · {activeNavigation.label} · Daily sales performance</p></div>
                 <div className="hero-actions"><div className="shift-selector-bar" role="tablist" aria-label="Shift view selection">
-                  <button type="button" role="tab" aria-selected={selectedShiftId === 'all'} className={`shift-pill ${selectedShiftId === 'all' ? 'active' : ''}`} onClick={() => setSelectedShiftId('all')}>All Shifts</button>
-                  {shifts.map(shift => <button key={shift.id} type="button" role="tab" aria-selected={selectedShiftId === shift.id} className={`shift-pill ${selectedShiftId === shift.id ? 'active' : ''}`} onClick={() => setSelectedShiftId(shift.id)}>Shift {shift.shiftNo || '—'}</button>)}
-                </div><label className="dashboard-date-picker" htmlFor="dashboard-report-date"><ReportDateInput id="dashboard-report-date" aria-label="Dashboard date" value={dashboardDay} onChange={value => { if (value) { setDashboardDay(value); setSelectedShiftId('all'); } }} /><span>{clock}</span></label><button type="button" onClick={() => void exportDashboard()} disabled={!dashboardData || dashboardLoading || !!dashboardError || dashboardExporting || dashboardData.dayId !== dashboardDay}>{dashboardExporting ? <RefreshCw /> : <Download />}{dashboardExporting ? 'Exporting…' : 'Export Excel'}</button></div>
+                  {shiftTabs.map((tab, index) => <button key={tab.id} id={`dashboard-shift-tab-${index}`} type="button" role="tab"
+                    aria-selected={effectiveShiftId === tab.id} aria-controls="dashboard-shift-panel" tabIndex={selectedTabIndex === index ? 0 : -1}
+                    className={`shift-pill ${effectiveShiftId === tab.id ? 'active' : ''}`} onClick={() => setSelectedShiftId(tab.id)}
+                    onKeyDown={event => {
+                      const next = event.key === 'Home' ? 0 : event.key === 'End' ? shiftTabs.length - 1
+                        : event.key === 'ArrowRight' ? (index + 1) % shiftTabs.length
+                        : event.key === 'ArrowLeft' ? (index - 1 + shiftTabs.length) % shiftTabs.length : null;
+                      if (next === null) return;
+                      event.preventDefault(); setSelectedShiftId(shiftTabs[next]!.id);
+                      document.getElementById(`dashboard-shift-tab-${next}`)?.focus();
+                    }}>{tab.label}</button>)}
+                </div><label className="dashboard-date-picker" htmlFor="dashboard-report-date"><ReportDateInput id="dashboard-report-date" aria-label="Dashboard date" value={dashboardDay} onChange={value => { if (value) { setDashboardDay(value); setSelectedShiftId('all'); } }} /><span>{clock}</span></label><button type="button" title="Export all shifts for the selected date" onClick={() => void exportDashboard()} disabled={!dashboardData || dashboardLoading || !!dashboardError || dashboardExporting || dashboardData.dayId !== dashboardDay}>{dashboardExporting ? <RefreshCw /> : <Download />}{dashboardExporting ? 'Exporting…' : 'Export All Shifts'}</button></div>
               </section>
 
-              {dashboardLoading && <div className="dashboard-data-notice"><RefreshCw className="dashboard-data-spinner" /> Loading shift data…</div>}
-              {!dashboardLoading && dashboardError && <div className="dashboard-data-notice error"><span>{dashboardError}</span><button type="button" onClick={() => setDashboardReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
+              {dashboardLoading && <div className="dashboard-data-notice" data-inline-loading><RefreshCw className="dashboard-data-spinner" /> Loading shift data…</div>}
+              {dashboardError && <div className="dashboard-data-notice error"><span>{dashboardError}{dashboardData && dashboardUpdated ? ` Showing last good data. Last updated ${new Date(dashboardUpdated).toLocaleString()}. Export is unavailable.` : ''}</span><button type="button" disabled={dashboardLoading} onClick={() => setDashboardReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
 
               {dashboardExportError && <div className="dashboard-data-notice error" role="alert">{dashboardExportError}</div>}
 
-              <div className="dashboard-columns">
+              <div className="dashboard-columns" id="dashboard-shift-panel" role="tabpanel" aria-labelledby={`dashboard-shift-tab-${selectedTabIndex}`}>
               <div className="dashboard-primary">
               <section className="kpi-grid" aria-label="Key sales figures">
                 <KpiCard label="Cash In Hand" value={formatMoney(cashInHand)} tone="green" icon={<Banknote />} />
@@ -616,7 +611,7 @@ export default function App() {
               </section>
 
               <section className="payment-section">
-                <div className="section-heading"><div><h2>Other Sales</h2><p>Sales by payment method{selectedShiftId !== 'all' ? ` (Shift ${displayData?.shiftNo})` : ''}</p></div><SlidersHorizontal /></div>
+                <div className="section-heading"><div><h2>Other Sales</h2><p>Sales by payment method{effectiveShiftId !== 'all' ? ` (Shift ${displayData?.shiftNo})` : ''}</p></div><SlidersHorizontal /></div>
                 <div className="payment-grid">
                   <PaymentTile label="Cash" value={formatMoney(payments.cash ?? displayData?.cashSale)} featured brand={<Banknote />} />
                   <PaymentTile label="Google Pay" value={formatMoney(payments.googlepay)} brand={<span className="google-pay-mark">G</span>} />
@@ -631,7 +626,7 @@ export default function App() {
 
               <section className="bottom-panels">
                 <article className="detail-panel">
-                  <h2>Operational Summary{selectedShiftId !== 'all' ? ` (Shift ${displayData?.shiftNo})` : ''}</h2>
+                  <h2>Operational Summary{effectiveShiftId !== 'all' ? ` (Shift ${displayData?.shiftNo})` : ''}</h2>
                   <div className="detail-grid">
                     <MetricRow icon={<ReceiptText />} label="No. of Bills" value={String(displayData?.billCount ?? 0)} />
                     <MetricRow icon={<BadgeIndianRupee />} label="Total Discount" value={formatMoney(displayData?.discount)} />
@@ -642,7 +637,7 @@ export default function App() {
                   </div>
                 </article>
                 <article className="detail-panel">
-                  <h2>Expenses &amp; Credits{selectedShiftId !== 'all' ? ` (Shift ${displayData?.shiftNo})` : ''}</h2>
+                  <h2>Expenses &amp; Credits{effectiveShiftId !== 'all' ? ` (Shift ${displayData?.shiftNo})` : ''}</h2>
                   <div className="detail-grid expenses-grid">
                     <MetricRow label="Total Expenses" value={formatMoney(displayData?.expensesAmtTotal)} />
                     <MetricRow label="Advance Payment" value={formatMoney(displayData?.advanceAmtTotal)} />
@@ -654,20 +649,25 @@ export default function App() {
 
               <aside className="dashboard-insights">
                 <article className="insight-card shift-card">
-                  <h2>{selectedShiftId === 'all' ? (activeShift && !activeShift.inActive ? 'Current Active Shift' : 'Latest Shift') : `Shift ${displayData?.shiftNo || '—'}`}</h2>
+                  <h2>Shift Details</h2>
+                  <p className="shift-card-context">{effectiveShiftId === 'all' ? (shiftToShow && !shiftToShow.inActive ? 'Current Active Shift' : 'Latest Shift') : `Shift ${shiftToShow?.shiftNo ?? '—'}`} · Times in {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
                   <div><span>Outlet</span><strong>{selectedOutlet.name}</strong></div>
                   <div><span>Branch</span><strong>{selectedOutlet.branch || 'Not specified'}</strong></div>
-                  <div><span>Terminal</span><strong>{session.terminal}</strong></div>
-                  <div><span>Cashier</span><strong>{session.name}</strong></div>
+                  <div><span>Terminal</span><strong>{session.terminal} (web workspace)</strong></div>
                   <div><span>Shift No.</span><strong>Shift {shiftToShow?.shiftNo || '—'}</strong></div>
-                  <div><span>Bills</span><strong>{shiftToShow?.startBillNo || '—'} → {shiftToShow?.lastBillNo || '—'}</strong></div>
-                  <div><span>Status</span><strong className={shiftToShow ? (shiftToShow.inActive ? 'status-closed' : 'status-active') : 'status-active'}>{shiftToShow ? (shiftToShow.inActive ? 'Closed' : 'Active') : 'Unavailable'}</strong></div>
+                  <div><span>Created By</span><strong>{shiftToShow?.creatorName?.trim() || 'Not Available'}</strong></div>
+                  <div><span>Created At</span><strong>{shiftTime(shiftToShow?.startTime)}</strong></div>
+                  <div><span>Ended At</span><strong>{shiftToShow && !shiftToShow.inActive && !shiftToShow.endTime ? 'In progress' : shiftTime(shiftToShow?.endTime)}</strong></div>
+                  <div><span>Bill Range</span><strong>{shiftToShow?.startBillNo || '—'} → {shiftToShow?.lastBillNo || '—'}</strong></div>
+                  <div><span>Status</span><strong className={shiftToShow?.inActive ? 'status-closed' : 'status-active'}>{shiftToShow ? dashboardShiftStatus(shiftToShow) : 'Not Available'}</strong></div>
+                  <div><span>Device ID</span><strong className="shift-device-id">{shiftToShow?.deviceId?.trim() || 'Not Available'}</strong></div>
                 </article>
                 <button type="button" className="help-card"><CircleHelp /><span><strong>Need help?</strong><small>View POS documentation</small></span></button>
               </aside>
               </div>
             </>
           )}
+          </RouteLoadBoundary>
         </main>
       </div>
       {logoutConfirmationOpen && <LogoutConfirmation onCancel={() => setLogoutConfirmationOpen(false)} onConfirm={handleLogout} />}

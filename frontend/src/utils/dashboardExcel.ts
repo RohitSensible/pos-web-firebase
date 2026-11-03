@@ -1,4 +1,5 @@
 import type ExcelJS from 'exceljs';
+import { dashboardShiftStatus } from '../../../shared/shiftStatus.ts';
 
 export interface ShiftDashboardData {
   id: string;
@@ -37,22 +38,27 @@ export interface ShiftDashboardData {
   zomatoTotal: number;
   payments: Record<string, number>;
   deviceId?: string;
+  userId?: string;
+  creatorName?: string;
   shifts?: ShiftDashboardData[];
 }
 
 
-interface DashboardExportOptions {
+export interface DashboardExportOptions {
   outlet: { name: string; branch: string };
   dayId: string;
   cashier: string;
   terminal: string;
   data: ShiftDashboardData;
   now?: Date;
+  signal?: AbortSignal;
 }
 
 export async function createDashboardWorkbook(options: DashboardExportOptions): Promise<ExcelJS.Workbook> {
+  options.signal?.throwIfAborted();
   if (options.data.dayId !== options.dayId) throw new Error('Dashboard data does not match the selected date.');
   const { default: ExcelJS } = await import('exceljs');
+  options.signal?.throwIfAborted();
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Dashboard');
   const { outlet } = options;
@@ -138,7 +144,7 @@ export async function createDashboardWorkbook(options: DashboardExportOptions): 
   detail('Outlet', outlet.name);
   detail('Branch', outlet.branch || '—');
   detail('Terminal', options.terminal);
-  detail('Cashier', options.cashier);
+  detail('Exported By', options.cashier);
   detail('Scope', `All ${shifts.length} shift${shifts.length === 1 ? '' : 's'} for the selected date`);
 
   section('Key Sales Figures');
@@ -189,20 +195,90 @@ export async function createDashboardWorkbook(options: DashboardExportOptions): 
 
   sheet.views = [{ state: 'frozen', ySplit: 2 }];
   sheet.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+
+  const shiftSheet = workbook.addWorksheet('Shift Details');
+  shiftSheet.columns = [
+    { header: 'Day ID', width: 16 }, { header: 'Shift No.', width: 12 },
+    { header: 'Created By', width: 26 }, { header: 'Creator User ID', width: 26 },
+    { header: 'Device ID', width: 24 }, { header: 'Started At (UTC)', width: 25 },
+    { header: 'Ended At (UTC)', width: 25 }, { header: 'Status', width: 14 },
+    { header: 'Start Bill', width: 18 }, { header: 'Last Bill', width: 18 },
+    { header: 'Bills', width: 12 }, { header: 'Total Sale', width: 18 },
+  ];
+  const text = (value: unknown, fallback = 'Not Available'): string | number =>
+    typeof value === 'string' && value.trim() ? value :
+      typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  const finite = (value: unknown): number | string =>
+    typeof value === 'number' && Number.isFinite(value) ? value : '—';
+  const shiftTimestamp = (value: number): Date | string => {
+    // Excel date cells support years 1900–9999; zero is the POS missing-time sentinel.
+    if (typeof value !== 'number' || !Number.isFinite(value) || value === 0
+      || value < -2208988800000 || value > 253402300799999) return 'Not Available';
+    return new Date(value);
+  };
+  const sortNumber = (value: number) => Number.isFinite(value) ? value : Infinity;
+  const compareNumber = (left: number, right: number) => left === right ? 0 : left < right ? -1 : 1;
+  const individualShifts = [...(options.data.shifts ?? [])].sort((left, right) =>
+    compareNumber(sortNumber(left.startTime), sortNumber(right.startTime))
+    || compareNumber(sortNumber(left.shiftNo), sortNumber(right.shiftNo))
+    || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  for (const shift of individualShifts) {
+    const row = shiftSheet.addRow([
+      text(shift.dayId), finite(shift.shiftNo), text(shift.creatorName), text(shift.userId),
+      text(shift.deviceId), shiftTimestamp(shift.startTime),
+      shift.endTime === 0 && shift.inActive !== true ? 'In progress' : shiftTimestamp(shift.endTime),
+      dashboardShiftStatus(shift), text(shift.startBillNo, '—'), text(shift.lastBillNo, '—'),
+      finite(shift.billCount), finite(shift.totalSale),
+    ]);
+    row.height = 36;
+    row.getCell(6).numFmt = row.getCell(7).numFmt = 'dd mmm yyyy hh:mm:ss';
+    row.getCell(2).numFmt = row.getCell(11).numFmt = '#,##0';
+    row.getCell(12).numFmt = moneyFormat;
+  }
+  if (!individualShifts.length) {
+    shiftSheet.addRow(['Individual shift records are not available.']);
+    shiftSheet.mergeCells('A2:L2');
+    shiftSheet.getRow(2).height = 30;
+  }
+  shiftSheet.eachRow(row => row.eachCell(cell => {
+    cell.alignment = { vertical: 'middle', wrapText: true };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFE4EAF0' } } };
+  }));
+  shiftSheet.getRow(1).height = 30;
+  shiftSheet.getRow(1).eachCell(cell => {
+    cell.font = { bold: true, color: { argb: 'FF173B53' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAF0F5' } };
+  });
+  shiftSheet.views = [{ state: 'frozen', ySplit: 1 }];
+  shiftSheet.autoFilter = 'A1:L1';
+  shiftSheet.pageSetup = {
+    paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+    printTitlesRow: '1:1', printArea: `A1:L${shiftSheet.rowCount}`,
+  };
+  options.signal?.throwIfAborted();
   return workbook;
 }
 
 export async function downloadDashboardExcel(options: DashboardExportOptions): Promise<void> {
+  options.signal?.throwIfAborted();
   const workbook = await createDashboardWorkbook(options);
+  options.signal?.throwIfAborted();
   const buffer = await workbook.xlsx.writeBuffer();
+  options.signal?.throwIfAborted();
   const url = URL.createObjectURL(new Blob([new Uint8Array(buffer)], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   }));
   const outletName = options.outlet.name.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_|_$/g, '') || 'Outlet';
+  let clicked = false;
   try {
     const anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = `${outletName}_Dashboard_${options.dayId}.xlsx`;
+    options.signal?.throwIfAborted();
     anchor.click();
-  } finally { window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    clicked = true;
+  } finally {
+    if (clicked) window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    else URL.revokeObjectURL(url);
+  }
 }

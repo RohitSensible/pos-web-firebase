@@ -8,7 +8,7 @@ const daywiseSummarySource = readFileSync(new URL('../../backend/src/daywiseSumm
 
 export async function dashboardResponse(outletId, query, store, profile = { active: true, outlets: ['outlet-1', 'outlet-2'] }) {
   const ast = ts.createSourceFile('server.ts', serverSource, ts.ScriptTarget.Latest, true);
-  const helperNames = new Set(['stringValue', 'numberValue', 'assignedOutletIds', 'datesBetween', 'parsePayment']);
+  const helperNames = new Set(['stringValue', 'numberValue', 'assignedOutletIds', 'datesBetween', 'readReportDays', 'parsePayment']);
   const helpers = ast.statements.filter(node => ts.isFunctionDeclaration(node) && helperNames.has(node.name?.text)).map(node => node.getText(ast));
   const route = ast.statements.find(node => ts.isExpressionStatement(node)
     && ts.isCallExpression(node.expression)

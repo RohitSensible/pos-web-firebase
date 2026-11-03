@@ -47,7 +47,7 @@ window.fetch = async (url, init) => {
       uploads++;
       lastUpload = init.body as File;
       if (holdUpload) await new Promise<void>(resolve => { releaseUpload = resolve; });
-      assert(init.body instanceof File && init.body.size <= 30 * 1024, 'Only processed bytes within 30 KB are uploaded');
+      assert(init.body instanceof File && init.body.size <= 25 * 1024, 'Only processed bytes within 25 KB are uploaded');
       if (failUpload) return Response.json({ success: false, message: 'Retry upload' }, { status: 503 });
       savedImage = init.body as File;
       product = { ...product, fields: { ...product.fields, image: uploadedPath } };
@@ -176,7 +176,7 @@ void (async () => {
   await waitFor(() => button('Retry upload') && decoded('tbody img'), 'Save uploads directly with the processed preview');
   assert(uploads === 3, 'Save starts one upload without another confirmation step');
   assert(!button('Upload processed image') && !button('Cancel image selection'), 'Extra image-selection buttons are removed');
-  assert(document.body.textContent?.includes('30 KB target achieved'), 'Actual encoded byte size is displayed');
+  assert(document.body.textContent?.includes('Within 25 KB limit'), 'Actual encoded byte size is displayed');
   assert(product.fields.image === null, 'Failed table upload preserves stored reference');
   assert(!document.querySelector('[aria-labelledby="product-crop-title"]'), 'Save closes crop popup on upload failure');
   failUpload = false; holdUpload = true; button('Retry upload').click();

@@ -1,0 +1,48 @@
+.shift-details-dialog {
+  width: min(720px, calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 32px);
+  margin: auto; padding: 0; border: 0; border-radius: 16px; color: #243b4b; background: #fff;
+  box-shadow: 0 24px 90px #102a4359; overflow: hidden;
+}
+.shift-details-dialog::backdrop { background: #102a4380; }
+.shift-details-card.bill-detail-modal {
+  display: flex; flex-direction: column; width: 100%; height: auto; max-height: calc(100dvh - 32px);
+  border-radius: 0; background: #fff; box-shadow: none; font: 13px/1.45 system-ui, sans-serif;
+}
+.shift-details-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 24px; color: #fff; background: #153f58; }
+.shift-details-card > header > div { min-width: 0; overflow-wrap: anywhere; }
+.shift-details-card > header span { font-size: 10px; font-weight: 800; letter-spacing: .13em; color: #a7e4dd; }
+.shift-details-card > header h2 { margin: 4px 0; font-size: 22px; line-height: 1.3; }
+.shift-details-card .shift-details-outlet { font-size: 13px; font-weight: 500; }
+.shift-details-card > header p { margin: 8px 0 0; font-size: 11px; color: #d5e4ec; }
+.shift-details-card > header button { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid #ffffff66; border-radius: 8px; background: transparent; color: #fff; cursor: pointer; }
+.shift-details-card .shift-details-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 20px 24px; }
+.shift-details-card .shift-details-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; }
+.shift-details-card .shift-details-meta > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.shift-details-card .shift-details-meta span { color: #647684; font-size: 11px; }
+.shift-details-card .shift-details-meta strong { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.shift-details-card .shift-details-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.shift-details-card .shift-details-figures h3 { margin: 22px 0 8px; padding-bottom: 8px; border-bottom: 1px solid #dce5eb; font-size: 13px; color: #153f58; }
+.shift-details-card .shift-details-figures > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 5px 0; }
+.shift-details-card .shift-details-figures span { min-width: 0; overflow-wrap: anywhere; color: #526875; font-size: 12px; }
+.shift-details-card .shift-details-figures strong { flex-shrink: 0; font-size: 12px; font-variant-numeric: tabular-nums; }
+.shift-details-card .shift-details-totals .grand-total { margin-top: 10px; padding: 13px 12px; border-radius: 8px; background: #eaf6f3; }
+.shift-details-card .grand-total span, .shift-details-card .grand-total strong { color: #15584a; font-size: 15px; font-weight: 750; }
+.shift-details-card > footer { padding: 14px 24px; border-top: 1px solid #dce5eb; background: #f8fafb; }
+.shift-details-card > footer button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 42px; height: auto; border: 0; border-radius: 8px; color: #fff; background: #153f58; font-size: 13px; font-weight: 650; cursor: pointer; }
+.shift-details-card > footer button:disabled { opacity: .65; cursor: wait; }
+.shift-details-card > footer p { margin: 0 0 10px; color: #a12828; }
+.shift-details-dialog :focus-visible { outline: 3px solid #44bba4; outline-offset: -3px; }
+@media (max-width: 520px) {
+  .shift-details-card > header, .shift-details-card .shift-details-scroll { padding: 16px; }
+  .shift-details-card > footer { padding: 12px 16px; }
+  .shift-details-card > header h2 { font-size: 18px; }
+  .shift-details-card .shift-details-columns { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .shift-details-card .shift-details-meta { gap: 12px; }
+}
+@media print {
+  .print-document .shift-details-card.bill-detail-modal { display: block; width: 100%; height: auto; max-height: none; overflow: visible; color: #000; }
+  .print-document .shift-details-card > header { color: #000; background: #fff; padding: 0 0 12px; border-bottom: 1px solid #aaa; }
+  .print-document .shift-details-card > header span, .print-document .shift-details-card > header p { color: #333; }
+  .print-document .shift-details-card .shift-details-scroll { padding: 12px 0; overflow: visible; max-height: none; }
+  .print-document .shift-details-card .shift-details-figures > div, .print-document .shift-details-card .shift-details-meta > div { break-inside: avoid; }
+}

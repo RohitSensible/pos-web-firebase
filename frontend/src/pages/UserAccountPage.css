@@ -9,6 +9,11 @@
 .user-account-card input { width: 100%; min-width: 0; padding: 11px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); color: var(--ink); font: inherit; font-weight: 400; }
 .user-account-card input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .user-account-card input[readonly] { color: var(--muted); }
+.user-account-pin { display: grid; gap: 8px; min-width: 0; }
+.user-account-pin-controls { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.user-account-pin-controls input { flex: 1; }
+.user-account-pin-controls button { flex-shrink: 0; }
+.user-account-card button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .user-account-card small { color: var(--muted); font-size: 12px; line-height: 1.5; font-weight: 400; }
 .user-account-actions { display: flex; justify-content: flex-end; margin-top: 24px; }
 .user-account-card button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px; border: 0; border-radius: 8px; background: var(--red); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }

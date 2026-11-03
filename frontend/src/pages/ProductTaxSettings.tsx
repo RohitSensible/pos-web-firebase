@@ -1,4 +1,6 @@
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { ANDROID_TAX_OPTIONS } from '../../../shared/androidTaxes.ts';
 import './ProductTaxSettings.css';
 
@@ -10,6 +12,7 @@ interface Props {
 const nameOf = (product: Product) => typeof product.fields.name === 'string' && product.fields.name.trim() ? product.fields.name : 'Unnamed product';
 
 export function ProductTaxSettings({ products, categories, outletId, token, onSaved, onClose, onSessionExpired }: Props) {
+  const { confirmAction, confirmation } = useActionConfirmation();
   const [category, setCategory] = useState<string | null>(null);
   const [selected, setSelected] = useState(() => new Set<string>());
   const [tax, setTax] = useState('');
@@ -17,6 +20,7 @@ export function ProductTaxSettings({ products, categories, outletId, token, onSa
   const [message, setMessage] = useState('');
   const [failures, setFailures] = useState<{ id: string; name: string; message: string }[]>([]);
   const busy = useRef(false), savedIds = useRef(new Set<string>()), selectAll = useRef<HTMLInputElement>(null);
+  useWorkspaceBack(true, () => { if (!saving) onClose(); });
   const request = useRef<AbortController | null>(null);
   useEffect(() => {
     const controller = new AbortController(); request.current = controller;
@@ -45,6 +49,7 @@ export function ProductTaxSettings({ products, categories, outletId, token, onSa
     const taxIndex = Number(tax);
     const changes = rows.filter(product => selected.has(product.documentId) && product.fields.taxIndex !== taxIndex);
     if (!changes.length) { setMessage('Selected products already use this tax.'); return; }
+    if (!await confirmAction('update', 'product taxes')) return;
     busy.current = true; setSaving(true); setMessage(''); setFailures([]);
     const queue = [...changes], failed: { id: string; name: string; message: string }[] = [];
     let expired = false, saved = 0;
@@ -81,6 +86,7 @@ export function ProductTaxSettings({ products, categories, outletId, token, onSa
     setMessage(`${saved} products updated; ${failed.length} failed. Failed products remain selected. Click Update to retry.`);
   };
   return <section className="products-page-shell product-tax-settings" aria-label="Tax Settings" aria-busy={saving}>
+    {confirmation}
     <div className="products-header tax-settings-header">
       <div><h1>Tax Settings</h1><p>{selected.size} products selected across categories.</p></div>
       <div className="tax-settings-actions">

@@ -1,5 +1,9 @@
+import { useDataLoading } from '../utils/useDataLoading.ts';
+import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
+import { ActionConfirmation } from './ActionPopup.tsx';
+import { SuccessPopup } from './SuccessPopup.tsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Package, Plus, ReceiptText, RefreshCw, Search, X } from 'lucide-react';
+import { Package, Plus, ReceiptText, Search, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { loadProductList, ProductListRequestError } from './productListApi.ts';
 import { goodsReceiptRequest, GoodsReceiptError, type ReceiptSupplier, type GoodsReceiptOptions, type GoodsReceiptPayload, type SupplierCreatePayload, type SupplierCreateResult } from './goodsReceivedApi.ts';
@@ -24,6 +28,7 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel }:
   const [identity, setIdentity] = useState('');
   const [supplierDraftId, setSupplierDraftId] = useState('');
   const [loading, setLoading] = useState(true);
+  useDataLoading(loading, 'Goods Receipts');
   const [loadError, setLoadError] = useState('');
   const [reload, setReload] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -31,16 +36,14 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel }:
   const [confirming, setConfirming] = useState(false);
   const busy = useRef(false);
   const pending = useRef<GoodsReceiptPayload | null>(null);
-  const confirmation = useRef<HTMLDialogElement>(null);
   const base = `/api/outlets/${encodeURIComponent(outlet.id)}`;
   const locked = saving || uncertain;
-  const [stockRefreshing, setStockRefreshing] = useState(false);
   const [stockError, setStockError] = useState('');
   const stockRequest = useRef<AbortController | null>(null);
   const refreshStock = useCallback(async () => {
     if (stockRequest.current) return;
     const controller = new AbortController(); stockRequest.current = controller;
-    setStockRefreshing(true); setStockError('');
+    setStockError('');
     try {
       const records = await loadProductList<{ documentId: string; fields: Record<string, unknown> }>(`${base}/products`, token, controller.signal, 'products');
       if (controller.signal.aborted) return;
@@ -53,7 +56,7 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel }:
       if (failure instanceof ProductListRequestError && failure.status === 401) onSessionExpired();
       setStockError((failure as Error).message);
     } finally {
-      if (stockRequest.current === controller) { stockRequest.current = null; setStockRefreshing(false); }
+      if (stockRequest.current === controller) { stockRequest.current = null; }
     }
   }, [base, token, onSessionExpired]);
   useEffect(() => () => { stockRequest.current?.abort(); }, [base, token]);
@@ -88,7 +91,6 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel }:
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [base, token, onSessionExpired, reload]);
-  useEffect(() => { if (confirming) confirmation.current?.showModal(); else confirmation.current?.close(); }, [confirming]);
   const [supplier, setSupplier] = useState('');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -134,7 +136,7 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel }:
     try {
       await goodsReceiptRequest<{ documentId: string }>(`${base}/goods-received`, token, undefined, pending.current);
       pending.current = null; setUncertain(false); setConfirming(false); reset();
-      setNotice('Goods receipt saved successfully.'); setReload(value => value + 1);
+      setNotice('Goods receipt added successfully.'); setReload(value => value + 1);
     } catch (failure) {
       if (failure instanceof GoodsReceiptError && failure.status === 401) onSessionExpired();
       if (failure instanceof GoodsReceiptError && [400, 403, 404, 409, 422].includes(failure.status)) {
@@ -144,21 +146,21 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel }:
     } finally { busy.current = false; setSaving(false); }
   };
   if (loading || loadError) return <section className="devices-page"><header className="devices-heading"><div><span>MASTERS</span><h1><ReceiptText />Goods Received</h1></div></header>
-    {notice && <p role="status">{notice}</p>}<div className="devices-state">{loading ? 'Loading outlet products, suppliers and receipts…' : <><p role="alert">{loadError}</p><button type="button" className="devices-refresh" onClick={() => setReload(value => value + 1)}>Retry loading</button></>}</div></section>;
+    {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}<div className="devices-state" data-inline-loading={loading ? '' : undefined}>{loading ? 'Loading outlet products, suppliers and receipts…' : <><p role="alert">{loadError}</p><button type="button" className="devices-refresh" onClick={() => setReload(value => value + 1)}>Retry loading</button></>}</div></section>;
 
   return <section className="devices-page stock-adjustment-page goods-received-page">
-    <header className="devices-heading"><div><span>MASTERS</span><h1><ReceiptText />Goods Received</h1><p>Record products received from suppliers.</p></div></header>
-    <fieldset className="goods-form-fieldset" disabled={locked}>
-    <section className="goods-unified-card" aria-label="Goods received entry">
+    <header className="devices-heading"><div><span>MASTERS</span><h1><ReceiptText />Goods Received</h1><p>Record products received from suppliers.</p></div>
       <div className="goods-supplier-select">
-        <label>Supplier (optional)<select value={supplier} onChange={event => { setSupplier(event.target.value); setNotice(''); }}>
+        <label>Supplier (optional)<select disabled={locked} value={supplier} onChange={event => { setSupplier(event.target.value); setNotice(''); }}>
           <option value="">No supplier</option>{suppliers.map(entry => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
         </select></label>
-        <button type="button" className="devices-refresh goods-add-supplier" onClick={() => setAddingSupplier(true)}><Plus />Add Supplier</button>
+        <button type="button" className="devices-refresh goods-add-supplier" disabled={locked} onClick={() => setAddingSupplier(true)}><Plus />Add Supplier</button>
       </div>
+    </header>
+    <fieldset className="goods-form-fieldset" disabled={locked}>
+    <section className="goods-unified-card" aria-label="Goods received entry">
       <div className="goods-search-row"><label className="goods-search-field">Search products<div><Search aria-hidden="true" /><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search by code, barcode or name" /></div></label></div>
       <div className="goods-products-heading"><div><h2>Products</h2><p>Select the products received, then enter quantities and prices.</p></div>
-        <button type="button" className="devices-refresh" disabled={stockRefreshing} onClick={() => void refreshStock()}><RefreshCw aria-hidden="true" />{stockRefreshing ? 'Refreshing…' : 'Refresh stock'}</button>
       </div>
       {stockError && <p role="alert" className="stock-error goods-entry-message">Stock refresh failed: {stockError} Previously loaded stock is still shown.</p>}
       <nav className="goods-category-tabs" aria-label="Product categories">{['', ...new Set(products.map(product => product.category))].map(value => <button type="button" key={value} aria-pressed={category === value} onClick={() => setCategory(value)}>{value || 'All'}</button>)}</nav>
@@ -180,7 +182,7 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel }:
         </tbody>
       </table></div>
       {error && <p role="alert" className="stock-error goods-entry-message">{error}</p>}
-      {notice && <p role="status" className="goods-preview-note">{notice}</p>}
+      {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
       <footer className="goods-entry-footer goods-actions">
         <strong className="goods-receipt-total" aria-live="polite">Total: {rows.every(row => validQuantity(row.quantity) && validPrice(row.price)) ? money(rows.reduce((total, row) => total + Number(row.quantity) * Number(row.price), 0)) : '—'}</strong>
         <button type="button" className="devices-refresh" onClick={onCancel}>Cancel</button>
@@ -192,18 +194,17 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel }:
       const { id: _id, alternateNumber: _alternateNumber, ...fields } = saved.fields;
       const supplier = { ...fields, id: saved.documentId, alternateNumber: null };
       setSuppliers(current => [...current.filter(entry => entry.id !== saved.documentId), supplier]);
-      setSupplier(saved.documentId); setSupplierDraftId(saved.nextDocumentId); setAddingSupplier(false); setNotice('Supplier saved successfully.'); setError('');
+      setSupplier(saved.documentId); setSupplierDraftId(saved.nextDocumentId); setAddingSupplier(false); setNotice('Supplier added successfully.'); setError('');
     }} />}
-    <dialog ref={confirmation} className="stock-confirm-dialog" aria-labelledby="goods-confirm-title" onCancel={event => { if (locked) event.preventDefault(); else setConfirming(false); }}><h2 id="goods-confirm-title">Confirm Goods Received</h2>
-      <p>{suppliers.find(entry => entry.id === supplier)?.name || 'No supplier'} · Review the products and quantities before saving.</p>
-      <ul>{rows.map(row => <li key={row.productId}>{products.find(product => product.id === row.productId)?.name}: {row.quantity} · cost {row.cost} · price {row.price}</li>)}</ul>
-      {error && <p role="alert" className="stock-error">{error}</p>}{uncertain && <p>The save outcome is uncertain. Retry the same confirmation to avoid duplicate receipts.</p>}
-      <div><button type="button" className="devices-refresh" disabled={locked} onClick={() => setConfirming(false)}>Keep editing</button><button type="button" className="stock-primary" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : uncertain ? 'Retry confirmation' : 'Confirm receipt'}</button></div>
-    </dialog>
+    {confirming && <ActionConfirmation action="add" item="goods receipt" busy={saving} cancelDisabled={uncertain} error={error}
+      onCancel={() => { if (!locked) setConfirming(false); }} onConfirm={() => void save()} confirmLabel={uncertain ? 'Retry confirmation' : 'Add'}>
+      {uncertain && <p role="status">Save unconfirmed. Retry to check the outcome.</p>}
+    </ActionConfirmation>}
   </section>;
 }
 
 function AddReceiptSupplier({ base, token, documentId, onSessionExpired, onClose, onSaved }: { base: string; token: string; documentId: string; onSessionExpired: () => void; onClose: () => void; onSaved: (saved: SupplierCreateResult) => void }) {
+  const { confirmAction, confirmation } = useActionConfirmation();
   const dialog = useRef<HTMLDialogElement>(null);
   const [details, setDetails] = useState<SupplierDetails>({ name: '', contact: '', shortName: '', searchCode: '', alternateNumbers: '', email: '', gstIn: '', address: '' });
   const [error, setError] = useState('');
@@ -217,6 +218,7 @@ function AddReceiptSupplier({ base, token, documentId, onSessionExpired, onClose
     if (!pending.current) {
       if (!details.name.trim() || !details.contact.trim()) { setError('Name and mobile are required.'); return; }
       if (!documentId) { setError('Reload supplier data before adding a supplier.'); return; }
+      if (!await confirmAction('add', details.name.trim())) return;
       pending.current = { documentId, fields: { name: details.name.trim(), mobile: details.contact.trim(), address: details.address.trim(),
         alternateNumber: details.alternateNumbers.trim(), email: details.email.trim(), gstin: details.gstIn.trim() } };
     }
@@ -234,7 +236,7 @@ function AddReceiptSupplier({ base, token, documentId, onSessionExpired, onClose
   useEffect(() => { dialog.current?.showModal(); }, []);
   const field = (key: keyof SupplierDetails, label: string, required = false, type = 'text') => <label>{label}{required && ' *'}<input autoFocus={key === 'name'} required={required} disabled={locked || ['shortName', 'searchCode'].includes(key)} type={type} maxLength={key === 'address' ? 500 : 200} value={details[key]} onChange={event => setDetails(current => ({ ...current, [key]: event.target.value }))} /></label>;
   return <dialog ref={dialog} className="stock-confirm-dialog goods-supplier-dialog" aria-labelledby="goods-supplier-title" onCancel={event => { if (locked) event.preventDefault(); else onClose(); }}>
-    <header className="devices-heading"><div><span>GOODS RECEIVED</span><h2 id="goods-supplier-title">Add Supplier</h2></div><button type="button" className="devices-refresh" aria-label="Close Add Supplier" disabled={locked} onClick={onClose}><X /></button></header>
+    {confirmation}<header className="devices-heading"><div><span>GOODS RECEIVED</span><h2 id="goods-supplier-title">Add Supplier</h2></div><button type="button" className="devices-refresh" aria-label="Close Add Supplier" disabled={locked} onClick={onClose}><X /></button></header>
     <p>Save this supplier for the selected outlet. Short Name and Search Code are unavailable in the existing supplier format.</p>
     <form onSubmit={event => {
       event.preventDefault();

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Firestore } from 'firebase-admin/firestore';
-import { listOutletEmployees, createOutletEmployee } from '../src/employees.js';
+import { listOutletEmployees, createOutletEmployee, updateOutletEmployee } from '../src/employees.js';
 
 const assigned = (profile: Record<string, unknown>) => [...new Set([
   ...(Array.isArray(profile.outlets) ? profile.outlets : []),
@@ -47,6 +47,9 @@ function fixture() {
       const pending: { path: string; fields: Record<string, unknown> }[] = [];
       const result = await work({ get: (ref: any) => ref.get(), create: (ref: any, fields: Record<string, unknown>) => {
         assert.ok(!records.has(ref.path), 'Never overwrite existing employee'); pending.push({ path: ref.path, fields });
+      }, update: (ref: any, fields: Record<string, unknown>) => {
+        assert.ok(records.has(ref.path), 'Only update existing employees');
+        pending.push({ path: ref.path, fields: { ...records.get(ref.path), ...fields } });
       } });
       if (failCommit) throw new Error('DATABASE FAILURE');
       for (const write of pending) { records.set(write.path, structuredClone(write.fields)); writes.push(write); }
@@ -118,4 +121,47 @@ test('failed database commit is not reported as a successful create', async () =
   const f = fixture(); f.fail();
   await assert.rejects(createOutletEmployee(f.db, 'outlet', 'current', assigned, draft), /DATABASE FAILURE/);
   assert.deepEqual(f.writes, []); assert.equal(f.records.size, 8);
+});
+
+const { requestId: _updateRequest, ...updateFields } = draft;
+test('employee edits retain the document ID and protected fields, and allow unchanged unique values', async () => {
+  const f = fixture();
+  const before = structuredClone(f.records);
+  const { id: _id, allowadvancepayment: _advance, ...existing } = employee;
+  const result = await updateOutletEmployee(f.db, 'outlet', 'existing', 'current', assigned, { ...existing, name: 'Edited Person' });
+  assert.equal(result.documentId, 'existing');
+  assert.equal(result.name, 'Edited Person');
+  assert.deepEqual(f.records.get('OUTLET/outlet/EMPLOYEE/existing'), { ...employee, name: 'Edited Person' });
+  assert.equal(f.records.size, before.size);
+  for (const [path, original] of before) if (path !== 'OUTLET/outlet/EMPLOYEE/existing') assert.deepEqual(f.records.get(path), original);
+});
+test('employee updates reject duplicate values belonging to other employees', async () => {
+  for (const patch of [{ searchCode: 2 }, { mobile: '+91 98765 43211' }]) {
+    const f = fixture();
+    await createOutletEmployee(f.db, 'outlet', 'current', assigned, draft);
+    const writes = f.writes.length;
+    const { id: _id, allowadvancepayment: _advance, ...existing } = employee;
+    await assert.rejects(updateOutletEmployee(f.db, 'outlet', 'existing', 'current', assigned, { ...existing, ...patch }), { status: 409 });
+    assert.equal(f.writes.length, writes);
+  }
+});
+test('employee updates enforce access, record existence and account assignment', async () => {
+  for (const [outlet, documentId, profile, fields, status] of [
+    ['outlet', 'existing', null, updateFields, 401],
+    ['foreign', 'other', 'current', updateFields, 403],
+    ['outlet', 'missing', 'current', updateFields, 404],
+    ['outlet', '../bad', 'current', updateFields, 400],
+    ['outlet', 'existing', 'inactive', updateFields, 403],
+    ['outlet', 'existing', 'current', { ...updateFields, userId: 'foreign-user' }, 422],
+    ['outlet', 'existing', 'current', { ...updateFields, id: 'changed' }, 422],
+  ] as const) {
+    const f = fixture();
+    await assert.rejects(updateOutletEmployee(f.db, outlet, documentId, profile, assigned, fields), { status });
+    assert.deepEqual(f.writes, []);
+  }
+});
+test('failed employee update commit leaves stored fields unchanged', async () => {
+  const f = fixture(); f.fail();
+  await assert.rejects(updateOutletEmployee(f.db, 'outlet', 'existing', 'current', assigned, updateFields), /DATABASE FAILURE/);
+  assert.deepEqual(f.records.get('OUTLET/outlet/EMPLOYEE/existing'), employee);
 });

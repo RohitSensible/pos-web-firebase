@@ -7,6 +7,5 @@ function validDate(value: string): boolean {
 export function reportDateError(startDate: string, endDate: string): string {
   if (!validDate(startDate) || !validDate(endDate)) return 'Choose valid start and end dates.';
   if (startDate > endDate) return 'Start date must be before the end date.';
-  const days = (Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000 + 1;
-  return days > 31 ? 'Date range cannot exceed 31 days.' : '';
+  return '';
 }

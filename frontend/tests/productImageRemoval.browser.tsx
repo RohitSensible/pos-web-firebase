@@ -77,8 +77,9 @@ async function openImageAction(label: string) {
     const picker = document.querySelector<HTMLInputElement>('input[aria-label="Choose image for Tea A"]')!;
     const transfer = new DataTransfer(); transfer.items.add(new File([png], 'tea.png', { type: 'image/png' })); picker.files = transfer.files;
     picker.dispatchEvent(new Event('change', { bubbles: true }));
-    await wait(() => button('Save') && !button('Save').disabled, 'crop loaded'); button('Save').click();
+    await wait(() => button('Save') && !button('Save').disabled, 'crop loaded'); button('Save').click(); await wait(() => document.querySelector('.action-confirm-button'), 'image upload confirmation'); document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click();
     await wait(() => !document.querySelector('.product-crop-dialog, .product-image-upload-status') && document.querySelector('tbody img'), 'image upload finished');
+    await wait(() => document.querySelector('.success-done'), 'upload success'); button('Done').click();
     const search = document.querySelector<HTMLInputElement>('input[aria-label="Search products"]')!;
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(search, 'Tea A'); search.dispatchEvent(new Event('input', { bubbles: true }));
     await wait(() => document.querySelectorAll('tbody tr').length === 1, 'filtered Products');
@@ -88,8 +89,8 @@ async function openImageAction(label: string) {
     assert(removals.length === 0, 'Opening confirmation performs no removals');
     button('Cancel').click(); await wait(() => !document.querySelector('dialog'), 'cancel');
     assert(removals.length === 0, 'Cancel preserves every image');
-    await openImageAction('Remove all product images'); await wait(() => button('Confirm remove all images'), 'confirm again');
-    button('Confirm remove all images').click(); button('Confirm remove all images')?.click();
+    await openImageAction('Remove all product images'); await wait(() => button('Remove'), 'confirm again');
+    button('Remove').click(); button('Remove')?.click();
     await wait(() => button('Retry failed removals') && !button('Retry failed removals').disabled, 'partial results');
     assert(document.querySelector('dialog')!.textContent?.includes('1 removed; 2 failed'), 'Partial failures are reported accurately');
     assert(!document.querySelector('tbody img') && !document.querySelector('.product-image-upload [role="status"]'), 'Removal clears the locally uploaded preview and its old success message');
@@ -101,8 +102,8 @@ async function openImageAction(label: string) {
     const readsBeforeRefresh = productReads;
     button('Refresh').click(); await wait(() => productReads > readsBeforeRefresh && !document.querySelector('[aria-busy="true"]'), 'refresh current references');
     await openImageAction('Remove all product images'); await wait(() => document.querySelector('dialog')?.textContent?.includes('1 products'), 'fresh review');
-    button('Confirm remove all images').click(); button('Confirm remove all images')?.click();
-    await wait(() => document.querySelector('dialog')?.textContent?.includes('Product images removed successfully.') && !button('Done').disabled, 'removal success');
+    button('Remove').click(); button('Remove')?.click();
+    await wait(() => document.querySelector('dialog')?.textContent?.includes('Removed successfully.') && !button('Done').disabled, 'removal success');
     button('Done').click(); await wait(() => !document.querySelector('dialog'), 'done');
     document.querySelector<HTMLButtonElement>('[aria-label="Product image options"]')!.click();
     await wait(() => button('Remove all product images'), 'menu after removal');

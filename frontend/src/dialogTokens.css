@@ -1,0 +1,44 @@
+/* Shared modal and sheet tokens. Theme colors remain controlled by the active app theme. */
+:root {
+  --dialog-space-xs: 4px;
+  --dialog-space-sm: 8px;
+  --dialog-space-md: 12px;
+  --dialog-space-lg: 16px;
+  --dialog-space-xl: 20px;
+  --dialog-space-2xl: 24px;
+  --dialog-space-3xl: 32px;
+  --dialog-radius: 12px;
+  --dialog-control-radius: 8px;
+  --dialog-width: 420px;
+  --dialog-sheet-width: 620px;
+  --dialog-gutter: 16px;
+  --dialog-padding: var(--dialog-space-2xl);
+  --dialog-header-padding: var(--dialog-space-lg) var(--dialog-space-xl);
+  --dialog-body-padding: var(--dialog-space-2xl) var(--dialog-space-xl);
+  --dialog-footer-padding: var(--dialog-space-lg) var(--dialog-space-xl);
+  --dialog-gap: var(--dialog-space-lg);
+  --dialog-shadow: 0 20px 60px rgb(0 0 0 / .27);
+  --dialog-backdrop: rgb(15 23 42 / .5);
+  --dialog-backdrop-blur: 3px;
+  --dialog-surface: var(--card, #fff);
+  --dialog-text: var(--ink, #17191c);
+  --dialog-muted: var(--muted, #64748b);
+  --dialog-border: var(--line, #e2e8f0);
+  --dialog-control-surface: var(--theme-raised, var(--card, #fff));
+  --dialog-action-primary: var(--blue, #3567f0);
+  --dialog-action-primary-hover: #2554d4;
+  --dialog-action-danger: #dc2626;
+  --dialog-action-danger-hover: #b91c1c;
+  --dialog-action-foreground: #fff;
+  --dialog-action-success: #15803d;
+  --dialog-action-success-hover: #166534;
+  --dialog-success-indicator: #16a34a;
+  --dialog-success-tint: color-mix(in srgb, var(--dialog-success-indicator) 8%, transparent);
+  --dialog-success-border: color-mix(in srgb, var(--dialog-success-indicator) 33%, transparent);
+  --dialog-heading-size: 16px;
+  --dialog-sheet-heading-size: 20px;
+  --dialog-body-size: 14px;
+  --dialog-caption-size: 13px;
+  --dialog-line-height: 1.5;
+  --dialog-control-height: 40px;
+}

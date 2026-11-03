@@ -44,7 +44,9 @@ window.fetch = async (url, init) => {
 const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === text)!;
 const box = (label: string) => document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
 const all = () => box('Select all displayed products');
-const click = async (node: HTMLElement) => { node.click(); await pause(); };
+const click = async (node: HTMLElement) => { const label = node.textContent?.trim(); node.click(); await pause();
+  if (label === 'Update' && document.querySelector('.action-confirm-button')) { document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click(); await pause(); }
+};
 const taxSelect = () => document.getElementById('bulk-product-tax') as HTMLSelectElement;
 async function chooseTax(tax: string) {
   Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')!.set!.call(taxSelect(), tax);
@@ -98,9 +100,9 @@ void (async () => {
   await click(box('Select Apple')); await chooseTax('1'); await click(button('Update'));
   assert(patches.length === 0 && document.querySelector('[role="status"]')?.textContent?.includes('already use'), 'Already assigned tax is not written again');
   await click(all()); await chooseTax('2');
-  button('Update').click(); button('Update').click(); await pause();
+  button('Update').click(); button('Update').click(); await until(() => document.querySelector('.action-confirm-button'), 'update confirmation'); const confirm = document.querySelector<HTMLButtonElement>('.action-confirm-button')!; confirm.click(); confirm.click(); await pause();
   assert(button('Updating…').disabled && button('Cancel').disabled && taxSelect().disabled && all().disabled, 'Pending update prevents duplicate requests and edits');
-  assert(!document.querySelector('.product-tax-success'), 'No success popup before update confirmation');
+  assert(!document.querySelector('.action-success'), 'No success popup before update confirmation');
   await until(() => document.querySelector('[role="alert"]'), 'partial failure');
   assert(patches.length === 3 && box('Select Banana').checked && !box('Select Apple').checked && !box('Select Cola').checked, 'Partial failure retains only failed selections');
   assert(document.querySelector('[aria-label="Failed products"]')?.textContent?.includes('Banana'), 'Failed product is identified');
@@ -109,13 +111,13 @@ void (async () => {
   failedId = ''; await click(button('Update'));
   await until(() => document.querySelector('[aria-label="More options"]'), 'successful return');
   assert(patches.length === 4 && patches[3]!.id === 'p2', 'Retry updates only the failed product');
-  const success = document.querySelector<HTMLDialogElement>('.product-tax-success[role="alertdialog"]');
-  assert(success?.open && success.textContent?.includes('Tax updated successfully.'), 'Confirmed bulk update opens success confirmation dialog');
-  assert(document.activeElement?.textContent === 'OK', 'Success confirmation focuses the OK button');
+  const success = document.querySelector<HTMLDialogElement>('.action-success[role="alertdialog"]');
+  assert(success?.open && success.textContent?.includes('Updated successfully.'), 'Confirmed bulk update opens success confirmation dialog');
+  assert(document.activeElement?.textContent === 'Done', 'Success confirmation focuses the OK button');
   const successBounds = success!.getBoundingClientRect();
   assert(Math.abs(successBounds.left + successBounds.width / 2 - document.documentElement.clientWidth / 2) < 2 && successBounds.width <= innerWidth - 32, 'Success dialog is centered and fits the viewport');
-  await click(document.querySelector<HTMLButtonElement>('[aria-label="Dismiss tax success message"]')!);
-  assert(!document.querySelector('.product-tax-success'), 'Success popup can be dismissed');
+  await click(document.querySelector<HTMLButtonElement>('.success-done')!);
+  assert(!document.querySelector('.action-success'), 'Success popup can be dismissed');
   for (const [id, fields] of before) assert(JSON.stringify(records.get(id)) === JSON.stringify({ ...fields, taxIndex: 2 }), `Other product data preserved for ${id}`);
   await open();
   assert([...document.querySelectorAll('tbody tr')].every(row => row.textContent?.includes('GST 5')), 'Reopened screen shows saved tax names');
