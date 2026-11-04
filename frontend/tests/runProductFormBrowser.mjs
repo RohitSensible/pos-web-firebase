@@ -32,12 +32,15 @@ try {
     // Serve only these static brand assets; application APIs remain fixture mocks.
     const publicAssets = {
       '/logo1.png': 'image/png', '/apple-touch-icon.png': 'image/png',
+      '/apple-touch-icon-precomposed.png': 'image/png', '/favicon.ico': 'image/x-icon',
+      '/icons/sensible-biz-180.png': 'image/png', '/icons/sensible-biz-32.png': 'image/png',
       '/icons/sensible-biz-192.png': 'image/png', '/icons/sensible-biz-512.png': 'image/png',
       '/icons/sensible-biz-maskable-512.png': 'image/png', '/manifest.webmanifest': 'application/manifest+json',
     };
-    if (Object.hasOwn(publicAssets, req.url)) {
-      res.setHeader('Content-Type', publicAssets[req.url]);
-      res.end(await readFile(resolve(testDirectory, '../public', req.url.slice(1)))); return;
+    const publicPath = new URL(req.url, 'http://localhost').pathname;
+    if (Object.hasOwn(publicAssets, publicPath)) {
+      res.setHeader('Content-Type', publicAssets[publicPath]);
+      res.end(await readFile(resolve(testDirectory, '../public', publicPath.slice(1)))); return;
     }
     res.writeHead(404); res.end();
   });

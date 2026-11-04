@@ -84,8 +84,18 @@ void (async () => {
   const manifestResponse = await assetFetch('/manifest.webmanifest');
   const manifest = await manifestResponse.json();
   assert(manifestResponse.ok && manifest.name === 'Sensible Biz' && manifest.short_name === 'Sensible Biz' && manifest.display === 'standalone', 'Home-screen manifest supplies the Sensible Biz name and standalone display');
-  const homeIcon = new Image(); homeIcon.src = '/apple-touch-icon.png'; await homeIcon.decode();
+  const homeIcon = new Image(); homeIcon.src = '/icons/sensible-biz-180.png?v=2'; await homeIcon.decode();
   assert(homeIcon.naturalWidth === 180 && homeIcon.naturalHeight === 180, 'Apple home-screen icon loads at its declared size');
+  const iconCanvas = document.createElement('canvas'); iconCanvas.width = iconCanvas.height = 180;
+  const iconContext = iconCanvas.getContext('2d')!; iconContext.drawImage(homeIcon, 0, 0);
+  const pixels = iconContext.getImageData(0, 0, 180, 180).data;
+  let redPixels = 0;
+  for (let i = 0; i < pixels.length; i += 4) if (pixels[i]! > 170 && pixels[i]! > pixels[i + 1]! * 1.4 && pixels[i]! > pixels[i + 2]! * 1.4) redPixels++;
+  assert(redPixels > 2000, 'Apple shortcut icon contains the clear red Sensible logo');
+  for (const icon of manifest.icons) {
+    const image = new Image(); image.src = icon.src; await image.decode();
+    assert(icon.sizes === `${image.naturalWidth}x${image.naturalHeight}`, 'Versioned manifest icon loads at its declared size');
+  }
   localStorage.clear(); root.render(login());
   await until(() => document.querySelector('#crm-email'), 'login');
   fits('.crm-login-shell', 'Sign-in');
