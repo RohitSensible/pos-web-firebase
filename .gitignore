@@ -28,3 +28,6 @@ Thumbs.db
 
 # Local upload-attempt history (keep on the backend PC across restarts)
 backend/.local-data/
+
+# Local HTTPS CA and server private keys (never commit or serve these)
+.local/https/

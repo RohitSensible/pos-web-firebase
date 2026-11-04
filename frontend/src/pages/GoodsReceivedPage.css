@@ -67,3 +67,19 @@
 }
 
 .goods-received-page .goods-receipt-total { margin-right: auto; align-self: center; font-size: 15px; font-variant-numeric: tabular-nums; }
+.goods-mobile-category, .goods-include-control > span { display: none; }
+@media screen and (max-width: 820px), screen and (max-width: 1024px) and (max-height: 600px) {
+  .goods-received-page .goods-category-tabs { display: none; }
+  .goods-received-page .goods-mobile-category { display: grid; gap: 6px; margin: 0 16px 16px; font-size: 13px; }
+  .goods-received-page .goods-products-table { max-height: none; overflow: visible; border: 0; padding: 0 16px 16px; }
+  .goods-received-page .goods-products-table table.mobile-record-table { min-width: 0; }
+  .goods-received-page .goods-products-table table.mobile-record-table td { width: auto; min-width: 0; padding: 0; }
+  .goods-received-page .goods-products-table td input[type=number] { width: 100%; min-width: 0; max-width: 100%; min-height: 44px; font-size: 16px; }
+  .goods-received-page .goods-products-table tr:not(.goods-product-selected) .goods-edit-field { display: none; }
+  .goods-received-page .goods-include-control { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; color: var(--blue); font-size: 13px; }
+  .goods-include-control > span { display: inline; }
+  .goods-received-page .goods-product-select { font-size: 16px; line-height: 1.5; }
+  .goods-received-page .goods-unified-card { overflow: visible; }
+  .goods-received-page .goods-entry-footer { position: sticky; bottom: 0; z-index: 14; padding-bottom: max(16px, env(safe-area-inset-bottom)); background: var(--card); }
+  .goods-received-page .goods-receipt-total { flex: 1 1 100%; }
+}

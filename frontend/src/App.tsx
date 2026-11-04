@@ -1,5 +1,6 @@
 import { RouteLoadBoundary } from './components/RouteLoadBoundary.tsx';
 import { requestUnsavedNavigation, hasUnsavedChanges, UnsavedChangesPrompt } from './utils/unsavedChanges.tsx';
+import type { ReplenishmentDraft } from './pages/stockPlanning.ts';
 import { DataLoadingModal } from './components/DataLoadingModal.tsx';
 import { useDashboardShiftRead } from './utils/useDashboardShiftRead.ts';
 import { ActionConfirmation } from './pages/ActionPopup.tsx';
@@ -53,6 +54,7 @@ const StockReportPage = lazy(() => import('./pages/StockReportPage.tsx').then(mo
 const StockInOutReportPage = lazy(() => import('./pages/StockInOutReportPage.tsx').then(module => ({ default: module.StockInOutReportPage })));
 const StockAdjustmentPage = lazy(() => import('./pages/StockAdjustmentPage.tsx').then(module => ({ default: module.StockAdjustmentPage })));
 const GoodsReceivedPage = lazy(() => import('./pages/GoodsReceivedPage.tsx').then(module => ({ default: module.GoodsReceivedPage })));
+const SuppliersPage = lazy(() => import('./pages/SuppliersPage.tsx').then(module => ({ default: module.SuppliersPage })));
 const StockTransferReportPage = lazy(() => import('./pages/StockTransferReportPage.tsx').then(module => ({ default: module.StockTransferReportPage })));
 const StockTransferPage = lazy(() => import('./pages/StockTransferPage.tsx').then(module => ({ default: module.StockTransferPage })));
 
@@ -133,6 +135,7 @@ const navigationGroups = [
       { label: 'Service Point', icon: <MapPin /> },
       { label: 'Premises', icon: <Store /> },
       { label: 'Goods Received', icon: <PackageCheck /> },
+      { label: 'Suppliers', icon: <UsersRound /> },
       { label: 'User Account', icon: <ShieldUser /> },
       { label: 'Employees/Salesman', icon: <UsersRound /> },
       { label: 'Product Transfer', icon: <ArrowRightLeft /> },
@@ -160,8 +163,14 @@ const navigationGroups = [
       { label: 'GST Report Day Wise', icon: <CalendarCheck /> },
       { label: 'Bill Wise Sale Report', icon: <ReceiptText /> },
     ] },
-  ].map(group => group.label === 'Masters'
-    ? { ...group, items: [...group.items].sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' })) } : group);
+  ].map(group => {
+    if (group.label !== 'Masters') return group;
+    const items = [...group.items].sort((a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' }));
+    const productsIndex = items.findIndex(item => item.label === 'Products');
+    const [products] = items.splice(productsIndex, 1);
+    items.splice(items.findIndex(item => item.label === 'Category') + 1, 0, products!);
+    return { ...group, items };
+  });
 
 const screens = navigationGroups.flatMap(group => group.items.map(item => ({ id: `${group.label}:${item.label}`, label: item.label })))
   .filter(screen => !disabledNavigationItems.has(screen.id));
@@ -223,6 +232,7 @@ function Application() {
   const [dashboardExportError, setDashboardExportError] = useState('');
   const dashboardExportBusy = useRef(false);
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
+  const [receiptDraft, setReceiptDraft] = useState<{ sessionKey: string; outletId: string; draft: ReplenishmentDraft } | null>(null);
 
 
   useEffect(() => {
@@ -525,8 +535,11 @@ function Application() {
           <RouteLoadBoundary key={activeNavigation.id}>
           {!usage.authorized ? null : activeNavigation.id === 'Masters:Logo' ? (
             <MemoOutletLogoPage outletId={selectedOutlet.id} outletName={selectedOutlet.name} token={session.token} />
+          ) : activeNavigation.id === 'Masters:Suppliers' ? (
+            <SuppliersPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Masters:Goods Received' ? (
-            <GoodsReceivedPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} onCancel={() => setActiveNavigation({ id: 'Home:Dashboard', label: 'Dashboard' })} />
+            <GoodsReceivedPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} onCancel={() => setActiveNavigation({ id: 'Home:Dashboard', label: 'Dashboard' })}
+              initialDraft={receiptDraft?.sessionKey === previewSessionKey && receiptDraft.outletId === selectedOutlet.id ? receiptDraft.draft : undefined} onDraftConsumed={() => setReceiptDraft(null)} />
           ) : activeNavigation.id === 'Inventory:Stock In and Out' ? (
             <StockAdjustmentPage key={`${session.id}:${selectedOutlet.id}`} outlet={selectedOutlet} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Operations:Multicounter' ? (
@@ -557,7 +570,8 @@ function Application() {
           ) : activeNavigation.id === 'Reports:Product Wise' ? (
             <ProductWiseReportPage outlet={selectedOutlet} reportName={activeNavigation.label} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Reports:Stock Report' ? (
-            <StockReportPage outlet={selectedOutlet} reportName={activeNavigation.label} token={session.token} onSessionExpired={handleLogout} />
+            <StockReportPage outlet={selectedOutlet} reportName={activeNavigation.label} token={session.token} onSessionExpired={handleLogout}
+              onPrepareReceipt={draft => requestUnsavedNavigation(() => { setReceiptDraft({ sessionKey: previewSessionKey, outletId: selectedOutlet.id, draft }); navigate('Masters:Goods Received'); })} />
           ) : activeNavigation.id === 'Reports:Stock In-Out Report' ? (
             <StockInOutReportPage outlet={selectedOutlet} reportName={activeNavigation.label} token={session.token} onSessionExpired={handleLogout} />
           ) : activeNavigation.id === 'Reports:Stock Transfer Report' ? (

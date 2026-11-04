@@ -10,9 +10,12 @@ import { DeleteConfirmation } from './DeleteConfirmation.tsx';
 import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
 import { SuccessPopup } from './SuccessPopup.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownUp, Check, ChevronDown, FileSpreadsheet, IndianRupee, ImagePlus, Images, MoreVertical, Package, PackageCheck, Pencil, Percent, Plus, Search, Trash2, X } from 'lucide-react';
+import { ArrowDownUp, Check, ChevronDown, FileSpreadsheet, IndianRupee, ImagePlus, Images, MoreVertical, Package, PackageCheck, Pencil, Percent, ScanBarcode, Search, Trash2, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import './ProductsPage.css';
+import './MobileRecords.css';
+import { MobileAddButton } from './MobileAddButton.tsx';
+import { BarcodeScanner } from './BarcodeScanner.tsx';
 import { AddProductForm } from './AddProductForm.tsx';
 import { ProductImageUpload } from './ProductImageUpload.tsx';
 import { productImageReference } from './imageApi.ts';
@@ -87,6 +90,8 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState('');
   const [addOpen, setAddOpen] = useState(false);
+  const [scanToAddOpen, setScanToAddOpen] = useState(false);
+  const [newBarcode, setNewBarcode] = useState<string | undefined>();
   const [pendingImageAction, setPendingImageAction] = useState<ImageAction | null>(null);
   const [imageGrant, setImageGrant] = useState('');
   const requestImageAction = (action: ImageAction) => {
@@ -296,7 +301,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
       setNotice(`Product updated successfully.${imageChanged ? productImageReference(updated.fields) ? ' Image uploaded successfully.' : ' Image removed successfully.' : ''}`);
     }} />;
 
-  if (addOpen) return (<AddProductForm key={outlet.id} outletId={outlet.id} token={token} initialCategory={selectedCategory}
+  if (addOpen) return (<AddProductForm key={outlet.id} outletId={outlet.id} token={token} initialCategory={selectedCategory} initialBarcode={newBarcode}
         onSessionExpired={onSessionExpired} onCancel={() => setAddOpen(false)} onCreated={product => {
           setProducts(current => [...current.filter(existing => existing.documentId !== product.documentId), product]);
           setAddOpen(false);
@@ -307,6 +312,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
 
   return (
     <section className="products-page-shell" aria-label="Products" aria-busy={busyLoading}>
+      {scanToAddOpen && <BarcodeScanner onCancel={() => setScanToAddOpen(false)} onUse={value => { setNewBarcode(value); setScanToAddOpen(false); setNotice(''); setAddOpen(true); }} />}
       {assignmentOpen && <ProductServicePointAssignment outletId={outlet.id} token={token} categories={categories} onSessionExpired={onSessionExpired}
         onCancel={() => setAssignmentOpen(false)} onAssigned={result => {
           setProducts(current => current.map(product => product.fields.category === result.categoryId ? { ...product, fields: { ...product.fields, kitchenId: result.servicePointId } } : product));
@@ -349,8 +355,8 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
           <p>Manage your product inventory and details.</p>
         </div>
         <div className="products-header-actions" ref={headerActions}>
-          <button type="button" className="products-add" onClick={() => { setNotice(''); setAddOpen(true); }}><Plus size={15} />Add New Product</button>
-          <div className="products-menu-anchor">
+          <MobileAddButton label="Add New Product" className="products-add" onClick={() => { setNotice(''); setNewBarcode(undefined); setAddOpen(true); }} />
+          <div className="products-menu-anchor products-image-menu">
             <button type="button" className="products-images-toggle" aria-label="Product image options" aria-haspopup="menu" aria-expanded={openMenu === 'images'}
               aria-controls="products-images-menu" onClick={() => toggleMenu('images')}><Images size={15} />Product Images<ChevronDown size={14} className="products-chevron" /></button>
             {openMenu === 'images' && <div id="products-images-menu" className="products-options-menu" role="menu">
@@ -424,6 +430,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
         <article className="products-summary-card">
           <span className="products-summary-icon items"><Package size={20} aria-hidden="true" /></span>
           <div><span className="products-summary-label">Total Products</span><strong aria-live="polite">{loading || error ? '—' : categoryProducts.length}</strong></div>
+          <button type="button" className="products-scan-add" aria-label="Scan barcode to add product" disabled={busyLoading || !!error} onClick={() => setScanToAddOpen(true)}><ScanBarcode size={18} aria-hidden="true" />Scan to add</button>
         </article>
         <select aria-label="Filter by category" value={selectedCategory ?? ''}
           onChange={event => setSelectedCategory(event.target.value || null)}>
@@ -438,17 +445,17 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
         </div>
       ) : (
         <div className="products-table-card" role="region" aria-label="Product list" tabIndex={0}>
-          <table className="products-table">
+          <table className="products-table mobile-record-table">
             <thead><tr><th>Code</th><th>Product Name</th><th>Regional Name</th><th>Sale Price</th><th>Image Preview</th><th className="products-actions-heading">Actions</th></tr></thead>
             <tbody>
               {renderedProducts.map(product => (
                 <tr key={product.documentId}>
-                  <td><span className="products-code">{productText(product.fields.code)}</span></td>
-                  <td className="products-name">{product.fields.type === 2 ? <button type="button" className="products-combo-link" aria-label={`View products in ${productText(product.fields.name)}`}
+                  <td data-label="Code"><span className="products-code">{productText(product.fields.code)}</span></td>
+                  <td data-label="Product" className="products-name mobile-record-name">{product.fields.type === 2 ? <button type="button" className="products-combo-link" aria-label={`View products in ${productText(product.fields.name)}`}
                     onClick={event => { event.currentTarget.focus(); setComboTarget({ documentId: product.documentId, name: productText(product.fields.name) }); }}>{productText(product.fields.name)}<small>View items</small></button> : productText(product.fields.name)}</td>
-                  <td>{productText(product.fields.regionalName) || '—'}</td>
-                  <td><span className="products-price"><Package size={15} />₹ {productText(product.fields.price)}</span></td>
-                  <td><ProductImageUpload name={productText(product.fields.name)} outletId={outlet.id} documentId={product.documentId}
+                  <td data-label="Regional name">{productText(product.fields.regionalName) || '—'}</td>
+                  <td data-label="Sale price"><span className="products-price"><Package size={15} />₹ {productText(product.fields.price)}</span></td>
+                  <td data-label="Image"><ProductImageUpload name={productText(product.fields.name)} outletId={outlet.id} documentId={product.documentId}
                     image={productImageReference(product.fields)} token={token} paused={!!pendingImageAction} onSessionExpired={onSessionExpired}
                     onUploadStart={() => setNotice('')}
                     onSaved={image => {
@@ -459,9 +466,9 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
                         return { ...item, fields };
                       }));
                     }} /></td>
-                  <td><div className="products-row-actions">
-                    <button type="button" disabled={deleting} aria-label="Edit product" title="Edit product" onClick={() => { setNotice(''); setEditTarget(product); }}><Pencil size={14} /></button>
-                    <button type="button" disabled={deleting} aria-label="Delete product" title="Delete product" onClick={() => setDeleteTarget({ id: product.documentId, name: productText(product.fields.name) })}><Trash2 size={14} /></button>
+                  <td className="mobile-record-actions"><div className="products-row-actions">
+                    <button type="button" data-mobile-label="Edit" disabled={deleting} aria-label="Edit product" title="Edit product" onClick={() => { setNotice(''); setEditTarget(product); }}><Pencil size={14} /></button>
+                    <button type="button" data-mobile-label="Delete" disabled={deleting} aria-label="Delete product" title="Delete product" onClick={() => setDeleteTarget({ id: product.documentId, name: productText(product.fields.name) })}><Trash2 size={14} /></button>
                   </div></td>
                 </tr>
               ))}

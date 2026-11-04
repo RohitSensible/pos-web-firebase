@@ -149,8 +149,8 @@ void (async () => {
   defer = true; const priorStart = releaseStart;
   button('Retry connection').click(); await until(() => releaseStart !== priorStart, 'stalled entry request');
   document.querySelector<HTMLButtonElement>('.sidebar-logout')!.click();
-  await until(() => document.querySelector('.logout-modal-actions .confirm'), 'logout confirmation during pending admission');
-  document.querySelector<HTMLButtonElement>('.logout-modal-actions .confirm')!.click();
+  await until(() => document.querySelector('dialog[open] .action-confirm-button'), 'logout confirmation during pending admission');
+  document.querySelector<HTMLButtonElement>('dialog[open] .action-confirm-button')!.click();
   await until(() => !localStorage.getItem('pos_user_session'), 'logout despite stalled entry');
   assert(!localStorage.getItem('pos_user_session'), 'Sign out remains responsive while an entry request is stalled');
   assert(!localStorage.getItem('pos_selected_outlet'), 'Logout clears the existing browser session and outlet selection');

@@ -37,7 +37,7 @@ void (async () => {
   assert(getComputedStyle(dialog()!).borderRadius === '12px', 'Action dialog uses the shared shell radius');
   const footer = getComputedStyle(dialog()!.querySelector('.modal-footer')!);
   assert(footer.paddingTop === '16px' && footer.paddingLeft === '20px' && footer.marginTop === '0px', 'Nested confirmation footer is independent of host form layout');
-  assert(getComputedStyle(dialog()!.querySelector('.modal-footer button')!).minHeight === '40px', 'Host form button dimensions do not leak into nested popups');
+  assert(getComputedStyle(dialog()!.querySelector('.modal-footer button')!).minHeight === (innerWidth <= 600 ? '44px' : '40px'), 'Shared popup button dimensions follow the phone touch target without inheriting host form dimensions');
   assert(document.activeElement?.textContent === 'Cancel', 'Cancel receives initial keyboard focus');
   const bounds = dialog()!.getBoundingClientRect();
   assert(bounds.width <= innerWidth - 30 && bounds.left >= 0 && bounds.right <= innerWidth, 'Popup fits the screen without horizontal overflow');

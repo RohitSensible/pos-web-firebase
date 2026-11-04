@@ -1,3 +1,15 @@
+# Local development
+
+Run `npm run dev` from the repository root. The frontend uses HTTP on port 5173
+and listens on the local network. On the same Wi-Fi, open
+**http://192.168.0.145:5173/** (use the computer's current LAN IP if it changes).
+The existing `/api` proxy points to `http://localhost:3000`.
+
+Live barcode scanning requires a browser secure context. Mobile browsers block
+camera access on LAN HTTP; enter the barcode manually when testing this way.
+On localhost or a secure deployment, the scanner opens the live camera and
+**Use Barcode** fills the field; the existing **Update** action saves it.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.

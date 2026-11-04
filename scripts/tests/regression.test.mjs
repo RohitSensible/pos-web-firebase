@@ -24,7 +24,9 @@ test('filters select only the requested groups and never invoke a backend build'
   assert(browsers.some(check => check.args.includes('1280,900')));
   assert(browsers.some(check => check.args.includes('390,844')));
   assert(browsers.filter(check => check.id.startsWith('dailyUsage')).every(check => check.env.WEB_USAGE_TEST_ENABLED === '1'));
-  assert(browsers.filter(check => !check.id.startsWith('dailyUsage')).every(check => check.env.WEB_USAGE_TEST_ENABLED === '0'));
+  assert(browsers.filter(check => check.id.startsWith('productImages')).every(check => check.env.WEB_USAGE_TEST_ENABLED === '1'));
+  assert(browsers.filter(check => !check.id.startsWith('dailyUsage') && !check.id.startsWith('productImages')).every(check => check.env.WEB_USAGE_TEST_ENABLED === '0'));
+  for (const id of ['goods-received', 'goods-receipt-history', 'suppliers', 'supplier-update', 'stock-planning']) assert(all.some(check => check.id === id));
 });
 
 test('invalid options fail and concurrency cannot exceed two', () => {
@@ -32,6 +34,19 @@ test('invalid options fail and concurrency cannot exceed two', () => {
     assert.throws(() => parseArgs(args));
   }
   assert.equal(parseArgs(['--list', '--timeout-ms', '50', '--concurrency', '1']).timeout, 50);
+});
+
+test('browser planning defaults to real time and retains explicit virtual-time selection', () => {
+  const previous = process.env.BROWSER_TEST_REALTIME;
+  try {
+    delete process.env.BROWSER_TEST_REALTIME;
+    assert(createPlan({ browserOnly: true }).every(check => check.env.BROWSER_TEST_REALTIME === '1'));
+    process.env.BROWSER_TEST_REALTIME = '0';
+    assert(createPlan({ browserOnly: true }).every(check => check.env.BROWSER_TEST_REALTIME === '0'));
+  } finally {
+    if (previous === undefined) delete process.env.BROWSER_TEST_REALTIME;
+    else process.env.BROWSER_TEST_REALTIME = previous;
+  }
 });
 
 test('missing/empty/failed browser or TAP results cannot pass with exit zero', () => {

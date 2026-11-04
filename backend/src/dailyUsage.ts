@@ -9,7 +9,8 @@ const limitSeconds = 1800;
 export class DailyUsageError extends ProductCreationError {
   constructor(status: number, public code: string, message: string, public dailyLimitApplies?: boolean) { super(status, message); }
 }
-const leaseSchema = z.object({ profileDocId: z.string().min(1).max(200), expiresAt: z.instanceof(Timestamp), lastSequence: z.number().int().nonnegative() }).strict();
+const leaseSchema = z.object({ profileDocId: z.string().min(1).max(200), expiresAt: z.instanceof(Timestamp), lastSequence: z.number().int().nonnegative(),
+  requestKey: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict();
 const operationSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('start'), requestId: z.string().uuid() }).strict(),
   z.object({ action: z.literal('heartbeat'), sessionId: z.string().regex(/^[a-f0-9]{64}$/), generation: z.string().uuid(), sequence: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) }).strict(),
@@ -160,14 +161,20 @@ async function usageTransaction(db: Firestore, outletId: string, profileId: stri
       : Math.min(nowMs + WEB_USAGE_LEASE_SECONDS * 1000, nowMs + Math.round((limitSeconds - dailyUsage.usedSeconds) * 1000)));
     let sessionId: string | undefined;
     if (operation.action === 'start') {
-      sessionId = createHash('sha256').update(JSON.stringify([profileId, outletId, dailyUsage.generation, operation.requestId])).digest('hex');
+      const requestKey = createHash('sha256').update(JSON.stringify([profileId, outletId, dailyUsage.generation, operation.requestId])).digest('hex');
+      // Retry an active start idempotently, including leases made by older servers.
+      // A new incarnation gets a fresh identity after expiry or release, so delayed
+      // heartbeat/pagehide requests cannot address its replacement at sequence 0.
+      sessionId = Object.entries(sessions).find(([id, session]) => session.profileDocId === profileId
+        && (session.requestKey === requestKey || (id === requestKey && !session.requestKey)))?.[0]
+        ?? createHash('sha256').update(randomUUID()).digest('hex');
       if (!sessions[sessionId] && Object.keys(sessions).length >= 100) {
         return failure(429, 'USAGE_SESSION_CAPACITY', 'Too many active Web POS sessions. Wait for unused sessions to expire.');
       }
-      sessions[sessionId] = { profileDocId: profileId, expiresAt, lastSequence: sessions[sessionId] ? sessions[sessionId]!.lastSequence + 1 : 0 };
+      sessions[sessionId] = { profileDocId: profileId, expiresAt, requestKey, lastSequence: sessions[sessionId] ? sessions[sessionId]!.lastSequence + 1 : 0 };
     } else if (operation.action === 'heartbeat') {
       sessionId = operation.sessionId;
-      sessions[sessionId] = { profileDocId: profileId, expiresAt, lastSequence: operation.sequence };
+      sessions[sessionId] = { ...sessions[sessionId]!, profileDocId: profileId, expiresAt, lastSequence: operation.sequence };
     }
     persist();
     // Response metadata only: never persist presentation policy in the usage document.

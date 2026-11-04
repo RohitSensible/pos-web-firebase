@@ -3,7 +3,7 @@ import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
 import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { MoreVertical, Plus, Printer, RefreshCw, Save, Trash2, X } from 'lucide-react';
+import { MoreVertical, Pencil, Printer, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import { DeleteConfirmation } from './DeleteConfirmation.tsx';
 import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
 import { SuccessPopup } from './SuccessPopup.tsx';
@@ -12,6 +12,8 @@ import { createRequestId } from '../utils/requestId.ts';
 import './CategoryPage.css';
 import './MasterForm.css';
 import './ServicePointsPage.css';
+import './MobileRecords.css';
+import { MobileAddButton } from './MobileAddButton.tsx';
 
 interface ServicePoint {
   documentId: string; name: string; paperSize: number | null; printerType: number | null;
@@ -162,7 +164,7 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
     {deleteAllDone && <SuccessPopup message="Service points deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
     <div className="category-header-row"><h1>Service Points</h1>
       <div className="category-header-actions category-master-actions">
-        <button type="button" className="btn-primary-add" disabled={rows === null || !!error} onClick={openAdd}><Plus size={16} />Add Service Point</button>
+        <MobileAddButton label="Add Service Point" className="btn-primary-add" disabled={rows === null || !!error} onClick={openAdd} />
         <div className="category-more-actions">
           <button type="button" className="category-menu-toggle" aria-label="Service point options" aria-expanded={menuOpen}
             aria-controls="service-point-options-menu" onClick={() => setMenuOpen(value => !value)}><MoreVertical size={17} /></button>
@@ -175,8 +177,8 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
     {error ? <div className="service-point-state" role="alert">{error}<button type="button" className="btn-secondary" onClick={() => { setRows(null); setError(''); setReload(value => value + 1); }}><RefreshCw size={15} />Retry</button></div>
       : rows === null ? <p className="service-point-state" role="status" data-inline-loading>Loading service points…</p>
       : !rows.length ? <p className="service-point-state">No service points yet. Add a service point to get started.</p>
-      : <div className="service-points-table"><table><thead><tr><th>Name</th><th>Paper Size</th><th>Printer Type</th><th>Header</th><th>Sub Header</th><th>Footer</th><th>Actions</th></tr></thead><tbody>
-        {rows.map(row => <tr key={row.documentId} onClick={() => openEdit(row)}><td><button type="button" className="service-point-name-button" aria-label={`Edit service point ${row.name || 'Unnamed service point'}`} onClick={event => { event.stopPropagation(); openEdit(row); }}>{row.name || 'Unnamed service point'}</button></td><td>{row.paperSize === 2 || row.paperSize === 3 ? `${row.paperSize} Inch` : '—'}</td><td>{row.printerType !== null && printerTypes[row.printerType] || '—'}</td><td>{row.header || '—'}</td><td>{row.subHeader || '—'}</td><td>{row.footer || '—'}</td><td><button type="button" className="service-point-delete-button" aria-label={`Delete service point ${row.name || 'Unnamed service point'}`} onClick={event => { event.stopPropagation(); setNotice(''); setDeleteError(''); setDeleting(row); }}><Trash2 size={15} />Delete</button></td></tr>)}
+      : <div className="service-points-table"><table className="mobile-record-table"><thead><tr><th>Name</th><th>Paper Size</th><th>Printer Type</th><th>Header</th><th>Sub Header</th><th>Footer</th><th>Actions</th></tr></thead><tbody>
+        {rows.map(row => <tr key={row.documentId} onClick={() => openEdit(row)}><td data-label="Service point" className="mobile-record-name"><button type="button" className="service-point-name-button" aria-label={`Edit service point ${row.name || 'Unnamed service point'}`} onClick={event => { event.stopPropagation(); openEdit(row); }}>{row.name || 'Unnamed service point'}</button></td><td data-label="Paper size">{row.paperSize === 2 || row.paperSize === 3 ? `${row.paperSize} Inch` : '—'}</td><td data-label="Printer type">{row.printerType !== null && printerTypes[row.printerType] || '—'}</td><td data-label="Header">{row.header || '—'}</td><td data-label="Sub header">{row.subHeader || '—'}</td><td data-label="Footer">{row.footer || '—'}</td><td className="mobile-record-actions"><div><button type="button" className="mobile-record-edit" onClick={event => { event.stopPropagation(); openEdit(row); }}><Pencil size={14} />Edit</button><button type="button" className="service-point-delete-button" aria-label={`Delete service point ${row.name || 'Unnamed service point'}`} onClick={event => { event.stopPropagation(); setNotice(''); setDeleteError(''); setDeleting(row); }}><Trash2 size={15} />Delete</button></div></td></tr>)}
       </tbody></table></div>}
     {deleting && <DeleteConfirmation kind="service point" name={deleting.name || 'Unnamed service point'} busy={deleteBusy} error={deleteError}
       onCancel={() => { if (!busy.current) setDeleting(null); }} onConfirm={() => void confirmDelete()} />}

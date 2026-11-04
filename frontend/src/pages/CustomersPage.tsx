@@ -20,6 +20,7 @@ import './CategoryPage.css';
 import './MasterForm.css';
 import './MasterRowList.css';
 import './CustomersPage.css';
+import { MobileAddButton } from './MobileAddButton.tsx';
 
 interface Customer {
   documentId: string; name: string; contact: string; altContact: string; email: string; gstNo: string; address: string;
@@ -223,7 +224,7 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
     {deleteAllDone && <SuccessPopup message="Customers deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
     <div className="category-header-row"><div className="category-title-group"><h1><UsersRound size={22} /> Customers</h1><p>  Your outlet’s customer list.</p></div>
       <div className="category-header-actions category-master-actions">
-        <button type="button" className="btn-primary-add" disabled={!customers || !!error} onClick={openAdd}><Plus size={16} /> Add Customer</button>
+        <MobileAddButton label="Add Customer" className="btn-primary-add" disabled={!customers || !!error} onClick={openAdd} />
         <div className="category-more-actions">
           <button type="button" className="category-menu-toggle" aria-label="Customer options" aria-expanded={menuOpen}
             aria-controls="customer-options-menu" onClick={() => setMenuOpen(value => !value)}><MoreVertical size={17} /></button>
@@ -245,7 +246,7 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
         : 'Customer count will appear as records load.'}</p>
     </div>
     {error ? <div className="customer-state"><p role="alert">{error}</p><button type="button" className="btn-secondary" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : !customers ? <p className="customer-state" role="status" data-inline-loading>Loading customers…</p> : !customers.length ?
-      <div className="customer-state"><UsersRound size={28} /><h2>No customers found</h2><p>Add your first customer for this outlet.</p><button type="button" className="btn-primary-add" onClick={openAdd}><Plus size={16} /> Add Customer</button></div> : !filteredCustomers.length ?
+      <div className="customer-state"><UsersRound size={28} /><h2>No customers found</h2><p>Add your first customer for this outlet.</p><button type="button" className="btn-primary-add mobile-add-inline" onClick={openAdd}><Plus size={16} /> Add Customer</button></div> : !filteredCustomers.length ?
       <div className="customer-state"><UsersRound size={28} /><h2>No matching customers</h2><p>No loaded customers match your search.{!liveReady && ' More customers are still loading.'}</p><button type="button" className="btn-secondary" onClick={clearSearch}>Clear search</button></div> :
       <div className="customers-list master-row-list">{shownCustomers.map((customer, index) => {
         const name = customer.name || 'Unnamed customer';

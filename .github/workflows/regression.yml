@@ -1,0 +1,44 @@
+name: Web POS regression
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BROWSER_TEST_REALTIME: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Install locked backend dependencies
+        run: npm ci --prefix backend
+      - name: Install locked frontend dependencies
+        run: npm ci --prefix frontend
+      - name: Build and run mocked regression checks
+        run: npm run test:regression -- --report-dir "$RUNNER_TEMP/webpos-regression"
+      - name: Retain check logs and JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webpos-regression-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/webpos-regression
+          if-no-files-found: warn
+          retention-days: 14

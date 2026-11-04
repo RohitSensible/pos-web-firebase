@@ -40,7 +40,7 @@ void (async () => {
     ['Premises', '[aria-label="Edit premise TABLE"]', '.premises-form', '.premises-fields'],
     ['Service Point', '[aria-label="Edit service point Kitchen"]', '.service-point-form-page', '.service-point-fields'],
     ['Products', '[aria-label="Edit product"]', '.add-product-modal', '.modal-body'],
-  ]) {
+  ].filter(([page]) => !location.hash.includes('preview') || page === 'Products')) {
     await navigate(page); await until(() => document.querySelector(row), page + ' row');
     document.querySelector<HTMLElement>(row)!.click(); await until(() => document.querySelector(form), page + ' editor'); await pause();
     const editor = document.querySelector(form)!.getBoundingClientRect();
@@ -54,7 +54,24 @@ void (async () => {
       const current = document.querySelector('.dashboard-sidebar')!.getBoundingClientRect();
       assert(current.left === sidebar.left && current.width === sidebar.width && editor.left >= current.right, page + ': sidebar size and position remain unchanged');
     }
-    if (location.hash.includes('preview') && page === 'Premises') break;
+    if (page === 'Products') {
+      await until(() => document.querySelector<HTMLSelectElement>('#product-category')?.disabled === false, 'product edit options');
+      const productForm = document.querySelector<HTMLElement>(form)!;
+      const bounds = productForm.getBoundingClientRect();
+      assert(productForm.scrollWidth <= productForm.clientWidth + 1, 'Product editor has no internal horizontal overflow');
+      for (const field of productForm.querySelectorAll<HTMLElement>('.form-field, .product-inventory, .local-image-picker, .product-pricing-fields')) {
+        const rect = field.getBoundingClientRect();
+        assert(rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1, 'Product field stays within the editor');
+      }
+      for (const button of productForm.querySelectorAll<HTMLElement>('.modal-header > button, .modal-footer > button, .local-image-button')) {
+        assert(button.getBoundingClientRect().height >= 44, 'Product form actions have comfortable touch targets');
+      }
+      assert(document.querySelector<HTMLInputElement>('#product-name')?.value === 'Tea' && document.querySelector<HTMLInputElement>('#product-price')?.value === '10', 'Responsive layout preserves prefilled product values');
+      const footer = productForm.querySelector<HTMLElement>('.modal-footer')!;
+      footer.scrollIntoView({ block: 'end' }); await pause();
+      assert(footer.getBoundingClientRect().bottom <= innerHeight + 2, 'Product save and cancel actions can be reached by scrolling');
+      if (location.hash.includes('preview')) { window.scrollTo(0, 0); break; }
+    }
     document.querySelector<HTMLButtonElement>(form + ' .modal-header > button')!.click(); await until(() => !document.querySelector(form), page + ' close');
   }
   if (!location.hash.includes('preview')) root.unmount();

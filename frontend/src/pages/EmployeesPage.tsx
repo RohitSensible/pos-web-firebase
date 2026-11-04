@@ -9,13 +9,15 @@ import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
 import { SuccessPopup } from './SuccessPopup.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { MoreVertical, Plus, RefreshCw, Save, Trash2, UserRoundCog, X } from 'lucide-react';
+import { MoreVertical, Pencil, Plus, RefreshCw, Save, Trash2, UserRoundCog, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { ReportDateInput } from './ReportDateInput.tsx';
 import { createRequestId } from '../utils/requestId.ts';
 import './CategoryPage.css';
 import './MasterForm.css';
 import './EmployeesPage.css';
+import './MobileRecords.css';
+import { MobileAddButton } from './MobileAddButton.tsx';
 
 interface Employee {
   documentId: string; name: string; mobile: string; searchCode: number | null;
@@ -185,7 +187,7 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
     {deleteAllDone && <SuccessPopup message="Employees deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
     <div className="category-header-row"><div className="category-title-group"><h1><UserRoundCog size={22} /> Employees / Salesman</h1><p>Click a person to edit their details.</p></div>
       <div className="category-header-actions category-master-actions">
-        <button type="button" className="btn-primary-add" disabled={!data || !!error} onClick={openAdd}><Plus size={16} /> Add {kind}</button>
+        <MobileAddButton label={`Add ${kind}`} className="btn-primary-add" disabled={!data || !!error} onClick={openAdd} />
         <div className="category-more-actions">
           <button type="button" className="category-menu-toggle" aria-label="Employee options" aria-expanded={menuOpen}
             aria-controls="employee-options-menu" onClick={() => setMenuOpen(value => !value)}><MoreVertical size={17} /></button>
@@ -204,14 +206,14 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
       <p id="employee-search-count" role="status" aria-live="polite" aria-atomic="true">{visibleEmployees.length} of {data.employees.length} employees</p>
     </div>}
     {error ? <div className="employees-state"><p role="alert">{error}</p><button type="button" className="btn-secondary" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : !data ? <p className="employees-state" role="status" data-inline-loading>Loading employees…</p> : !data.employees.length ?
-      <div className="employees-state"><UserRoundCog size={28} /><h2>No employees found</h2><p>Add a {kind.toLowerCase()} to get started.</p><button type="button" className="btn-primary-add" onClick={openAdd}><Plus size={16} /> Add {kind}</button></div> :
+      <div className="employees-state"><UserRoundCog size={28} /><h2>No employees found</h2><p>Add a {kind.toLowerCase()} to get started.</p><button type="button" className="btn-primary-add mobile-add-inline" onClick={openAdd}><Plus size={16} /> Add {kind}</button></div> :
       !visibleEmployees.length ? <div className="employees-state"><h2>No matching employees</h2><p>Try another search or clear it to see all employees.</p><button type="button" className="btn-secondary" onClick={clearSearch}>Clear search</button></div> :
-      <div className="employees-table-scroll"><table><thead><tr><th>Name</th><th>Mobile</th><th>Search code</th><th>Balance</th><th>Joining date</th><th>User account</th><th>Actions</th></tr></thead><tbody>{visibleEmployees.map(employee => <tr key={employee.documentId}
+      <div className="employees-table-scroll"><table className="mobile-record-table"><thead><tr><th>Name</th><th>Mobile</th><th>Search code</th><th>Balance</th><th>Joining date</th><th>User account</th><th>Actions</th></tr></thead><tbody>{visibleEmployees.map(employee => <tr key={employee.documentId}
         tabIndex={0} aria-label={`Edit employee ${employee.name}`} onClick={() => openEdit(employee)}
         onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openEdit(employee); } }}>
-        <td>{employee.name}</td><td>{employee.mobile || '—'}</td><td>{employee.searchCode ?? '—'}</td><td>{employee.balanceAmt || '0'}</td><td>{employee.dateOfJoining || '—'}</td>
-        <td>{userDisplayName(employee)}</td>
-        <td><OutletMasterDeleteButton outletId={outlet.id} token={token} collection="employees" documentId={employee.documentId} name={employee.name || 'Unnamed employee'} onSessionExpired={onSessionExpired} onDeleted={() => { setData(current => current ? { ...current, employees: current.employees.filter(row => row.documentId !== employee.documentId) } : current); setNotice('Employee deleted successfully.'); }} /></td>
+        <td data-label="Employee" className="mobile-record-name">{employee.name}</td><td data-label="Mobile">{employee.mobile || '—'}</td><td data-label="Search code">{employee.searchCode ?? '—'}</td><td data-label="Balance">{employee.balanceAmt || '0'}</td><td data-label="Joining date">{employee.dateOfJoining || '—'}</td>
+        <td data-label="User account">{userDisplayName(employee)}</td>
+        <td className="mobile-record-actions"><div><button type="button" className="mobile-record-edit" onClick={event => { event.stopPropagation(); openEdit(employee); }}><Pencil size={14} />Edit</button><OutletMasterDeleteButton outletId={outlet.id} token={token} collection="employees" documentId={employee.documentId} name={employee.name || 'Unnamed employee'} onSessionExpired={onSessionExpired} onDeleted={() => { setData(current => current ? { ...current, employees: current.employees.filter(row => row.documentId !== employee.documentId) } : current); setNotice('Employee deleted successfully.'); }} /></div></td>
       </tr>)}</tbody></table></div>}
 
   </section>;

@@ -63,17 +63,27 @@ export function createPlan(options = {}) {
       ['usage-policy', 'backend/tests/outletUsagePolicy.test.ts'],
       ['usage-disabled-compatibility', 'backend/tests/webUsageDisabled.test.ts'],
       ['daily-usage-recovery-audit', 'backend/tests/dailyUsageRecoveryAudit.test.mjs'],
+      ['goods-received', 'backend/tests/goodsReceived.test.ts'],
+      ['goods-receipt-history', 'backend/tests/goodsReceiptHistory.test.ts'],
+      ['suppliers', 'backend/tests/suppliers.test.ts'],
+      ['supplier-update', 'backend/tests/supplierUpdate.test.ts'],
+      ['goods-received-route', 'frontend/tests/goodsReceivedRoute.test.mjs'],
+      ['stock-planning', 'frontend/tests/stockPlanning.test.mjs'],
     ].map(([id, file]) => node(id, file)),
   ];
   const fixtures = ['lazyWorkspace', 'unsavedChanges', 'unsavedForms', 'remainingReportSafety',
     'dailyUsageRecoveryAudit', 'dashboardShiftSelection', 'stockTransferReadRecovery', 'loginRecovery',
-    'billPrinting', 'printDocumentRecovery', 'dailyUsage', 'dailyUsageLogin', 'dailyUsageLockout'];
+    'billPrinting', 'printDocumentRecovery', 'dailyUsage', 'dailyUsageLogin', 'dailyUsageLockout',
+    'goodsReceived', 'suppliers', 'goodsReceiptHistory', 'stockPlanning', 'stockReportSafety',
+    'productImages', 'productImageRemoval', 'productImageSingle', 'productImagePin', 'productImageCropper', 'productImageBatch', 'productImageClarity',
+    'barcodeScanner'];
   for (const fixture of fixtures) {
     for (const [size, viewport] of [['desktop', '1280,900'], ['mobile', '390,844']]) {
       checks.push({ id: `${fixture}-${size}`, group: 'browser', command: process.execPath,
         args: ['frontend/tests/runProductFormBrowser.mjs', `${fixture}.browser.tsx`, viewport], result: 'browser',
         // UI fixtures isolate admission; dailyUsage* always exercises the real hook.
-        env: { WEB_USAGE_TEST_ENABLED: fixture.startsWith('dailyUsage') ? '1' : '0' } });
+        env: { BROWSER_TEST_REALTIME: process.env.BROWSER_TEST_REALTIME ?? '1',
+          WEB_USAGE_TEST_ENABLED: fixture.startsWith('dailyUsage') || fixture === 'productImages' ? '1' : '0' } });
     }
   }
   return checks.filter(check => (!options.unitOnly || check.group === 'unit')

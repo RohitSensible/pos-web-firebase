@@ -137,19 +137,21 @@ void (async () => {
   chooseProduct('a'); await pause();
   assert(button('Upload Images').disabled, 'Shared replacements require approval');
   confirmReplacements(); await pause(); button('Upload Images').click(); button('Upload Images')?.click();
+  await wait(() => document.querySelector('dialog[open] .action-confirm-button'), 'shared upload confirmation');
+  document.querySelector<HTMLButtonElement>('dialog[open] .action-confirm-button')!.click();
   await wait(() => button('Retry failed assignments for Masala.png') && !button('Retry failed assignments for Masala.png').disabled, 'partial shared result');
   assert(document.body.textContent?.includes('Some images could not be uploaded.') && !document.body.textContent?.includes('Product images uploaded successfully for'), 'Partial failures display an accurate completion message');
   assert(objects.size === 1 && products[0]!.fields.image === products[2]!.fields.image, 'Shared image uploads once and uses the same filename');
   assert(products[1]!.fields.imagePath === 'legacy/path' && !products[1]!.fields.image, 'Failed product retains legacy image reference');
   failProduct = ''; button('Retry Masala Uttapam').click();
   await wait(() => document.querySelectorAll('.batch-image-table .batch-status.complete, .batch-image-table .batch-status.saved, .batch-image-table .batch-status.unchanged').length === 3, 'shared retry result');
-  await wait(() => document.body.textContent?.includes('Product images uploaded successfully for 3 product(s).'), 'shared upload success confirmation');
+  await wait(() => document.querySelector('.success-message')?.textContent === 'Uploaded successfully.', 'shared upload success confirmation');
   assert(objects.size === 1 && requests.length === 2 && requests[1]!.targets.map(target => target.documentId).join() === 'b', 'Retry reuses upload and sends only failed targets');
   assert(products.slice(0, 3).every(product => product.fields.image === products[0]!.fields.image), 'All three distinct products share one filename');
   passed.push('Shared review, selection, replacement confirmation, one upload, partial failure and individual retry');
-  await wait(() => document.querySelector('dialog[open]') && button('OK'), 'shared success popup');
+  await wait(() => document.querySelector('dialog[open]') && button('Done'), 'shared success popup');
   const readsBeforeSharedOK = previewReads;
-  button('OK').click(); await wait(() => document.querySelector('section[aria-label="Products"]'), 'OK returns to Products');
+  button('Done').click(); await wait(() => document.querySelector('section[aria-label="Products"]'), 'Done returns to Products');
   await pause(); assert(previewReads === readsBeforeSharedOK, 'Shared upload previews reuse processed bytes without refetching images');
   await openImageAction('Bulk Upload Images'); await pause();
   selectFile(new File(['not a zip'], 'bad.zip'));
@@ -157,7 +159,7 @@ void (async () => {
   const zip = new JSZip();
   for (const name of [' MASALA  DOSA.png', 'tea.png', 'missing.png', 'nested/Coffee.png', 'Coffee.png']) zip.file(name, bytes);
   zip.file('invalid.png', 'not an image');
-  selectFile(new File([await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' })], 'images.zip'));
+  selectFile(new File([new Uint8Array(await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }))], 'images.zip'));
   await wait(() => document.querySelectorAll('.batch-image-table tbody tr').length === 6 && !document.body.textContent?.includes('Reading and preparing'), 'bulk prepared', 1500);
   assert(!document.querySelector('.batch-assignment-review') && !document.body.textContent?.includes('Review assignments'), 'Bulk uploads have no separate review section');
   const headerButtons = [...document.querySelectorAll('.batch-header-actions button')].map(node => node.textContent);
@@ -193,7 +195,7 @@ void (async () => {
   }
   failProduct = 'd'; button('Upload Images').click();
   await wait(() => button('Replace and Upload'), 'replacement confirmation dialog');
-  assert(document.querySelector('dialog[open]')?.textContent?.includes('1 product already has an image'), 'One dialog confirms all replacements');
+  assert(document.querySelector('dialog[open]')?.textContent?.includes('1 product image'), 'One dialog confirms all replacements');
   button('Cancel').click(); await pause();
   assert(requests.length === 2 && !document.querySelector('dialog[open]'), 'Cancel uploads nothing');
   button('Upload Images').click(); await wait(() => button('Replace and Upload'), 'replacement dialog again');
@@ -203,7 +205,7 @@ void (async () => {
   const requestCount = requests.length, objectCount = objects.size;
   failProduct = ''; button('Retry failed assignments for tea.png').click();
   await wait(() => document.querySelectorAll('.batch-image-table .batch-status.complete, .batch-image-table .batch-status.saved, .batch-image-table .batch-status.unchanged').length === 3, 'bulk retry');
-  await wait(() => document.body.textContent?.includes('Product images uploaded successfully for 3 product(s).'), 'bulk upload success confirmation');
+  await wait(() => document.querySelector('.success-message')?.textContent === 'Uploaded successfully.', 'bulk upload success confirmation');
   assert(requests.length === requestCount + 1 && objects.size === objectCount, 'Bulk retry does not repeat completed uploads');
   assert(products[4]!.fields.image === undefined, 'Ambiguous candidate not selected remains unchanged');
   assert(before === JSON.stringify(products.map(product => ({ id: product.documentId, name: product.fields.name, code: product.fields.code, price: product.fields.price, stock: product.fields.currentStock }))), 'Unrelated fields and product count remain intact');
@@ -211,9 +213,9 @@ void (async () => {
   const shell = document.querySelector<HTMLElement>('.product-image-batch')!;
   assert(shell.scrollWidth <= shell.clientWidth + 2, 'Image layout fits the viewport without horizontal overflow');
   passed.push('Clean rows, header upload/count, crop, removal, in-row product choice, no bottom counters, responsive layout');
-  await wait(() => document.querySelector('dialog[open]') && button('OK'), 'bulk success popup');
+  await wait(() => document.querySelector('dialog[open]') && button('Done'), 'bulk success popup');
   const readsBeforeBulkOK = previewReads;
-  button('OK').click(); await wait(() => document.querySelector('section[aria-label="Products"]'), 'bulk OK returns to Products');
+  button('Done').click(); await wait(() => document.querySelector('section[aria-label="Products"]'), 'bulk Done returns to Products');
   await pause(); assert(previewReads === readsBeforeBulkOK, 'Bulk upload previews reuse processed bytes without refetching images');
   assert(!document.querySelector('.product-image-batch'), 'Upload screen closes only after OK');
   if (location.hash !== '#preview') root.unmount();

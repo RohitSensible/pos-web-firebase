@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Monitor, RefreshCw } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import './DevicesPage.css';
+import './MobileRecords.css';
 
 interface Device { documentId: string; outletName: string; deviceId: string; active: boolean | null }
 interface DeviceList { outletName: string; devices: Device[] }
@@ -80,8 +81,8 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
       </div>
       <p className="devices-result-count" role="status">{filtered.length} of {data.devices.length} devices</p>
       {!filtered.length ? <div className="devices-state"><h2>No matching devices</h2><p>Try a different search or clear the filters.</p><button type="button" className="devices-refresh" onClick={clearFilters}>Clear filters</button></div> :
-      <div className="devices-table-scroll" role="region" aria-label="Registered devices" tabIndex={0}><table><thead><tr><th>Outlet Name</th><th>Device ID</th><th>Status</th></tr></thead><tbody>{filtered.map(device => <tr key={device.documentId}>
-        <td>{device.outletName || '—'}</td><td className="device-id"><span>{device.deviceId}</span>
+      <div className="devices-table-scroll" role="region" aria-label="Registered devices" tabIndex={0}><table className="mobile-record-table"><thead><tr><th>Outlet Name</th><th>Device ID</th><th>Status</th></tr></thead><tbody>{filtered.map(device => <tr key={device.documentId}>
+        <td data-label="Outlet" className="mobile-record-name">{device.outletName || '—'}</td><td data-label="Device ID" className="device-id mobile-record-wide"><span>{device.deviceId}</span>
           <button type="button" className="devices-refresh devices-copy" disabled={copyFeedback[device.documentId] === 'copying'} onClick={() => { void copyId(device); }} aria-label={`Copy ID for device ${device.deviceId}`}>{copyFeedback[device.documentId] === 'copying' ? 'Copying…' : copyFeedback[device.documentId] === 'failed' ? 'Retry copy' : 'Copy ID'}</button>
           {copyFeedback[device.documentId] && <div className="devices-copy-feedback" role="status">
             {copyFeedback[device.documentId] === 'copied' ? 'ID copied.' : copyFeedback[device.documentId] === 'copying' ? 'Copying ID…' : <>
@@ -89,7 +90,7 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
               <input type="text" readOnly value={device.deviceId} aria-label={`Select ID for device ${device.deviceId}`} onFocus={event => event.currentTarget.select()} onClick={event => event.currentTarget.select()} />
             </>}
           </div>}
-        </td><td><label className={`device-status ${device.active === true ? 'active' : device.active === false ? 'inactive' : 'unavailable'}`}>
+        </td><td data-label="Status"><label className={`device-status ${device.active === true ? 'active' : device.active === false ? 'inactive' : 'unavailable'}`}>
           <input type="checkbox" disabled checked={device.active === true} ref={input => { if (input) input.indeterminate = device.active === null; }} aria-label={`Active status for device ${device.deviceId}`} />
           <span>{device.active === true ? 'Active' : device.active === false ? 'Inactive' : 'Unavailable'}</span>
         </label></td>

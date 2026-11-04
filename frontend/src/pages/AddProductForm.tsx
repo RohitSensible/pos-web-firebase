@@ -3,7 +3,9 @@ import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
-import { X } from 'lucide-react';
+import { ScanBarcode, Upload, X } from 'lucide-react';
+import { BarcodeScanner } from './BarcodeScanner.tsx';
+import { BarcodeImageUpload } from './BarcodeImageUpload.tsx';
 import { createRequestId } from '../utils/requestId.ts';
 import { productFormErrors, productFormPayload, productDraftFromFields, productUpdatePayload, type ProductDraft } from './productForm.ts';
 import { productPremisesPrices, productPremisesPriceKey } from './productPremisesPrices.ts';
@@ -23,13 +25,14 @@ interface Options {
 }
 interface Props {
   outletId: string; token: string; initialCategory: string | null; product?: CreatedProduct;
+  initialBarcode?: string;
   onCancel: () => void; onCreated: (product: CreatedProduct) => void; onSessionExpired: () => void;
 }
 export function AddProductForm(props: Props) {
   return <ScopedProductForm key={JSON.stringify([props.outletId, props.token, props.product?.documentId])} {...props} />;
 }
 
-function ScopedProductForm({ outletId, token, initialCategory, onCancel, onCreated, onSessionExpired, product }: Props) {
+function ScopedProductForm({ outletId, token, initialCategory, initialBarcode, onCancel, onCreated, onSessionExpired, product }: Props) {
   const nameRef = useRef<HTMLInputElement>(null);
   const savingRef = useRef(false);
   const createdForImageRetry = useRef<CreatedProduct | null>(null);
@@ -37,9 +40,11 @@ function ScopedProductForm({ outletId, token, initialCategory, onCancel, onCreat
   const [options, setOptions] = useState<Options | null>(null);
   const originalDraft = useRef(product ? productDraftFromFields(product.fields) : null);
   const { confirmAction, confirmation } = useActionConfirmation();
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [barcodeImageOpen, setBarcodeImageOpen] = useState(false);
   const [draft, setDraft] = useState<ProductDraft>(product ? productDraftFromFields(product.fields) : { name: '', price: '', mrpPrice: '0', costPrice: '0',
     category: initialCategory ?? '', regionalName: '', discount: '0', shortName: '', taxIndex: '',
-    hsnCode: '', unitId: '', weighable: false, stockable: false, wholeSaleAmount: '0', onlinePrice: '0' });
+    hsnCode: '', unitId: '', weighable: false, stockable: false, wholeSaleAmount: '0', onlinePrice: '0', ...(initialBarcode === undefined ? {} : { barcode: initialBarcode }) });
   const baseline = useRef(draft);
   const imageBaseline = useRef<{ selectedImage: File | null; removeImage: boolean }>({ selectedImage: null, removeImage: false });
   const [storedProduct, setStoredProduct] = useState(product);
@@ -162,20 +167,19 @@ function ScopedProductForm({ outletId, token, initialCategory, onCancel, onCreat
     finally { savingRef.current = false; setSaving(false); }
   };
   const issue = (key: string) => errors[key] ? <span id={`product-${key}-error`} className="category-form-error" role="alert">{errors[key]}</span> : null;
-  const text = (key: 'name' | 'price' | 'mrpPrice' | 'costPrice' | 'regionalName' | 'discount' | 'shortName' | 'hsnCode' | 'wholeSaleAmount' | 'onlinePrice' | 'barcode', label: string, numeric = false) => (
-    <div className="form-field" key={key}><label htmlFor={`product-${key}`}>{label}</label>
-      <input ref={key === 'name' ? nameRef : undefined} id={`product-${key}`} type={numeric ? 'number' : 'text'}
+  const text = (key: 'name' | 'price' | 'mrpPrice' | 'costPrice' | 'regionalName' | 'discount' | 'shortName' | 'hsnCode' | 'wholeSaleAmount' | 'onlinePrice' | 'barcode', label: string, numeric = false) => {
+    const input = <input ref={key === 'name' ? nameRef : undefined} id={`product-${key}`} type={numeric ? 'number' : 'text'}
         {...(numeric ? { min: 0, step: 'any', ...(key === 'discount' ? { max: 100 } : {}) } : { maxLength: 200 })}
         disabled={saving || (!!product && !options) || (!!product && key === 'wholeSaleAmount' && draft[key] === undefined)} value={draft[key] ?? ''} aria-invalid={!!errors[key]} aria-describedby={errors[key] ? `product-${key}-error` : undefined}
-        onChange={event => update(key, event.target.value)} />{issue(key)}</div>
-  );
+        onChange={event => update(key, event.target.value)} />;
+    return <div className="form-field" key={key}><label htmlFor={`product-${key}`}>{label}</label>
+      {key === 'barcode' ? <div className="product-barcode-control">{input}<button type="button" className="product-barcode-scan" aria-label="Scan barcode" disabled={saving || !options} onClick={() => setScannerOpen(true)}><ScanBarcode size={20} aria-hidden="true" /></button>{product && <button type="button" className="product-barcode-upload" aria-label="Upload barcode image" disabled={saving || !options} onClick={() => setBarcodeImageOpen(true)}><Upload size={16} aria-hidden="true" /><span>Upload image</span></button>}</div> : input}
+      {issue(key)}</div>;
+  };
   const storedText = (key: string) => {
     const value = storedProduct?.fields[key];
     return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   };
-  const savedDetail = (key: string, label: string) => <div className="form-field" key={key}>
-    <label htmlFor={`product-${key}`}>{label}</label><input id={`product-${key}`} readOnly value={storedText(key)} placeholder="Not set" />
-  </div>;
   let priceTable: Record<string, unknown> = {};
   try {
     const parsed: unknown = JSON.parse(storedText('priceTable') || '{}');
@@ -188,7 +192,10 @@ function ScopedProductForm({ outletId, token, initialCategory, onCancel, onCreat
   return (
     <section className="category-modal add-product-modal" aria-labelledby="add-product-title">
       <form noValidate onSubmit={event => void save(event)}>{confirmation}
+        {scannerOpen && <BarcodeScanner onCancel={() => setScannerOpen(false)} onUse={value => { update('barcode', value); setScannerOpen(false); }} />}
+        {barcodeImageOpen && <BarcodeImageUpload onCancel={() => setBarcodeImageOpen(false)} onUse={value => { update('barcode', value); setBarcodeImageOpen(false); }} />}
         <div className="modal-header"><h3 id="add-product-title">{product ? 'Edit Product' : 'Add New Product'}</h3>
+          <button type="submit" className="btn-primary-add product-mobile-save" disabled={saving || !options || !options.categories.length}>{saving ? (product ? 'Updating…' : 'Saving…') : !product && createdForImageRetry.current ? 'Retry Image Save' : product ? 'Update' : 'Save'}</button>
           <button type="button" className="modal-close-btn" aria-label={product ? 'Close edit product' : 'Close add product'} disabled={saving} onClick={cancel}><X size={18} /></button></div>
         <div className="modal-body">
           <h4 className="product-section-heading">Product Details</h4>
@@ -215,7 +222,7 @@ function ScopedProductForm({ outletId, token, initialCategory, onCancel, onCreat
           })}
           {issue('premisesPrices')}
           <div className="form-field"><label htmlFor="product-code">Search Code</label><input id="product-code" readOnly value={options?.code ?? storedText('code')} placeholder="Loading…" /></div>
-          {product ? text('barcode', 'Barcode') : savedDetail('barcode', 'Barcode')}
+          {product ? text('barcode', 'Barcode') : <><div className="product-create-barcode">{text('barcode', 'Barcode')}</div><div className="product-create-barcode-desktop"><div className="form-field"><label htmlFor="product-barcode-readonly">Barcode</label><input id="product-barcode-readonly" readOnly value={draft.barcode ?? storedText('barcode')} placeholder="Not set" /></div></div></>}
           <fieldset className="product-inventory product-wide"><legend>Track inventory for this item</legend>
             <label className="product-checkbox"><input type="checkbox" aria-label="Stockable" checked={draft.stockable} disabled={saving || (!!product && !options)} onChange={event => update('stockable', event.target.checked)} />Stockable</label>
           </fieldset>

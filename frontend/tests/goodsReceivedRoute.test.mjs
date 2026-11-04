@@ -19,15 +19,17 @@ function fixture(method, failure, path = '/api/outlets/:outletId/goods-received'
     getFirestoreRestContext: () => { calls.push('context'); return { database: 'mock', accessToken: 'mock' }; },
     premisesTransactionRunner: () => 'mock runner',
     loadGoodsReceived: async (...args) => { calls.push(args); if (failure) throw failure; return { suppliers: [], receipts: [] }; },
+    loadGoodsReceiptHistory: async (...args) => { calls.push(args); if (failure) throw failure; return { receipts: [], nextCursor: null }; },
     createOutletSupplier: async (...args) => { calls.push(args); if (failure) throw failure; return { documentId: 'supplier', fields: { id: null }, alreadySaved: false }; },
+    updateOutletSupplier: async (...args) => { calls.push(args); if (failure) throw failure; return { documentId: 'supplier', fields: { id: null, name: 'Updated' } }; },
     saveGoodsReceived: async (...args) => { calls.push(args); if (failure) throw failure; return { documentId: 'saved', alreadySaved: false }; } };
   const js = ts.transpileModule(`${reader.getText(tree)}\nconst handler = ${route.expression.arguments[1].getText(tree)};`,
     { compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.None } }).outputText;
   const handler = new Function(...Object.keys(dependencies), `${js}; return handler;`)(...Object.values(dependencies));
-  return { calls, async request(token = jwt.sign({ profileDocId: 'signed-user' }, key)) {
+  return { calls, async request(token = jwt.sign({ profileDocId: 'signed-user' }, key), query = {}) {
     const req = { header: name => name === 'authorization' && token ? `Bearer ${token}` : undefined,
-      params: { outletId: 'selected-outlet' }, body: { profileDocId: 'forged-user' } };
-    const res = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; } };
+      params: { outletId: 'selected-outlet', documentId: 'supplier' }, query, body: { profileDocId: 'forged-user' } };
+    const res = { statusCode: 200, setHeader() {}, status(code) { this.statusCode = code; return this; }, json(body) { this.body = body; } };
     await handler(req, res); return res;
   } };
 }
@@ -41,6 +43,17 @@ test('goods routes pass the selected outlet and signed identity to the authorize
     const f = fixture(method), response = await f.request(); assert.equal(response.statusCode, 200);
     assert.equal(f.calls[1][1], 'selected-outlet'); assert.equal(f.calls[1][2], 'signed-user');
   }
+});
+
+test('receipt history routes keep signed identity and forward only bounded read filters', async () => {
+  const f = fixture('get');
+  const query = { history: '1', from: '2026-11-01', to: '2026-11-04', cursor: 'page', limit: '25', profileDocId: 'forged-user' };
+  assert.equal((await f.request('', query)).statusCode, 401); assert.deepEqual(f.calls, []);
+  const response = await f.request(undefined, query);
+  assert.equal(response.statusCode, 200);
+  assert.equal(f.calls[1][1], 'selected-outlet'); assert.equal(f.calls[1][2], 'signed-user');
+  assert.deepEqual(f.calls[1][4], { from: query.from, to: query.to, cursor: query.cursor, limit: query.limit });
+  assert.equal(response.body.data.nextCursor, null);
 });
 test('goods save returns truthful validation and uncertain-failure responses without leaking errors', async () => {
   for (const error of [new ProductCreationError(409, 'Receipt conflict'), new Error('PRIVATE DATABASE ERROR')]) {
@@ -63,3 +76,19 @@ test('goods save returns truthful validation and uncertain-failure responses wit
      assert.ok(!response.body.message.includes('PRIVATE'));
    }
  });
+
+test('supplier update route uses the signed profile and selected document, rejecting missing sessions first', async () => {
+  const f = fixture('patch', undefined, '/api/outlets/:outletId/suppliers/:documentId');
+  assert.equal((await f.request('')).statusCode, 401); assert.deepEqual(f.calls, []);
+  const response = await f.request(); assert.equal(response.statusCode, 200);
+  assert.deepEqual(f.calls[1].slice(1, 4), ['selected-outlet', 'supplier', 'signed-user']);
+  assert.equal(response.body.data.fields.name, 'Updated');
+});
+
+test('supplier update route reports conflicts and uncertain failures without leaking private errors', async () => {
+  for (const error of [new ProductCreationError(409, 'Supplier details changed'), new Error('PRIVATE DATABASE ERROR')]) {
+    const response = await fixture('patch', error, '/api/outlets/:outletId/suppliers/:documentId').request();
+    assert.equal(response.statusCode, error instanceof ProductCreationError ? 409 : 503);
+    assert.equal(response.body.success, false); assert.ok(!response.body.message.includes('PRIVATE'));
+  }
+});

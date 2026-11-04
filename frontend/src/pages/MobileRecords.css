@@ -1,0 +1,21 @@
+/* Keep every field and existing action available without a sideways gesture. */
+@media screen and (max-width: 820px), screen and (max-width: 1024px) and (max-height: 600px) {
+  .stock-planning-scroll:has(> .mobile-record-table) { overflow: visible; max-height: none; }
+  table.mobile-record-table { display: block; width: 100%; min-width: 0; border-collapse: separate; }
+  .mobile-record-table > thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .mobile-record-table > tbody { display: grid; gap: 12px; width: 100%; }
+  .mobile-record-table > tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; min-width: 0; padding: 16px; border: 1px solid var(--line, #e2e8f0); border-radius: 12px; background: var(--card, #fff); }
+  .mobile-record-table > tbody > tr > td { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; order: 1; min-width: 0; max-width: 100%; padding: 0; border: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+  .mobile-record-table td[data-label]::before { content: attr(data-label); color: var(--muted, #64748b); font-size: 11px; font-weight: 500; line-height: 1.4; }
+  .mobile-record-table td.mobile-record-name { grid-column: 1 / -1; order: 0; color: var(--ink, #263e60); font-size: 16px; font-weight: 600; }
+  .mobile-record-table td.mobile-record-wide { grid-column: 1 / -1; }
+  .mobile-record-table td.mobile-record-actions { grid-column: 1 / -1; order: 2; align-items: stretch; padding-top: 12px; border-top: 1px solid var(--line, #e2e8f0); }
+  .mobile-record-actions > div { display: flex; flex-wrap: wrap; width: 100%; gap: 10px; }
+  .mobile-record-table .mobile-record-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; max-width: 100%; padding: 8px 12px; font-size: 13px; cursor: pointer; }
+  .mobile-record-actions > div > button { flex: 1 1 100px; }
+  .mobile-record-actions button[data-mobile-label]::after { content: attr(data-mobile-label); }
+  .mobile-record-edit { border: 1px solid var(--line, #e2e8f0); border-radius: 8px; background: var(--card, #fff); color: var(--blue, #3567f0); }
+  .mobile-record-table > tbody > tr:has(> td[colspan]) { display: block; }
+  .mobile-record-table td[colspan] { display: block; }
+}
+@media screen and (min-width: 821px) { .mobile-record-edit { display: none; } }

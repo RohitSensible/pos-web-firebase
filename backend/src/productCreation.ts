@@ -31,6 +31,7 @@ export const newProductSchema = z.object({
   hsnCode: z.string().trim().max(200).default(''), unitId: z.number().int(),
   weighable: z.boolean(), stockable: z.boolean(),
   wholeSaleAmount: price.optional(), onlinePrice: price.optional(),
+  barcode: z.string().max(200).optional(),
 });
 export class ProductCreationError extends Error {
   constructor(public status: number, message: string, public errors: Record<string, string> = {}, public nextCode?: number) { super(message); }
@@ -77,7 +78,7 @@ export async function createOutletProduct(db: Firestore, outletId: string, profi
     const data = validateNewProduct(raw, categories.docs.map(doc => doc.id), ANDROID_TAX_OPTIONS);
     const existing = products.docs.map(doc => ({ id: doc.id, fields: doc.data() }));
     const allocated = allocateProductCodes(outletId, [{ rowNumber: 1, sourceIdentity: `manual:${data.requestId}`,
-      fields: productFields(data, data.code, '0') }], existing)[0]!;
+      fields: productFields(data, data.code, data.barcode ?? '0') }], existing)[0]!;
     const id = String(allocated.fields.id);
     const saved = products.docs.find(doc => doc.id === id);
     // A lost response can be retried using the same request ID without a second create.

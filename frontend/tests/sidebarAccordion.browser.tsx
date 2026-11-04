@@ -14,6 +14,7 @@ window.fetch = async input => {
   if (url.endsWith('/master-sync')) return new Response('', { status: 404 });
   if (url.endsWith('/dashboard')) return Response.json({ data: { id: 'overall', dayId: '2026-10-19', shiftNo: 1, totalSale: 0, payments: {}, shifts: [] } });
   if (url.endsWith('/profile')) return Response.json({ success: true, data: { name: 'Cashier', role: 'Admin', outletName: 'Test Outlet', mobile: '' } });
+  if (url.endsWith('/goods-received')) return Response.json({ success: true, data: { supplierDraftId: 'D'.repeat(20), suppliers: [{ id: 'S'.repeat(20), name: 'Existing Supplier', mobile: '5874253698', email: '', gstin: '', address: '', alternateNumber: null }], receipts: [] } });
   return Response.json({ success: true, data: [] });
 };
 const open = () => [...document.querySelectorAll('.nav-group')].filter(group => group.querySelector('.nav-group-items'))
@@ -35,6 +36,9 @@ void (async () => {
   title('Home').click(); await until(() => open().includes('Home'), 'home');
   assert(JSON.stringify(open()) === '["Home"]', 'only one section is ever open');
   title('Masters').click(); await until(() => item('Products'), 'products link');
+  assert(!!item('Suppliers'), 'Masters includes Suppliers');
+  item('Suppliers')!.click(); await until(() => document.querySelector('[aria-label="Suppliers"] tbody'), 'suppliers page');
+  assert(document.querySelector('[aria-label="Suppliers"] tbody')!.textContent!.includes('Existing Supplier'), 'Masters Suppliers opens the authorized supplier list');
   item('Products')!.click(); await until(() => document.querySelector('.products-page-shell'), 'products page');
   title('Operations').click(); await until(() => item('Upload Excel'), 'upload link');
   item('Upload Excel')!.click(); await until(() => document.querySelector('.upload-excel-page'), 'upload page');

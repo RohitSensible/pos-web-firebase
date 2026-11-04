@@ -69,17 +69,13 @@ async function chooseReportDate(label: string, date: string) {
 async function fillDraft(second = false) {
   await until(() => document.querySelector('[aria-label="Select Preview Product"]'), 'source stock');
   await setValue(document.getElementById('st-destination') as HTMLSelectElement, 'anna');
-  await setValue(document.getElementById('st-destination') as HTMLSelectElement, 'adyar');
   document.querySelector<HTMLInputElement>('[aria-label="Select Preview Product"]')!.click(); await pause();
-  await setValue(document.querySelector<HTMLInputElement>('[aria-label="Preview Product quantity for Anna Nagar"]')!, second ? '4' : '10');
-  await setValue(document.querySelector<HTMLInputElement>('[aria-label="Preview Product quantity for Adyar"]')!, second ? '4' : '20');
+  await setValue(document.querySelector<HTMLInputElement>('[aria-label="Preview Product quantity for Anna Nagar"]')!, second ? '8' : '30');
   if (!second) {
     document.querySelector<HTMLInputElement>('[aria-label="Select Second Product"]')!.click(); await pause();
-    await setValue(document.querySelector<HTMLInputElement>('[aria-label="Second Product quantity for Anna Nagar"]')!, '5');
-    await setValue(document.querySelector<HTMLInputElement>('[aria-label="Second Product quantity for Adyar"]')!, '15');
+    await setValue(document.querySelector<HTMLInputElement>('[aria-label="Second Product quantity for Anna Nagar"]')!, '20');
   }
-  await setValue(control('Transfer Date'), '2026-10-30');
-  await setValue(control('Transfer Note'), second ? 'Second preview note' : 'Session preview note');
+  await setValue(control('Day ID'), '2026-10-30');
 }
 async function confirmDraft() { button('Review Transfer').click(); await pause(); button('Continue to Confirmation').click(); await pause(); button('Confirm Transfer').click(); await pause(); }
 void (async () => {
@@ -98,13 +94,13 @@ void (async () => {
   button('View Stock Transfer Report').click();
   await until(() => previewRows().length === 1, 'connected report');
   const reference = previewReferences()[0]!;
-  assert(reference.startsWith('PREVIEW-') && previewRows()[0]!.textContent?.includes('Main Outlet') && previewRows()[0]!.textContent?.includes('Anna Nagar, Adyar') && previewRows()[0]!.textContent?.includes('50 units'), 'Confirmed preview appears in the report with source, destinations, quantities and an explicit preview reference');
+  assert(reference.startsWith('PREVIEW-') && previewRows()[0]!.textContent?.includes('Main Outlet') && previewRows()[0]!.textContent?.includes('Anna Nagar') && previewRows()[0]!.textContent?.includes('50 units'), 'Confirmed preview appears in the report with source, destinations, quantities and an explicit preview reference');
   assert(previewRows().length === 1, 'Repeated confirmation of an unchanged draft and duplicate clicks do not create duplicate report entries');
   assert(requests.some(request => request.path.includes('/reports/stock-transfers?') && request.path.includes('startDate=2026-10-30') && request.path.includes('endDate=2026-10-30')), 'View Report opens on the chosen transfer date, including backdated previews');
   await until(() => document.querySelector('.bill-table-scroll tbody tr')?.textContent?.includes('SAVED-ST-001'), 'saved report entry');
   assert([...document.querySelectorAll('.bill-summary-grid strong')].slice(0, 3).map(node => node.textContent).join(',') === '1,1,3', 'Unsaved previews do not inflate the existing saved report totals or replace saved entries');
   document.querySelector<HTMLButtonElement>(`[aria-label="View preview ${reference}"]`)!.click(); await pause();
-  assert(document.querySelector('dialog')?.textContent?.includes('Estimated remaining: 70 units') && document.querySelector('dialog')?.textContent?.includes('Session preview note') && document.querySelectorAll('.session-preview-product').length === 2, 'Preview details contain immutable product stock snapshots, destination quantities and notes');
+  assert(document.querySelector('dialog')?.textContent?.includes('Estimated remaining: 70 units') && document.querySelectorAll('.session-preview-product').length === 2, 'Preview details contain immutable product stock snapshots, single-destination quantities');
   button('Close Preview').click(); await pause();
   await setValue(document.querySelector<HTMLInputElement>('.bill-search-filter input')!, 'not present');
   await until(() => previewRows().length === 0, 'preview search');

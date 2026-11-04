@@ -38,7 +38,7 @@ window.fetch = async (url, init) => {
     if (path.endsWith('/start')) { usageStarts++; if (holdResume) await new Promise<void>(resolve => { releaseResume = resolve; }); }
     if (path.endsWith('/stop')) usageStops++;
     return Response.json({ success: true, data: { outletId: 'outlet', sessionId: 'authorized-session', generation: 'period',
-      sequence: body.sequence ?? 0, usedSeconds: 0, remainingSeconds: 1800, date: '2026-10-23', timeZone: 'Asia/Kolkata' } });
+      sequence: body.sequence ?? 0, usedSeconds: 0, remainingSeconds: 1800, date: '2026-10-23', timeZone: 'Asia/Kolkata', dailyLimitApplies: false } });
   }
   assert(new Headers(init?.headers).get('X-Web-Usage-Session') === 'authorized-session', 'Outlet APIs still require the server-authorized usage session');
   if (path.includes('/dashboard?')) return Response.json({ success: true, data: { payments: {}, shifts: [] } });
@@ -79,6 +79,7 @@ window.fetch = async (url, init) => {
   }
   if (path.endsWith('/products')) return Response.json({ success: true, data: [product] });
   if (path.endsWith('/categories')) return Response.json({ success: true, data: categories });
+  if (path.endsWith('/service-points')) return Response.json({ success: true, data: { servicePoints: [] } });
   throw new Error(`Unexpected request: ${path}`);
 };
 const root = createRoot(document.getElementById('root')!);
@@ -90,8 +91,21 @@ async function waitFor(check: () => unknown, message: string) {
   for (let i = 0; i < 120; i++) { if (check()) return; await new Promise(resolve => setTimeout(resolve, 20)); }
   throw new Error(`Timed out: ${message}: ${document.querySelector('[role="alert"]')?.textContent}`);
 }
-const decoded = (selector: string) => { const img = document.querySelector<HTMLImageElement>(selector); return img?.complete && img.naturalWidth > 0; };
+const decoded = (selector: string) => {
+  // Mobile tables scroll horizontally; bring lazy thumbnail placeholders into
+  // view before expecting IntersectionObserver to request their image bytes.
+  if (selector === 'tbody img') document.querySelector('tbody .transfer-preview-image-placeholder')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  const img = document.querySelector<HTMLImageElement>(selector); return img?.complete && img.naturalWidth > 0;
+};
 const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === text)!;
+async function confirmMutation() {
+  await waitFor(() => document.querySelector('dialog[open] .action-confirm-button'), 'mutation confirmation');
+  document.querySelector<HTMLButtonElement>('dialog[open] .action-confirm-button')!.click();
+}
+async function dismissSuccess() {
+  await waitFor(() => document.querySelector('.success-done'), 'success confirmation');
+  document.querySelector<HTMLButtonElement>('.success-done')!.click();
+}
 void (async () => {
   await waitFor(() => document.querySelector('.sidebar-nav'), 'authorized application');
   assert(!document.querySelector('.sidebar-nav')!.textContent?.includes('Daily Web Usage'), 'Daily Web Usage is absent from normal navigation');
@@ -126,16 +140,18 @@ void (async () => {
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange'));
   await waitFor(() => releaseResume, 'pending authorization');
   assert(document.querySelector('img[alt="Selected image preview"]') === processedPreview, 'Processed image selection survives usage suspension');
-  button('Update').click(); await new Promise(resolve => setTimeout(resolve, 30));
   assert(uploads === 0, 'Image upload waits for fresh server authorization');
   holdResume = false; releaseResume!();
+  await waitFor(() => !document.querySelector('.dashboard-workspace[inert]'), 'authorization restored');
+  button('Update').click(); await confirmMutation();
   await waitFor(() => document.querySelector('[role="alert"]')?.textContent?.includes('Retry upload'), 'upload failure');
   assert(product.fields.image === '1000014014.png', 'Failed upload retains previous image');
   const previewBytes = new Uint8Array(await (await localFetch(document.querySelector<HTMLImageElement>('img[alt="Selected image preview"]')!.src)).arrayBuffer());
   const uploadBytes = new Uint8Array(await lastUpload!.arrayBuffer());
   assert(previewBytes.length === uploadBytes.length && previewBytes.every((value, index) => value === uploadBytes[index]), 'Processed preview bytes exactly match the uploaded File');
-  failUpload = false; button('Update').click();
+  failUpload = false; button('Update').click(); await confirmMutation();
   await waitFor(() => !document.getElementById('product-name'), 'successful replacement');
+  await dismissSuccess();
   await waitFor(() => decoded('tbody img'), 'uploaded image decodes in product thumbnail');
   const downloadedBytes = new Uint8Array(await (await localFetch(document.querySelector<HTMLImageElement>('tbody img')!.src)).arrayBuffer());
   assert(downloadedBytes.length === uploadBytes.length && downloadedBytes.every((value, index) => value === uploadBytes[index]), 'Authenticated retrieval displays exactly the processed upload bytes');
@@ -147,12 +163,13 @@ void (async () => {
   await waitFor(() => decoded('img[alt="Existing image preview"]'), 'migrated path edit preview');
   button('Remove Image').click();
   await waitFor(() => button('Undo Remove') && !button('Update')?.disabled, 'removal selection');
-  button('Update').click();
+  button('Update').click(); await confirmMutation();
   await waitFor(() => document.querySelector('[role="alert"]')?.textContent?.includes('Retry removal'), 'removal failure');
   assert(product.fields.image === uploadedPath, 'Failed removal retains previous reference');
   passed.push('Editor displays existing filename; failed removal retains reference and allows retry');
-  failRemoval = false; button('Update').click();
+  failRemoval = false; button('Update').click(); await confirmMutation();
   await waitFor(() => !document.getElementById('product-name'), 'successful removal');
+  await dismissSuccess();
   await waitFor(() => !document.querySelector('tbody img'), 'removed thumbnail');
   assert(deletes === 2 && product.fields.image === null, 'Successful retry clears the filename');
   assert(product.fields.currentStock === 7 && product.fields.price === 12, 'Unrelated product values survive');
@@ -172,14 +189,14 @@ void (async () => {
   const secondSelection = new DataTransfer(); secondSelection.items.add(new File([imageBytes], 'table.png', { type: 'image/png' }));
   tablePicker.files = secondSelection.files; tablePicker.dispatchEvent(new Event('change', { bubbles: true }));
   await waitFor(() => button('Save') && !button('Save').disabled, 'table crop loaded');
-  failUpload = true; button('Save').click();
+  failUpload = true; button('Save').click(); await confirmMutation();
   await waitFor(() => button('Retry upload') && decoded('tbody img'), 'Save uploads directly with the processed preview');
-  assert(uploads === 3, 'Save starts one upload without another confirmation step');
+  assert(uploads === 3, 'Confirmed save starts exactly one upload');
   assert(!button('Upload processed image') && !button('Cancel image selection'), 'Extra image-selection buttons are removed');
   assert(document.body.textContent?.includes('Within 25 KB limit'), 'Actual encoded byte size is displayed');
   assert(product.fields.image === null, 'Failed table upload preserves stored reference');
   assert(!document.querySelector('[aria-labelledby="product-crop-title"]'), 'Save closes crop popup on upload failure');
-  failUpload = false; holdUpload = true; button('Retry upload').click();
+  failUpload = false; holdUpload = true; button('Retry upload').click(); await confirmMutation();
   await waitFor(() => document.querySelector('.product-image-upload-status .product-image-spinner'), 'upload spinner while request is pending');
   assert(!document.querySelector('[aria-labelledby="product-crop-title"]'), 'Crop popup stays closed while uploading');
   assert(!document.querySelector('.products-notice')?.textContent?.includes('Image uploaded successfully'), 'No success message before upload finishes');
@@ -187,6 +204,7 @@ void (async () => {
   await waitFor(() => uploads === 4 && decoded('tbody img'), 'table immediate preview and upload');
   assert(product.fields.image === uploadedPath, 'Table uploads filename without opening product form');
   await waitFor(() => !document.querySelector('.product-image-upload-status'), 'upload finished');
+  await dismissSuccess();
   assert(!document.querySelector('.products-notice, .product-image-upload [role="status"]'), 'Completed upload leaves no success messages');
   assert(!document.querySelector('.product-image-upload-status'), 'Upload spinner clears after success');
   passed.push('Table upload immediately displays processed thumbnail and saves filename');
@@ -198,7 +216,7 @@ void (async () => {
   button('Square crop').click();
   await new Promise(resolve => setTimeout(resolve, 20));
   button('Save').click();
-  await waitFor(() => document.querySelector('[aria-labelledby="product-crop-title"]') && document.querySelector('[role="alert"]')?.textContent?.includes('adjust the crop'), 'processing failure keeps crop available and reports error');
+  await waitFor(() => document.querySelector('[aria-labelledby="product-crop-title"]') && document.querySelector('[role="alert"]')?.textContent?.toLowerCase().includes('adjust the crop'), 'processing failure keeps crop available and reports error');
   HTMLCanvasElement.prototype.toBlob = encode;
   button('Cancel').click();
   await waitFor(() => !document.querySelector('[aria-labelledby="product-crop-title"]'), 'close failed crop');
@@ -223,28 +241,38 @@ void (async () => {
   const retainedForm = document.getElementById('product-name');
   const stopsBeforeIdle = usageStops;
   now += 61_000; [...usageTimers.values()].forEach(callback => callback());
-  await waitFor(() => usageStops > stopsBeforeIdle && document.querySelector('[data-outlet-access-notice]'), 'idle while cropping');
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert(usageStops === stopsBeforeIdle && !document.querySelector('[data-outlet-access-notice]'), 'Exempt outlets remain active during inactivity');
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' }); document.dispatchEvent(new Event('visibilitychange'));
+  await waitFor(() => usageStops > stopsBeforeIdle, 'hidden tab while cropping');
   assert(document.querySelector('canvas') === retainedCrop && document.getElementById('product-name') === retainedForm,
-    'Idle usage suspension preserves the exact product form and cropper');
+    'Hidden-tab suspension preserves the exact product form and cropper');
   assert(!document.querySelector('.outlet-selection-page'), 'Idle image workflow cannot open the disabled Daily Web Usage screen');
   assert((retainedForm as HTMLInputElement).value === 'New Tea', 'Product draft survives idle suspension');
-  button('Continue / Retry').click();
-  await waitFor(() => !document.querySelector('[data-outlet-access-notice]'), 'inline recovery obtains fresh server authorization');
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange'));
+  await waitFor(() => !document.querySelector('.dashboard-workspace[inert]') && !document.querySelector('[data-outlet-access-notice]'), 'visible tab obtains fresh server authorization');
   assert(document.querySelector('canvas') === retainedCrop && document.getElementById('product-name') === retainedForm,
     'Fresh authorization resumes the same form and cropper');
-  passed.push('Disabled usage screen never replaces the image editor during idle suspension and inline recovery');
+  passed.push('Exempt-outlet activity and hidden-tab recovery preserve the image editor');
   button('Save').click(); await waitFor(() => button('Clear Selection'), 'new processed selection');
   assert(uploads === 4, 'Applying a crop in the form does not upload before save');
-  failUpload = true; button('Save Product').click();
+  failUpload = true; button('Save Product').click(); await confirmMutation();
   await waitFor(() => document.querySelector('[role="alert"]')?.textContent?.includes('Retry upload'), 'new product image failure');
   assert(creations === 1 && product.fields.image === null, 'New product has no premature image reference');
-  failUpload = false; button('Retry Image Save').click();
+  failUpload = false; button('Retry Image Save').click(); await confirmMutation();
   await waitFor(() => !document.getElementById('product-name') && uploads === 6, 'new product retry saved');
+  await dismissSuccess();
   assert(creations === 1 && product.fields.image === uploadedPath, 'Image retry never creates a duplicate product');
   passed.push('New product saves processed image only after save; image retry preserves the created ID');
-  [...document.querySelectorAll<HTMLButtonElement>('.nav-group-items button')].find(node => node.textContent === 'Dashboard')!.click();
+  const openGroup = async (name: string, label: string) => {
+    const group = [...document.querySelectorAll('.nav-group')].find(node => node.querySelector('.nav-group-title')?.textContent?.includes(name))!;
+    if (!group.querySelector('.nav-group-items')) group.querySelector<HTMLButtonElement>('.nav-group-title')!.click();
+    await waitFor(() => [...group.querySelectorAll<HTMLButtonElement>('.nav-group-items button')].some(node => node.textContent === label), `${name} navigation expanded`);
+    [...group.querySelectorAll<HTMLButtonElement>('.nav-group-items button')].find(node => node.textContent === label)!.click();
+  };
+  await openGroup('Home', 'Dashboard');
   await waitFor(() => !document.querySelector('.products-table'), 'navigate away');
-  [...document.querySelectorAll<HTMLButtonElement>('.nav-group-items button')].find(node => node.textContent === 'Products')!.click();
+  await openGroup('Masters', 'Products');
   await waitFor(() => decoded('tbody img'), 'return to Products');
   passed.push('App navigation, native picker suspension, crop, processed preview, upload and replacement retain Products while server usage authorization remains enforced');
   root.unmount(); document.getElementById('test-results')!.textContent = JSON.stringify({ passed });

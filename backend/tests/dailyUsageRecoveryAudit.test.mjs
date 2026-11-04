@@ -3,6 +3,7 @@
 // Import the TS engine explicitly: generated dailyUsage.js may be stale.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createHash } from 'node:crypto';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { operateOutletDailyUsage } from '../src/dailyUsage.ts';
 
@@ -171,10 +172,33 @@ test('recovery audit: delayed pre-expiry stop cannot release a same-key lease re
   f.at('2026-10-19T11:00:00Z');
   const restored = await f.start(); // Refresh retains the per-tab idempotency key.
   assert.equal(restored.usedSeconds, 30, 'offline time is bounded by the abandoned lease');
-  // Confirmed backend defect: expiry pruning forgets lastSequence, so same-key
-  // admission recreates the same session ID at sequence 0. A delayed old stop
-  // then deletes the new lease. Keep this regression red: dailyUsage.ts belongs
-  // to the backend owner and must not be changed by this recovery-audit task.
-  await assert.rejects(f.run(operation(abandoned, 'stop')), { code: 'USAGE_STALE_HEARTBEAT' });
+  assert.notEqual(restored.sessionId, abandoned.sessionId, 'expired identities cannot be reused');
+  await assert.rejects(f.run(operation(abandoned, 'stop')), { code: 'USAGE_SESSION_REQUIRED' });
+  await assert.rejects(f.run(operation(abandoned, 'heartbeat')), { code: 'USAGE_SESSION_REQUIRED' });
   await f.run(operation(restored, 'check'));
+});
+
+test('recovery audit: released leases cannot be addressed by delayed requests after same-key readmission', async () => {
+  const f = fixture(), first = await f.start();
+  await f.run(operation(first, 'stop'));
+  const next = await f.start();
+  assert.notEqual(next.sessionId, first.sessionId);
+  await assert.rejects(f.run(operation(first, 'stop')), { code: 'USAGE_SESSION_REQUIRED' });
+  const retry = await f.start();
+  assert.equal(retry.sessionId, next.sessionId, 'lost-response retries retain the active incarnation');
+  assert.equal(retry.sequence, next.sequence + 1);
+  await f.run(operation(retry, 'check'));
+});
+
+test('recovery audit: existing active leases without request metadata retain refresh compatibility', async () => {
+  const f = fixture(), first = await f.start();
+  const legacyId = createHash('sha256').update(JSON.stringify(['user', 'a', first.generation, id(1)])).digest('hex');
+  const { requestKey: _key, ...legacy } = f.usage().sessions[first.sessionId];
+  f.usage().sessions = { [legacyId]: legacy };
+  const resumed = await f.start();
+  assert.equal(resumed.sessionId, legacyId); assert.equal(resumed.sequence, 1);
+  const heartbeat = await f.run(operation(resumed, 'heartbeat'));
+  const retry = await f.start();
+  assert.equal(retry.sessionId, legacyId); assert.equal(retry.sequence, heartbeat.sequence + 1);
+  await f.run(operation(retry, 'check'));
 });

@@ -9,9 +9,7 @@ const passed: string[] = [];
 const assert = (value: unknown, message: string) => { if (!value) throw new Error(message); };
 const existingSupplier = { id: 'S'.repeat(20), name: 'Existing Supplier', mobile: '00000', address: '', alternateNumber: null, email: '', gstin: '' };
 let storageWrites = 0, cancelled = false, loseResponse = true, saved = 0, reads = 0;
-const posts: any[] = [], receipts: any[] = [], supplierPosts: any[] = [];
-const supplierRecords = new Map<string, any>();
-let loseSupplierResponse = true;
+const posts: any[] = [], receipts: any[] = [];
 const products = [{ documentId: 'rice', fields: { name: 'Rice', code: 1, barcode: '100003', category: 'groceries', stockable: true, weighable: false, currentStock: 3, unitId: 0, costPrice: 0, price: 23 } },
   { documentId: 'tea', fields: { name: 'Tea', code: 2, category: 'beverages', stockable: true, weighable: false, currentStock: 7, unitId: 4, costPrice: 2, price: 10 } },
   { documentId: 'hidden', fields: { name: 'Untracked', stockable: false, currentStock: 10 } }];
@@ -21,16 +19,6 @@ window.fetch = async (url, init) => {
   assert(new Headers(init?.headers).get('Authorization') === 'Bearer token', 'Authorization retained');
   if (path.endsWith('/products')) return Response.json({ success: true, data: products });
   if (path.endsWith('/categories')) return Response.json({ success: true, data: [{ id: 'groceries', name: 'Groceries' }, { id: 'beverages', name: 'Beverages' }] });
-  if (path === '/api/outlets/outlet/suppliers') {
-    assert(init?.method === 'POST', 'Supplier form uses POST');
-    const payload = JSON.parse(String(init?.body)); supplierPosts.push(payload);
-    assert(payload.documentId === 'D'.repeat(20), 'Supplier save retains allocated auto-ID');
-    assert(typeof payload.fields.alternateNumber === 'string' && typeof payload.fields.mobile === 'string', 'Supplier numbers stay strings');
-    const fields = { ...payload.fields, id: null };
-    if (!supplierRecords.has(payload.documentId)) supplierRecords.set(payload.documentId, fields);
-    if (loseSupplierResponse) { loseSupplierResponse = false; throw new Error('Supplier response lost after commit'); }
-    return Response.json({ success: true, data: { documentId: payload.documentId, fields, nextDocumentId: 'E'.repeat(20) } });
-  }
   assert(path === '/api/outlets/outlet/goods-received', 'Only authorized receipt/product reads and receipt writes');
   if (init?.method !== 'POST') {
     reads++;
@@ -69,29 +57,16 @@ void (async () => {
   const table = document.querySelector('.goods-products-table')!;
   const searchField = document.querySelector('.goods-search-field')!;
   assert(document.querySelectorAll('.goods-received-page input[type=search]').length === 1 && searchField.getBoundingClientRect().width <= 321, 'Goods Received has one compact product search bar');
-  assert(!!document.querySelector('.goods-received-page > .devices-heading .goods-supplier-select') && !document.querySelector('.goods-unified-card .goods-supplier-select'), 'Supplier selection and Add Supplier sit beside the page heading');
+  assert(!!document.querySelector('.goods-received-page > .devices-heading .goods-supplier-select') && !document.querySelector('.goods-unified-card .goods-supplier-select'), 'Supplier selection stays beside the page heading');
   assert(!!(searchField.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(document.querySelector('.goods-supplier-select')!.compareDocumentPosition(searchField) & Node.DOCUMENT_POSITION_FOLLOWING), 'Search is below supplier selection and above products');
   assert(!!(document.querySelector('.goods-category-tabs')!.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING), 'Category tabs are above the product list');
   assert([...document.querySelectorAll('.goods-entry-footer button')].map(node => node.textContent?.trim()).join(',') === 'Cancel,Save', 'Footer has only Cancel and Save');
   assert(!document.body.textContent?.includes('Receipt items') && !document.querySelector('.goods-entry-values'), 'Separate receipt list and entry panel removed');
   assert(!document.body.textContent?.includes('Untracked'), 'Non-stockable products excluded');
   button('Save').click(); await pause(); assert(document.querySelector('[role="alert"]')?.textContent?.includes('at least one product'), 'Products required but supplier is optional');
-  button('Add Supplier').click(); await pause();
-  assert(document.querySelectorAll('.goods-supplier-form-grid input').length === 8, 'Supplier modal contains exactly the eight requested fields');
-  for (const label of ['Name','Mobile','Short Name','Search Code','Alternate Numbers','Email','GST IN','Address']) assert(labelled(label), `Supplier field: ${label}`);
-  for (const label of ['Short Name','Search Code']) assert(labelled(label).disabled, 'Unsupported supplier fields cannot be silently saved');
-  await setValue(labelled('Name'), 'New Supplier'); await setValue(labelled('Mobile'), '99999');
-  await setValue(labelled('Address'), 'Supplier address'); await setValue(labelled('GST IN'), 'GST123');
-  await setValue(labelled('Alternate Numbers'), '123456');
-  button('Save Supplier').click(); await until(() => document.querySelector('.action-confirm-button'), 'supplier add confirmation'); document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click();
-  await until(() => [...document.querySelectorAll('button')].some(node => node.textContent === 'Retry supplier save'), 'uncertain supplier save');
-  assert(labelled('Name').matches(':disabled') && supplierRecords.size === 1 && posts.length === 0, 'Supplier saved independently and uncertain form is locked');
-  button('Retry supplier save').click(); button('Retry supplier save').click();
-  await until(() => !document.querySelector('.goods-supplier-dialog'), 'supplier confirmed');
-  assert(supplierRecords.size === 1 && supplierPosts.length === 2 && JSON.stringify(supplierPosts[0]) === JSON.stringify(supplierPosts[1]), 'Supplier retries create one master only');
-  assert(supplierRecords.get('D'.repeat(20)).id === null && supplierRecords.get('D'.repeat(20)).alternateNumber === '123456', 'Supplier master keeps id:null and alternateNumber:string');
-  assert(posts.length === 0 && document.body.textContent?.includes('Added successfully.'), 'Supplier success does not create a receipt');
-  button('Done').click(); await pause(); button('Groceries').click(); await pause(); assert(!document.querySelector('.goods-products-table')?.textContent?.includes('Tea'), 'Category tab filters');
+  assert(![...document.querySelectorAll('button')].some(node => node.textContent?.trim() === 'Add Supplier') && !document.querySelector('.goods-supplier-dialog'), 'Goods Received has no supplier creation UI');
+  await setValue(labelled('Supplier (optional)'), existingSupplier.id);
+  button('Groceries').click(); await pause(); assert(!document.querySelector('.goods-products-table')?.textContent?.includes('Tea'), 'Category tab filters');
   await setValue(labelled('Search products'), '100003');
   document.querySelector<HTMLButtonElement>('[aria-label="Select product Rice"]')!.click(); await pause();
   const qty = () => document.querySelector<HTMLInputElement>('[aria-label="Received quantity for Rice"]')!;
@@ -116,8 +91,8 @@ void (async () => {
   button('Save').click(); await pause(); document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click();
   await until(() => [...document.querySelectorAll('button')].some(node => node.textContent === 'Retry confirmation'), 'uncertain save');
   assert(saved === 1 && labelled('Supplier (optional)').matches(':disabled'), 'Uncertain save locks form');
-  assert(labelled('Supplier (optional)').matches(':disabled') && button('Add Supplier').disabled, 'Header supplier controls stay locked while receipt save is unconfirmed');
-  assert(posts[0].supplier.id === 'D'.repeat(20) && posts[0].supplier.gstin === 'GST123' && posts[0].supplier.alternateNumber === null, 'Exact supplier map submitted');
+  assert(labelled('Supplier (optional)').matches(':disabled'), 'Header supplier selection stays locked while receipt save is unconfirmed');
+  assert(JSON.stringify(posts[0].supplier) === JSON.stringify(existingSupplier), 'Existing selected supplier map is submitted unchanged');
   button('Retry confirmation').click(); button('Retry confirmation').click();
   await until(() => document.body.textContent?.includes('Added successfully.') && !document.body.textContent?.includes('Loading outlet'), 'save and refresh');
   assert(saved === 1 && posts.length === 2 && JSON.stringify(posts[0]) === JSON.stringify(posts[1]), 'Lost-response retry uses identical receipt once');
@@ -131,6 +106,6 @@ void (async () => {
   await until(() => saved === 2 && !document.body.textContent?.includes('Loading outlet') && !!document.querySelector('.action-success[open]'), 'saved without supplier'); button('Done').click(); await pause();
   assert(posts.at(-1).supplier === null, 'Receipt without supplier sends null instead of fabricating a supplier');
   button('Cancel').click(); assert(cancelled, 'Cancel navigation retained');
-  passed.push('authenticated reads, stockable product selection, supplier master save/retry and receipt snapshot, validation, confirmation cancellation, one receipt on retry, refresh without receipt history, no stock/storage writes');
+  passed.push('authenticated reads, stockable product selection, existing supplier selection and receipt snapshot, validation, confirmation cancellation, one receipt on retry, refresh without receipt history, no stock/storage writes');
   document.getElementById('test-results')!.textContent = JSON.stringify({ passed });
 })().catch(error => { document.getElementById('test-results')!.textContent = JSON.stringify({ passed, failed: String(error) }); });

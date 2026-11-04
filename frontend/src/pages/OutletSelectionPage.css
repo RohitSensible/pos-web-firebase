@@ -71,3 +71,13 @@
 @media (prefers-reduced-motion: reduce) {
   .outlet-spinner { animation: none; }
 }
+
+@media (max-width: 760px) {
+  .outlet-selection-page { min-height: 100dvh; padding-bottom: env(safe-area-inset-bottom); }
+  .outlet-selection-header { height: auto; min-height: calc(72px + env(safe-area-inset-top)); gap: 10px; padding: env(safe-area-inset-top) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); }
+  .outlet-selection-header > button, .outlet-card-footer button, .outlet-state-card button { min-height: 44px; }
+  .outlet-selection-header .outlet-logo-crop { --brand-logo-width: clamp(110px, 35vw, 156px); }
+  .outlet-selection-content { padding-top: 24px; padding-bottom: max(32px, env(safe-area-inset-bottom)); }
+  .outlet-card-footer { flex-wrap: wrap; gap: 12px; }
+  .outlet-selection-page .outlet-search-wrap button { width: 44px; height: 44px; }
+}

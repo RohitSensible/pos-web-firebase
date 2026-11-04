@@ -4,12 +4,14 @@ export type GoodsReceiptOptions = { documentId: string; supplierDraftId: string;
 export type GoodsReceiptPayload = { documentId: string; goodsReceivedNo: string; supplier: ReceiptSupplier | null; items: { productId: string; quantity: number; cost: number; price: number }[] };
 export type SupplierCreatePayload = { documentId: string; fields: { name: string; mobile: string; address: string; alternateNumber: string; email: string; gstin: string } };
 export type SupplierCreateResult = { documentId: string; fields: SupplierCreatePayload['fields'] & { id: null }; nextDocumentId: string };
+export type SupplierUpdatePayload = { fields: Partial<SupplierCreatePayload['fields']>; previous: Partial<SupplierCreatePayload['fields']> };
+export type SupplierUpdateResult = Omit<SupplierCreateResult, 'nextDocumentId'>;
 export class GoodsReceiptError extends Error {
   status: number;
   constructor(message: string, status: number) { super(message); this.status = status; }
 }
-export async function goodsReceiptRequest<T>(url: string, token: string, signal?: AbortSignal, payload?: GoodsReceiptPayload | SupplierCreatePayload): Promise<T> {
-  const response = await fetch(url, { method: payload ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
+export async function goodsReceiptRequest<T>(url: string, token: string, signal?: AbortSignal, payload?: GoodsReceiptPayload | SupplierCreatePayload | SupplierUpdatePayload, method: 'POST' | 'PATCH' = 'POST'): Promise<T> {
+  const response = await fetch(url, { method: payload ? method : 'GET', headers: { Authorization: `Bearer ${token}`, ...(payload ? { 'Content-Type': 'application/json' } : {}) },
     ...(payload ? { body: JSON.stringify(payload) } : {}), signal: signal ?? AbortSignal.timeout(45000), cache: 'no-store' });
   let result: { success?: boolean; data?: T; message?: string };
   try { result = await response.json(); } catch { throw new GoodsReceiptError('The server response could not be confirmed. Please retry.', response.status); }

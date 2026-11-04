@@ -4,7 +4,7 @@ import './CategoryPage.css';
 import './ActionPopup.css';
 
 export function ActionPopup({ title, children, footer, onCancel, busy = false, cancelDisabled = false, className = '' }: {
-  title: string; children: ReactNode; footer: ReactNode; onCancel: () => void; busy?: boolean; cancelDisabled?: boolean; className?: string;
+  title: ReactNode; children: ReactNode; footer: ReactNode; onCancel: () => void; busy?: boolean; cancelDisabled?: boolean; className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const id = useId();

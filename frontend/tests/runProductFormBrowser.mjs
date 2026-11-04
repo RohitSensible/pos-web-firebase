@@ -8,6 +8,7 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 const testDirectory = fileURLToPath(new URL('.', import.meta.url));
 const testEntry = process.argv[2] || 'addProductForm.browser.tsx';
+const previewFragment = process.argv[4] ? `#${encodeURIComponent(process.argv[5] || 'preview')}` : '';
 // UI-only fixtures mock their page APIs, not usage lifecycle APIs. Isolate the
 // admission hook there; usage suites always exercise the real hook and policy.
 const exerciseUsage = process.env.WEB_USAGE_TEST_ENABLED === '1' || /^dailyUsage/.test(testEntry);
@@ -28,6 +29,16 @@ try {
       res.setHeader('Content-Type', req.url.endsWith('.css') ? 'text/css' : 'text/javascript');
       res.end(await readFile(join(temporary, req.url.slice(1)))); return;
     }
+    // Serve only these static brand assets; application APIs remain fixture mocks.
+    const publicAssets = {
+      '/logo1.png': 'image/png', '/apple-touch-icon.png': 'image/png',
+      '/icons/sensible-biz-192.png': 'image/png', '/icons/sensible-biz-512.png': 'image/png',
+      '/icons/sensible-biz-maskable-512.png': 'image/png', '/manifest.webmanifest': 'application/manifest+json',
+    };
+    if (Object.hasOwn(publicAssets, req.url)) {
+      res.setHeader('Content-Type', publicAssets[req.url]);
+      res.end(await readFile(resolve(testDirectory, '../public', req.url.slice(1)))); return;
+    }
     res.writeHead(404); res.end();
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -35,7 +46,7 @@ try {
   const realtime = process.env.BROWSER_TEST_REALTIME === '1';
   const chrome = spawn(process.env.CHROME_BIN || '/usr/bin/google-chrome', ['--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
     `--window-size=${process.argv[3] || '1280,900'}`, '--no-first-run', '--no-default-browser-check', '--disable-background-networking', `--user-data-dir=${join(temporary, 'chrome')}`,
-    ...(!realtime && process.argv[4] ? [`--screenshot=${process.argv[4]}`] : []), ...(realtime ? ['--remote-debugging-port=0'] : ['--dump-dom', '--virtual-time-budget=12000']), `http://127.0.0.1:${address.port}/${process.argv[4] ? '#preview' : ''}`]);
+    ...(!realtime && process.argv[4] ? [`--screenshot=${process.argv[4]}`] : []), ...(realtime ? ['--remote-debugging-port=0'] : ['--dump-dom', '--virtual-time-budget=12000']), realtime ? 'about:blank' : `http://127.0.0.1:${address.port}/${previewFragment}`]);
   const closed = new Promise((resolve, reject) => {
     chrome.once('close', resolve);
     chrome.once('error', error => reject(new Error(`Cannot launch Chrome. Set CHROME_BIN to an executable Chrome/Chromium path: ${error.message}`)));
@@ -60,18 +71,23 @@ try {
       socket = new WebSocket(target.webSocketDebuggerUrl);
       await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
       let requestId = 0;
-      const evaluate = expression => new Promise((resolve, reject) => {
+      const command = (method, params) => new Promise((resolve, reject) => {
         const id = ++requestId;
         const listener = event => {
           const message = JSON.parse(event.data);
           if (message.id !== id) return;
           socket.removeEventListener('message', listener);
           if (message.error) reject(new Error(message.error.message));
-          else resolve(message.result.result.value);
+          else resolve(message.result);
         };
         socket.addEventListener('message', listener);
-        socket.send(JSON.stringify({ id, method: 'Runtime.evaluate', params: { expression, returnByValue: true } }));
+        socket.send(JSON.stringify({ id, method, params }));
       });
+      const evaluate = async expression => (await command('Runtime.evaluate', { expression, returnByValue: true })).result.value;
+      // Chrome's real-time window has a minimum width; set the actual test viewport before loading fixtures.
+      const [width, height] = (process.argv[3] || '1280,900').split(',').map(Number);
+      await command('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+      await command('Page.navigate', { url: `http://127.0.0.1:${address.port}/${previewFragment}` });
       for (let attempt = 0; attempt < 250; attempt++) {
         const result = await evaluate('document.getElementById("test-results")?.textContent');
         if (result && result !== 'pending') { html = await evaluate('document.documentElement.outerHTML'); break; }

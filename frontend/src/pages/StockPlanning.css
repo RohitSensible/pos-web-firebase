@@ -1,0 +1,21 @@
+.stock-planning { margin-block: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); }
+.stock-planning > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.stock-planning h2 { margin: 0; font-size: 16px; }
+.stock-planning-help { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.stock-planning-tabs, .stock-planning-actions, .stock-planning-filters { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-block: 14px; }
+.stock-planning :is(input, select), .stock-planning-dialog input { border: 1px solid var(--line); border-radius: 7px; background: var(--card); color: var(--ink); min-height: 36px; padding: 6px 10px; font: inherit; max-width: 100%; box-sizing: border-box; }
+.stock-planning label, .stock-planning-dialog label { display: grid; gap: 6px; font-size: 12px; }
+.stock-planning input[type=number] { width: 110px; }
+.stock-planning button, .stock-planning-dialog button { cursor: pointer; }
+.stock-planning [aria-pressed=true] { border-color: var(--blue); color: var(--blue); }
+.stock-planning-result { display: inline-block; padding: 10px 14px; border-radius: 8px; background: var(--workspace); font-weight: 600; }
+.stock-planning-result[data-different=true] { color: #b45309; border: 1px solid #f59e0b; }
+.stock-planning-scroll { overflow-x: auto; max-height: 420px; }
+.stock-planning-scroll table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.stock-planning-scroll :is(th, td) { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.stock-planning-scroll small { display: block; color: var(--muted); margin-top: 5px; }
+.stock-planning-dialog { width: min(900px, 94vw); }
+.stock-planning-dialog .modal-body { max-height: 72vh; overflow-y: auto; }
+.stock-planning :focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+@media print { .stock-planning { display: none; } }
+@media (max-width: 680px) { .stock-planning { padding: 14px; } .stock-planning-filters label { width: 100%; } }

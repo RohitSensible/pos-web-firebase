@@ -7,7 +7,7 @@ import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
 import { SuccessPopup } from './SuccessPopup.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, MoreVertical, Pencil, Plus, Search, Store, Trash2, X } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Pencil, Search, Store, Trash2, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { createRequestId } from '../utils/requestId.ts';
 import { ANDROID_TAX_OPTIONS } from '../../../shared/androidTaxes.ts';
@@ -15,6 +15,7 @@ import './CategoryPage.css';
 import './MasterForm.css';
 import './MasterRowList.css';
 import './PremisesPage.css';
+import { MobileAddButton } from './MobileAddButton.tsx';
 
 interface Premise { documentId: string; fields: Record<string, unknown> }
 interface Configuration {
@@ -191,7 +192,7 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
       <div className="category-header-row"><div className="category-title-group"><h1><Store size={22} color="#3567f0" />Premises</h1><p>Manage tables, rooms and bill premises.</p></div>
         <div className="category-header-actions">{onClose
           ? <button type="button" className="btn-secondary" onClick={onClose}><ArrowLeft size={16} />Back to Products</button>
-          : <button type="button" className="btn-primary-add" onClick={openAdd}><Plus size={16} />Add New Premises</button>}
+          : <MobileAddButton label="Add New Premises" className="btn-primary-add" onClick={openAdd} />}
           <div className="category-more-actions">
             <button type="button" className="category-menu-toggle" aria-label="Premises options" aria-expanded={menuOpen}
               aria-controls="premises-options-menu" onClick={() => setMenuOpen(value => !value)}><MoreVertical size={17} /></button>

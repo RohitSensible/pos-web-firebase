@@ -20,7 +20,8 @@ import { updateOutletProduct } from "./productUpdate.js";
 import { updateProductPrices } from "./productPriceUpdate.js";
 import { saveStockAdjustment } from "./stockAdjustment.js";
 import { loadGoodsReceived, saveGoodsReceived } from './goodsReceived.js';
-import { createOutletSupplier } from './suppliers.js';
+import { loadGoodsReceiptHistory } from './goodsReceiptHistory.js';
+import { createOutletSupplier, updateOutletSupplier } from './suppliers.js';
 import { assignProductImage } from "./productImageAssignments.js";
 import { createOutletPremise, listOutletPremises, updateOutletPremise } from "./premises.js";
 import { ANDROID_TAX_OPTIONS } from "../../shared/androidTaxes.js";
@@ -1722,10 +1723,31 @@ app.post('/api/outlets/:outletId/suppliers', async (req: Request, res: Response)
   }
 });
 
-app.get('/api/outlets/:outletId/goods-received', async (req: Request, res: Response): Promise<void> => {
+app.patch('/api/outlets/:outletId/suppliers/:documentId', async (req: Request, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
   const token = readAccessToken(req);
   if (!token) { res.status(401).json({ success: false, message: 'Your session has expired. Please sign in again.' }); return; }
   try {
+    const context = getFirestoreRestContext();
+    const data = await updateOutletSupplier(premisesTransactionRunner(context.database, context.accessToken),
+      String(req.params.outletId ?? ''), String(req.params.documentId ?? ''), token.profileDocId, assignedOutletIds, req.body);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(error instanceof ProductCreationError ? error.status : 503).json({ success: false,
+      message: error instanceof ProductCreationError ? error.message : 'The supplier update could not be confirmed. Retry the same confirmation.' });
+  }
+});
+
+app.get('/api/outlets/:outletId/goods-received', async (req: Request, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
+  const token = readAccessToken(req);
+  if (!token) { res.status(401).json({ success: false, message: 'Your session has expired. Please sign in again.' }); return; }
+  try {
+    if (req.query.history === '1') {
+      const data = await loadGoodsReceiptHistory(getFirestoreDb(), String(req.params.outletId ?? ''), token.profileDocId, assignedOutletIds,
+        { from: req.query.from, to: req.query.to, cursor: req.query.cursor, limit: req.query.limit });
+      res.json({ success: true, data }); return;
+    }
     res.json({ success: true, data: await loadGoodsReceived(getFirestoreDb(), String(req.params.outletId ?? ''),
       token.profileDocId, assignedOutletIds) });
   } catch (error) {

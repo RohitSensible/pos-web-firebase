@@ -43,7 +43,8 @@ void (async () => {
   document.querySelector<HTMLButtonElement>('.theme-button')!.click();
   await until(() => document.documentElement.dataset.theme === 'dark', 'theme toggle');
   const masters = [...document.querySelectorAll('.nav-group')].find(group => group.querySelector('.nav-group-title')?.textContent?.includes('Masters'))!;
-  masters.querySelector<HTMLElement>('.nav-group-title')!.click(); await pause();
+  if (!masters.querySelector('.nav-group-items')) masters.querySelector<HTMLElement>('.nav-group-title')!.click();
+  await until(() => [...masters.querySelectorAll<HTMLButtonElement>('.nav-group-items button')].some(button => button.textContent === 'User Account'), 'Masters expanded');
   [...masters.querySelectorAll<HTMLButtonElement>('.nav-group-items button')].find(button => button.textContent === 'User Account')!.click();
   await until(() => document.querySelector('.user-account-page input[name="name"]'), 'lazy account transition');
   assert(requests.includes('/api/auth/account'), 'Navigating to the lazy account route mounts the real page with mocked reads');

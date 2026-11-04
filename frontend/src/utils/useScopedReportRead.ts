@@ -59,6 +59,9 @@ export function useScopedReportExport(key: string) {
   const job = useRef<{ key: string; controller: AbortController } | null>(null);
   const [state, setState] = useState({ key, busy: false, error: '' });
   useLayoutEffect(() => {
+    // Returning to a previously used filter key must not revive its cancelled
+    // export's busy/error state after its job has already been discarded.
+    setState({ key, busy: false, error: '' });
     return () => { job.current?.controller.abort(); job.current = null; };
   }, [key]);
   const runExport = async (task: (signal: AbortSignal) => Promise<void>) => {

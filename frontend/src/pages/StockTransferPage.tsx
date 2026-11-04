@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { ArrowRight, ArrowRightLeft, CalendarDays, CheckCircle2, Coffee, Droplets, Eye, Flame, FlaskConical, Info, MapPin, Package, Plus, Search, Store, Trash2, Wheat, X } from 'lucide-react';
+import { MobileAddButton } from './MobileAddButton.tsx';
+import { ArrowRight, ArrowRightLeft, CalendarDays, CheckCircle2, Coffee, Droplets, Eye, Flame, FlaskConical, Info, MapPin, Package, Search, Store, Trash2, Wheat, X } from 'lucide-react';
 import { ActionPopup } from './ActionPopup.tsx';
 import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { formatDemoDate, todayInIndia, type DemoTransfer, type TransferRow } from './stockTransferDemo.ts';
@@ -23,7 +24,7 @@ export function StockTransferPage({ outlet, token, onSessionExpired, onPreviewCo
   const [source, setSource] = useState(outlet.id);
   const [destinations, setDestinations] = useState<string[]>([]);
   const [date, setDate] = useState(todayInIndia);
-  const [note, setNote] = useState('');
+  const note = ''; // No note field is established in the supplied stock-log format.
   const [rows, setRows] = useState<TransferRow[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
@@ -75,20 +76,15 @@ export function StockTransferPage({ outlet, token, onSessionExpired, onPreviewCo
   const updateRow = (productId: string, update: (row: TransferRow) => TransferRow) => {
     setRows(current => current.map(row => row.productId === productId ? update(row) : row)); setError('');
   };
-  const removeDestination = (id: string) => {
-    setDestinations(current => current.filter(value => value !== id));
-    setRows(current => current.map(row => ({ ...row, allocations: Object.fromEntries(Object.entries(row.allocations).filter(([key]) => key !== id)) })));
-    setError('');
-  };
   const reset = () => {
     lastConfirmed.current = null; setCompletedPreview(null);
-    setSource(outlet.id); setDestinations([]); setDate(todayInIndia()); setNote(''); setRows([]); setSearch(''); setCategory(''); setSelectedOnly(false); setError(''); setDialog(null);
+    setSource(outlet.id); setDestinations([]); setDate(todayInIndia()); setRows([]); setSearch(''); setCategory(''); setSelectedOnly(false); setError(''); setDialog(null);
     setNotice('New local preview ready.'); sourceInput.current?.focus();
   };
   const validate = () => {
     const message = !authorizedSource ? 'Choose a source outlet.'
       : loading || loadError ? 'Wait for outlet and product data to load successfully.'
-      : !destinations.length ? 'Select at least one destination outlet.'
+      : destinations.length !== 1 || !outlets.some(item => item.id === destinations[0]) ? 'Select one destination outlet.'
       : destinations.includes(source) || new Set(destinations).size !== destinations.length ? 'Choose distinct destinations different from the source.'
       : !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || date < '2000-01-01' || date > '2099-12-31' || new Date(date).toISOString().slice(0, 10) !== date ? 'Choose a valid transfer date.'
       : !rows.length ? 'Add at least one product to review.'
@@ -120,41 +116,45 @@ export function StockTransferPage({ outlet, token, onSessionExpired, onPreviewCo
 
   return <section className="devices-page stock-transfer-page">
     <header className="devices-heading"><div><span>INVENTORY</span><h1><ArrowRightLeft aria-hidden="true" />Stock Transfer</h1><p>Preview product quantities between your outlets using current stock reads.</p></div>
-      <button type="button" className="st-button st-primary" onClick={() => { if (rows.length || destinations.length || note || source !== outlet.id || date !== todayInIndia()) setDialog('reset'); else reset(); }}><Plus size={16} />New Stock Transfer</button>
+      <MobileAddButton label="New Stock Transfer" className="st-button st-primary" onClick={() => { if (rows.length || destinations.length || note || source !== outlet.id || date !== todayInIndia()) setDialog('reset'); else reset(); }} />
     </header>
     <div className="st-demo-notice"><FlaskConical size={16} aria-hidden="true" /><p><strong>Preview mode</strong> Live outlet and product data. Allocations stay local; no stock is moved or saved to the server. The form resets when you leave; confirmed previews remain in the report for this login session.</p><span className="st-badge">Local preview</span></div>
     {notice && <p className="st-notice" role="status">{notice}</p>}
     <form className="st-form" noValidate onSubmit={review}>
       <section className="st-panel" aria-labelledby="st-route-title">
-        <div className="st-panel-heading"><div><span className="st-step">01</span><div><h2 id="st-route-title">Choose your outlets</h2><p>Set the sending outlet and where the stock should go.</p></div></div><span className="st-section-caption">OUTLET DETAILS</span></div>
+        <div className="st-panel-heading"><div><span className="st-step">01</span><div><h2 id="st-route-title">Stock log details</h2><p>Choose one sending outlet and one receiving outlet.</p></div></div><span className="st-section-caption">OUTLET DETAILS</span></div>
         <div className="st-route-grid">
           <div className="st-outlet-card st-source-card"><div className="st-outlet-label"><span className="st-outlet-icon"><Store size={19} /></span><div><strong>Sending from</strong><small>Stock will be allocated from this outlet</small></div></div>
-            <label className="st-field"><span>Source Outlet</span><select ref={sourceInput} disabled={outletRead.loading || !!outletRead.error} value={authorizedSource ? source : ''} onChange={event => {
+            <label className="st-field"><span>From Outlet</span><select ref={sourceInput} disabled={outletRead.loading || !!outletRead.error} value={authorizedSource ? source : ''} onChange={event => {
               const id = event.target.value; setSource(id); setDestinations(current => current.filter(value => value !== id)); setRows([]); setSearch(''); setCategory(''); setSelectedOnly(false); setError('');
               setNotice('Source changed. Product selections and quantities were cleared to use the new source’s stock.');
             }}><option value="" disabled>Choose source outlet</option>{outlets.map(item => <option key={item.id} value={item.id}>{item.name}{item.branch ? ` · ${item.branch}` : ''}</option>)}</select></label>
           </div>
           <span className="st-flow-arrow" aria-hidden="true"><ArrowRight size={20} /></span>
-          <div className="st-outlet-card"><div className="st-outlet-label"><span className="st-outlet-icon"><MapPin size={19} /></span><div><strong>Sending to</strong><small>Choose one or more receiving outlets</small></div></div>
-            <div className="st-field"><label htmlFor="st-destination">Destination Outlets</label><select id="st-destination" disabled={outletRead.loading || !!outletRead.error || !authorizedSource} value="" onChange={event => {
+          <div className="st-outlet-card"><div className="st-outlet-label"><span className="st-outlet-icon"><MapPin size={19} /></span><div><strong>Sending to</strong><small>Choose one receiving outlet</small></div></div>
+            <div className="st-field"><label htmlFor="st-destination">To Outlet</label><select id="st-destination" disabled={outletRead.loading || !!outletRead.error || !authorizedSource} value={destinations[0] ?? ''} onChange={event => {
               const id = event.target.value;
-              if (id && id !== source && !destinations.includes(id)) {
-                setDestinations(current => [...current, id]);
-                setRows(current => current.map(row => ({ ...row, allocations: { ...row.allocations, [id]: '' } })));
-                setError('');
-              }
-            }}><option value="">+ Add receiving outlet</option>{outlets.filter(outlet => outlet.id !== source && !destinations.includes(outlet.id)).map(outlet => <option key={outlet.id} value={outlet.id}>{outlet.name}</option>)}</select></div>
-            <div className="st-chips">{destinations.map(id => <span className="st-chip" key={id}><Store size={13} />{outletName(id)}<button type="button" aria-label={`Remove destination ${outletName(id)}`} onClick={() => removeDestination(id)}><X size={13} /></button></span>)}</div>
+              setDestinations(id ? [id] : []);
+              setRows(current => current.map(row => ({ ...row, allocations: id ? { [id]: '' } : {} })));
+              setError('');
+              setNotice('Receiving outlet changed. Enter quantities for this outlet.');
+            }}><option value="">Choose receiving outlet</option>{outlets.filter(outlet => outlet.id !== source).map(outlet => <option key={outlet.id} value={outlet.id}>{outlet.name}</option>)}</select></div>
           </div>
         </div>
-        <div className="st-meta-grid"><label className="st-field"><span><CalendarDays size={14} />Transfer Date</span><input type="date" required min="2000-01-01" max="2099-12-31" value={date} onChange={event => { setDate(event.target.value); setError(''); }} /></label>
-          <label className="st-field"><span>Transfer Note <small>Optional</small></span><textarea rows={1} maxLength={500} placeholder="e.g. Weekly branch replenishment" value={note} onChange={event => setNote(event.target.value)} /></label></div>
+        <div className="st-meta-grid">
+          <label className="st-field"><span><CalendarDays size={14} />Day ID</span><input type="date" required min="2000-01-01" max="2099-12-31" value={date} onChange={event => { setDate(event.target.value); setError(''); }} /></label>
+          <label className="st-field"><span>Month ID</span><input readOnly value={date.slice(0, 7)} /></label>
+          <label className="st-field"><span>Stock Type</span><input readOnly value="TRANSFER" /></label>
+          <label className="st-field"><span>Status</span><input readOnly value="LOCAL PREVIEW" /><small>No completed transfer is recorded.</small></label>
+          <label className="st-field"><span>Request ID</span><input disabled value="Not assigned" /><small>Unavailable in local preview.</small></label>
+          <label className="st-field"><span>Request Count</span><input disabled value="Not assigned" /><small>Existing request-count rules have not been verified.</small></label>
+        </div>
       </section>
       {loading && <p className="st-selection-help" role="status">Loading {outletRead.loading ? 'your outlets' : 'stockable products and categories'}…</p>}
       {loadError && <div className="st-selection-help" role="alert"><span>{loadError}</span><button type="button" className="st-button" onClick={() => { setRows([]); setDialog(null); if (outletRead.error) outletRead.retry(); if (productRead.error) productRead.retry(); if (categoryRead.error) categoryRead.retry(); }}>Retry Data</button></div>}
       {!outletRead.loading && !outletRead.error && !outlets.length && <p className="st-selection-help">No authorized outlets are available.</p>}
       <section className="st-panel st-products-panel" aria-labelledby="st-products-title">
-        <div className="st-panel-heading"><div><span className="st-step">02</span><div><h2 id="st-products-title">Products & quantities</h2><p>Only stock-tracked products are shown. Select a product to enter quantities.</p></div></div><span className="st-badge">{rows.length} selected</span></div>
+        <div className="st-panel-heading"><div><span className="st-step">02</span><div><h2 id="st-products-title">Product details & quantities</h2><p>Only stock-tracked products are shown. Select a product to enter quantities.</p></div></div><span className="st-badge">{rows.length} selected</span></div>
         <div className="st-product-toolbar"><label className="st-field st-search"><span><Search size={14} />Product search</span><input type="search" placeholder="Search product name or code…" value={search} onChange={event => setSearch(event.target.value)} /></label>
           <label className="st-field">Category<select value={category} onChange={event => setCategory(event.target.value)}><option value="">All categories</option>{categories.map(value => <option key={value}>{value}</option>)}</select></label>
           <button type="button" className={`st-button st-selected-filter${selectedOnly ? ' active' : ''}`} aria-pressed={selectedOnly} onClick={() => setSelectedOnly(value => !value)}>Selected ({rows.length})</button>
@@ -176,7 +176,7 @@ export function StockTransferPage({ outlet, token, onSessionExpired, onPreviewCo
               <div className="st-stock"><small>Available stock</small><strong>{available === null ? 'Unavailable' : count(available)} <span>{available === null ? '' : available <= 0 ? '· Out of stock' : available < 1 ? '· Below one whole unit' : 'units'}</span></strong></div>
               {row && <button type="button" className="st-icon-button st-remove" aria-label={`Remove product ${product.name}`} onClick={() => { setRows(current => current.filter(item => item.productId !== product.id)); setError(''); }}><Trash2 size={16} /></button>}
             </div>
-            {row && <div className="st-product-editor"><div className="st-editor-heading"><span>QUANTITY TO TRANSFER</span><span className={`st-readiness${!issue ? ' ready' : ''}`}>{!issue ? <><CheckCircle2 size={13} />Ready</> : 'Enter units for each outlet'}</span></div>
+            {row && <div className="st-product-editor"><div className="st-editor-heading"><span>QUANTITY TO TRANSFER</span><span className={`st-readiness${!issue ? ' ready' : ''}`}>{!issue ? <><CheckCircle2 size={13} />Ready</> : 'Enter units for the receiving outlet'}</span></div>
               <div className="st-allocations">{Object.entries(row.allocations).map(([id, value]) => {
                 const fieldIssue = destinationError(row, id);
                 const showIssue = !!fieldIssue && (!!value || !!error);
@@ -213,7 +213,7 @@ export function StockTransferPage({ outlet, token, onSessionExpired, onPreviewCo
 }
 
 function TransferDetails({ transfer, products, outletName }: { transfer: DemoTransfer; products: { id: string; name: string; stock: number | null }[]; outletName: (id: string) => string }) {
-  return <div className="st-details"><dl><div><dt>Source outlet</dt><dd>{outletName(transfer.source)}</dd></div><div><dt>Destination outlets</dt><dd>{transfer.destinations.map(outletName).join(', ')}</dd></div><div><dt>Transfer date</dt><dd>{formatDemoDate(transfer.date)}</dd></div><div><dt>Total quantity</dt><dd>{count(totalQuantity(transfer.rows))} units · {transfer.rows.length} products</dd></div><div><dt>Transfer note</dt><dd>{transfer.note.trim() || 'No note provided'}</dd></div></dl>
+  return <div className="st-details"><dl><div><dt>From outlet</dt><dd>{outletName(transfer.source)}</dd></div><div><dt>To outlet</dt><dd>{transfer.destinations.map(outletName).join(', ')}</dd></div><div><dt>Day ID</dt><dd>{formatDemoDate(transfer.date)}</dd></div><div><dt>Total quantity</dt><dd>{count(totalQuantity(transfer.rows))} units · {transfer.rows.length} products</dd></div><div><dt>Month ID</dt><dd>{transfer.date.slice(0, 7)}</dd></div><div><dt>Stock type</dt><dd>TRANSFER</dd></div><div><dt>Status</dt><dd>LOCAL PREVIEW</dd></div><div><dt>Request ID / Count</dt><dd>Not assigned</dd></div></dl>
     {transfer.rows.map(row => { const product = products.find(item => item.id === row.productId); if (!product || product.stock === null) return <p key={row.productId}>Product stock is unavailable. Reload before reviewing.</p>; const available = product.stock; return <article key={row.productId}><h4>{product.name}</h4><p>Available: {count(available)} units · Total allocated: {count(allocatedQuantity(row))} units</p><ul>{Object.entries(row.allocations).map(([id, value]) => <li key={id}><span>{outletName(id)}</span><strong>{count(Number(value))} units</strong></li>)}</ul><p>Estimated remaining source stock: <strong>{count(available - allocatedQuantity(row))} units</strong></p></article>; })}
   </div>;
 }

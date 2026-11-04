@@ -26,15 +26,14 @@ export async function loadGoodsReceived(db: Firestore, outletId: string, profile
   const outlet = db.collection('OUTLET').doc(outletId);
   if ((await outlet.get()).data()?.active !== true) throw new ProductCreationError(403, 'This outlet is inactive or unavailable.');
   const goods = outlet.collection('GOODS_RECEIVED');
-  const [snapshot, supplierSnapshot] = await Promise.all([goods.get(), outlet.collection('SUPPLIER').get()]);
-  const receipts = snapshot.docs.map(document => ({ documentId: document.id, fields: document.data() }))
-    .sort((a, b) => Number(b.fields.createDate ?? 0) - Number(a.fields.createDate ?? 0));
+  // Entry and supplier screens need options, not an unbounded receipt history.
+  const supplierSnapshot = await outlet.collection('SUPPLIER').get();
   const suppliers = supplierSnapshot.docs.flatMap(document => {
     const supplier = receiptSupplierFromMaster(document.id, document.data());
     return supplier ? [supplier] : [];
   }).sort((a, b) => a.name.localeCompare(b.name));
   // Allocating references generates auto-IDs locally and writes no documents.
-  return { documentId: goods.doc().id, supplierDraftId: outlet.collection('SUPPLIER').doc().id, suppliers, receipts };
+  return { documentId: goods.doc().id, supplierDraftId: outlet.collection('SUPPLIER').doc().id, suppliers, receipts: [] };
 }
 
 export async function saveGoodsReceived(run: PremisesTransactionRunner, outletId: string, profileId: string | null,

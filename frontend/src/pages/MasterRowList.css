@@ -23,11 +23,13 @@
 .master-row-actions > button:hover, .master-row-actions .master-delete-button:hover { background: var(--workspace); border-color: var(--muted); box-shadow: none; }
 .master-row-actions > button:focus-visible, .master-row-actions .master-delete-button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 :root[data-theme="dark"] .master-row-badge { border-color: rgba(129, 140, 248, 0.45); background: rgba(99, 102, 241, 0.16); color: #c7d2fe; }
-@media (max-width: 720px) {
+@media (max-width: 820px) {
   .master-row-list { padding: 4px 14px; }
   .master-row { flex-direction: column; align-items: stretch; gap: 12px; }
   .master-row-main { grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px; }
   .master-row-divider { display: none; }
   .master-row-info { grid-column: 2; }
-  .master-row-actions { justify-content: flex-end; }
+  .master-row-info { overflow-wrap: anywhere; }
+  .master-row-actions { justify-content: flex-end; flex-wrap: wrap; }
+  .master-row-actions > button, .master-row-actions .master-delete-button { flex: 1 1 100px; justify-content: center; min-height: 44px; }
 }

@@ -110,7 +110,7 @@ test('receipt loader reads the supplier master and generates IDs without any wri
       : { exists: true, data: () => path.startsWith('USER_PROFILE/') ? { active: true, outlets: ['outlet'] } : { active: true } },
   });
   const db = { collection: (path: string) => ref(path) } as unknown as Firestore;
-  const data = await loadGoodsReceived(db, 'outlet', 'user', assigned); assert.deepEqual(data.suppliers, [supplier]); assert.equal(data.receipts.length, 1); assert.equal(generated, 2);
+  const data = await loadGoodsReceived(db, 'outlet', 'user', assigned); assert.deepEqual(data.suppliers, [supplier]); assert.equal(data.receipts.length, 0); assert.equal(generated, 2);
 });
 test('REST transport sends a single create with explicit nested doubles and an exists:false precondition', async () => {
   const calls: { url: string; body: any }[] = [];

@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { useLayoutEffect, type ComponentType } from 'react';
-import ExcelJS from 'exceljs';
+import type ExcelJS from 'exceljs';
 import { CategoryWiseReportPage } from '../src/pages/CategoryWiseReportPage.tsx';
 import { GstReportPage } from '../src/pages/GstReportPage.tsx';
 import { GstDaywiseReportPage } from '../src/pages/GstDaywiseReportPage.tsx';
@@ -16,7 +16,7 @@ const assert = (value: unknown, message: string) => { if (!value) throw new Erro
 const pause = () => new Promise(resolve => setTimeout(resolve, 10));
 async function until(check: () => unknown, message: string) {
   for (let i = 0; i < 160; i++) { if (check()) return; await pause(); }
-  throw new Error(message);
+  throw new Error(`${message}: writers=${writers.length} workbooks=${workbooks.length} downloads=${downloads} ${document.body.textContent?.slice(-1200)}`);
 }
 type Read = { url: URL; signal: AbortSignal; done: boolean; resolve: (response: Response) => void };
 const reads: Read[] = [];
@@ -33,7 +33,7 @@ window.setTimeout = ((handler: TimerHandler, delay?: number, ...args: unknown[])
   if (delay === 20_000) { const id = timerId--; deadlines.set(id, () => (handler as () => void)()); return id; }
   return realTimeout(handler, delay, ...args);
 }) as typeof window.setTimeout;
-window.clearTimeout = (id?: number) => { if (id !== undefined && deadlines.delete(id)) return; realClearTimeout(id); };
+window.clearTimeout = ((id?: number) => { if (id !== undefined && deadlines.delete(id)) return; realClearTimeout(id); }) as typeof window.clearTimeout;
 let downloads = 0;
 let prints = 0;
 HTMLAnchorElement.prototype.click = () => { downloads++; };
@@ -42,10 +42,6 @@ URL.createObjectURL = () => 'blob:remaining-report-test';
 URL.revokeObjectURL = () => {};
 const workbooks: ExcelJS.Workbook[] = [];
 const writers: { resolve: () => void; reject: () => void }[] = [];
-Object.getPrototypeOf(new ExcelJS.Workbook().xlsx).writeBuffer = function (this: { workbook: ExcelJS.Workbook }) {
-  workbooks.push(this.workbook);
-  return new Promise<ArrayBuffer>((resolve, reject) => writers.push({ resolve: () => resolve(new ArrayBuffer(0)), reject: () => reject(new Error('Workbook unavailable')) }));
-};
 const now = new Date();
 const dayId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 const totals = { taxable: 100, cgst: 2.5, sgst: 2.5, igst: 0, gst: 5, gross: 105 };
@@ -87,6 +83,7 @@ async function load(marker: string) {
   await until(() => !button('Export Excel').disabled, 'Expected successful current report');
 }
 async function workbook(marker: string) {
+  await until(() => !button('Export Excel').disabled, 'Report ready for workbook');
   const count = writers.length;
   button('Export Excel').click(); button('Export Excel').click();
   if (Page === DaywiseReportPage) {
@@ -98,6 +95,11 @@ async function workbook(marker: string) {
   return writers.shift()!;
 }
 void (async () => {
+  const { default: ExcelJS } = await import('exceljs');
+  Object.getPrototypeOf(new ExcelJS.Workbook().xlsx).writeBuffer = function (this: { workbook: ExcelJS.Workbook }) {
+    workbooks.push(this.workbook);
+    return new Promise<ArrayBuffer>((resolve, reject) => writers.push({ resolve: () => resolve(new ArrayBuffer(0)), reject: () => reject(new Error('Workbook unavailable')) }));
+  };
   for (const [name, component] of [['Category', CategoryWiseReportPage], ['GST', GstReportPage], ['GST Day', GstDaywiseReportPage], ['Daywise', DaywiseReportPage]] as const) {
     Page = component; outlet = 'A'; token = 'one'; render(); unavailable(); await load('Initial');
     assert(!!document.querySelector('tbody tr') && document.body.textContent!.includes(Page === GstReportPage || Page === GstDaywiseReportPage ? '105.00' : '104.75'), `${name}: expected real rows and totals`);

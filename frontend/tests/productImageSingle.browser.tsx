@@ -73,9 +73,13 @@ void (async () => {
   input.files = selection.files; input.dispatchEvent(new Event('change', { bubbles: true }));
   await waitFor(() => button('Save') && !button('Save')!.disabled, 'crop decode');
   button('Save')!.click();
+  await waitFor(() => document.querySelector('.action-confirm-button'), 'single upload confirmation');
+  document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click();
   await waitFor(() => button('Retry upload'), 'interruption reported');
   assert(!image && !saved, 'Failed upload preserves previous reference');
   failUpload = false; button('Retry upload')!.click();
+  await waitFor(() => document.querySelector('.action-confirm-button'), 'retry upload confirmation');
+  document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click();
   await waitFor(() => image === filename, 'retry saves filename');
   assert(uploads === 2 && saved!.size <= 25600, 'Retry completes within hard limit');
   passed.push('Single WebP source compressed to WebP within 25 KB; interrupted upload safely retried');
@@ -98,7 +102,9 @@ void (async () => {
   bulkInput.files = files.files; bulkInput.dispatchEvent(new Event('change', { bubbles: true }));
   await waitFor(() => !!button('Upload Images') && !button('Upload Images')!.disabled && !!document.querySelector('.batch-image-preview'), 'ZIP prepared');
   button('Upload Images')!.click();
-  await waitFor(() => bulkUploads === 1 && document.body.textContent?.includes('Images uploaded successfully'), 'bulk saves filename');
+  await waitFor(() => document.querySelector('.action-confirm-button'), 'bulk upload confirmation');
+  document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click();
+  await waitFor(() => bulkUploads === 1 && document.body.textContent?.includes('Uploaded successfully.'), 'bulk saves filename');
   const bulkBytes = saved!.size;
   root.render(<Product key="bulk-reload" />);
   await waitFor(() => !!document.querySelector<HTMLImageElement>('img')?.naturalWidth, 'bulk result displays');

@@ -100,7 +100,8 @@ async function openImageAction(label: string) {
     assert(products[2]!.fields.image === 'new-concurrent.png', 'A concurrently replaced image remains intact until fresh review');
     button('Done').click(); await wait(() => !document.querySelector('dialog'), 'close results');
     const readsBeforeRefresh = productReads;
-    button('Refresh').click(); await wait(() => productReads > readsBeforeRefresh && !document.querySelector('[aria-busy="true"]'), 'refresh current references');
+    root.render(<ProductsPage key="reload" outlet={{ id: 'o', name: 'Outlet A' } as OutletSummary} token="token" onSessionExpired={() => { throw new Error('Unexpected logout'); }} />);
+    await wait(() => productReads > readsBeforeRefresh && document.querySelector('section[aria-label="Products"][aria-busy="false"]'), 'refresh current references');
     await openImageAction('Remove all product images'); await wait(() => document.querySelector('dialog')?.textContent?.includes('1 products'), 'fresh review');
     button('Remove').click(); button('Remove')?.click();
     await wait(() => document.querySelector('dialog')?.textContent?.includes('Removed successfully.') && !button('Done').disabled, 'removal success');
@@ -113,5 +114,5 @@ async function openImageAction(label: string) {
     assert(before === JSON.stringify(products.map(product => [product.documentId, product.fields.name, product.fields.price, product.fields.currentStock])), 'All products and unrelated values are preserved');
     passed.push('Upload confirmation; outlet-wide removal confirmation and cancellation; partial results; failed-only retry; concurrent-image protection; cleared previews; preserved product data');
     root.unmount(); document.getElementById('test-results')!.textContent = JSON.stringify({ passed, removals: removals.length });
-  } catch (error) { document.getElementById('test-results')!.textContent = JSON.stringify({ failed: String(error), passed }); }
+  } catch (error) { document.getElementById('test-results')!.textContent = JSON.stringify({ failed: error instanceof Error ? error.stack : String(error), passed }); }
 })().catch(error => { document.getElementById('test-results')!.textContent = JSON.stringify({ failed: String(error) }); });

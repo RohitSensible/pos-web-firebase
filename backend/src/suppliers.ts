@@ -44,3 +44,33 @@ export async function createOutletSupplier(run: PremisesTransactionRunner, outle
     return { documentId, fields: stored, alreadySaved: false };
   });
 }
+
+const supplierPatch = supplierFields.partial().refine(fields => Object.keys(fields).length > 0);
+const updateSchema = z.object({ fields: supplierPatch, previous: supplierPatch }).strict()
+  .refine(input => isDeepStrictEqual(Object.keys(input.fields).sort(), Object.keys(input.previous).sort()));
+
+export async function updateOutletSupplier(run: PremisesTransactionRunner, outletId: string, documentId: string,
+  profileId: string | null, assigned: (profile: Record<string, unknown>) => string[], raw: unknown) {
+  if (!profileId) throw new ProductCreationError(401, 'Your session has expired. Please sign in again.');
+  if (![outletId, documentId].every(value => pathId.safeParse(value).success)) throw new ProductCreationError(400, 'A valid outlet and supplier ID are required.');
+  const parsed = updateSchema.safeParse(raw);
+  if (!parsed.success) throw new ProductCreationError(422, 'Enter valid supplier details and their original values.');
+  const { fields, previous } = parsed.data;
+  return run(async transaction => {
+    requireProductOutlet(profileId, outletId, await transaction.read(`USER_PROFILE/${profileId}`), assigned);
+    if ((await transaction.read(`OUTLET/${outletId}`))?.active !== true) throw new ProductCreationError(403, 'This outlet is inactive or unavailable.');
+    const path = `OUTLET/${outletId}/SUPPLIER/${documentId}`;
+    const stored = await transaction.read(path);
+    if (!stored) throw new ProductCreationError(404, 'This supplier no longer exists.');
+    if (!receiptSupplierFromMaster(documentId, stored)) throw new ProductCreationError(422, 'This supplier has an unsupported format.');
+    const changes = Object.entries(fields).filter((entry): entry is [string, string] => typeof entry[1] === 'string');
+    // A response-lost retry is successful when the requested values already exist.
+    if (changes.every(([key, value]) => stored[key] === value)) return { documentId, fields: stored };
+    if (changes.some(([key]) => stored[key] !== previous[key as keyof typeof previous])) {
+      throw new ProductCreationError(409, 'Supplier details changed. Close the form, refresh the list and try again.');
+    }
+    // Patch existing fields only; keep id:null, other fields and receipt snapshots intact.
+    transaction.update(path, Object.fromEntries(changes.map(([key, value]) => [key, { stringValue: value }])));
+    return { documentId, fields: { ...stored, ...fields } };
+  });
+}

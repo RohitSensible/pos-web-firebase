@@ -12,7 +12,6 @@ import { SuccessPopup } from './SuccessPopup.tsx';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   SlidersHorizontal,
-  Plus,
   Search,
   Pencil,
   Trash2,
@@ -26,6 +25,8 @@ import {
 } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import './CategoryPage.css';
+import './MobileRecords.css';
+import { MobileAddButton } from './MobileAddButton.tsx';
 
 export interface Category {
   id: string;
@@ -317,15 +318,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
           <p>Organize, create, update, and manage your product categories</p>
         </div>
         <div className="category-header-actions category-master-actions">
-          <button
-            type="button"
-            className="btn-primary-add"
-            disabled={saving}
-            onClick={openAddCategory}
-          >
-            <Plus size={16} />
-            Add New Category
-          </button>
+          <MobileAddButton label="Add New Category" className="btn-primary-add" disabled={saving} onClick={openAddCategory} />
           <div className="category-more-actions">
             <button type="button" className="category-menu-toggle" aria-label="Category options" aria-expanded={categoryMenuOpen}
               aria-controls="category-options-menu" onClick={() => setCategoryMenuOpen(value => !value)}><MoreVertical size={17} /></button>
@@ -364,7 +357,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
 
       {/* Categories Table */}
       <div className="category-table-card">
-        <table className="category-table">
+        <table className="category-table mobile-record-table">
           <thead>
             <tr>
               <th>Code</th>
@@ -405,10 +398,10 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
             ) : filteredCategories.length > 0 ? (
               filteredCategories.map((cat) => (
                 <tr key={cat.id}>
-                  <td>
+                  <td data-label="Code">
                     <span className="category-code-badge">{cat.code}</span>
                   </td>
-                  <td>
+                  <td data-label="Category" className="mobile-record-name">
                     <div className="category-name-cell">
                       <span
                         className="category-dot"
@@ -417,27 +410,28 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
                       <span className="category-title-text">{cat.name}</span>
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Regional name">
                     <div className="category-desc-text" title={cat.regionalName}>
                       {cat.regionalName || '—'}
                     </div>
                   </td>
-                  <td>
+                  <td data-label="Products">
                     <span className="product-count-chip">
                       <Package size={14} color="#64748b" />
                       {cat.productCount ?? '…'} items
                     </span>
                   </td>
-                  <td style={{ color: '#64748b', fontSize: '12px' }}>
+                  <td data-label="Created" style={{ color: '#64748b', fontSize: '12px' }}>
                     {cat.createdAt}
                   </td>
-                  <td>
+                  <td className="mobile-record-actions">
                     <div className="table-actions" style={{ justifyContent: 'flex-end' }}>
                       <button
                         type="button"
                         className="btn-icon-action edit"
                         title="Edit category"
                         aria-label="Edit category"
+                        data-mobile-label="Edit"
                         disabled={deleting}
                         onClick={() => { setNotice(''); setEditTarget(cat); }}
                       >
@@ -448,6 +442,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
                         className="btn-icon-action delete"
                         title="Delete category"
                         aria-label="Delete category"
+                        data-mobile-label="Delete"
                         disabled={deleting}
                         onClick={() => setDeleteTarget({ id: cat.id, name: cat.name })}
                       >

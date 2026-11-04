@@ -26,11 +26,11 @@ npm run test:regression -- --report-dir /tmp/my-pos-regression
 - Node checks: regression-runner tests; report Excel, Dashboard Excel and shift-detail Excel; authoritative shift status; usage route, accounting engine, middleware, outlet policy, disabled-compatibility behavior and the daily usage recovery audit.
 - Every selected browser fixture runs at **1280×900** and **390×844**: `lazyWorkspace`, `unsavedChanges`, `unsavedForms`, `remainingReportSafety`, `dailyUsageRecoveryAudit`, `dashboardShiftSelection`, `stockTransferReadRecovery`, `loginRecovery`, `billPrinting`, `printDocumentRecovery`, `dailyUsage`, `dailyUsageLogin`, and `dailyUsageLockout`. These use mocked services. This is a curated smoke suite, not every fixture in `frontend/tests`.
 
-The new fixtures are expected to be supplied by the companion tasks. A missing fixture or audit file fails its check; it is never silently counted as passing. `--list` shows the selected suite while those tasks are still in progress.
+The suite also covers goods receipt creation and pagination, supplier creation/update, stock planning, and product image workflows. Receipt history and replenishment fixtures run at both viewports. `productImages` exercises the real admission hook because it explicitly verifies usage-session headers; other image fixtures isolate admission. A missing fixture or audit file fails its check; it is never silently counted as passing. `--list` prints the complete current suite.
 
 Node checks load TypeScript through the installed backend `tsx` loader. A synchronous source-resolution preload redirects relative `.js` imports to existing `.ts` siblings, including backend source and shared helpers. Thus adjacent stale emitted `.js` cannot substitute for source TypeScript. The recovery audit also imports `dailyUsage.ts` explicitly. Each Node suite runs in its own runner subprocess with `--test-isolation=none` to avoid another layer of Node test subprocesses. Runner tests prove source selection with deliberately conflicting `.js` and `.ts` files.
 
-`BROWSER_TEST_REALTIME=1` is passed through unchanged; use it when Chrome virtual time is unsuitable. `WEB_USAGE_TEST_ENABLED=1` is set only for the `dailyUsage*` fixtures, which exercise the real usage hook. Other UI fixtures get `WEB_USAGE_TEST_ENABLED=0` and the harness's existing admission-hook mock. These are test isolation settings, not application policy changes.
+Browser fixtures default to real-time Chrome execution so image decoding, workbook generation and UI scheduling complete reliably. Set `BROWSER_TEST_REALTIME=0` to explicitly use Chrome virtual time instead. `WEB_USAGE_TEST_ENABLED=1` is set for the `dailyUsage*` and `productImages` fixtures, which exercise the real usage hook. Other UI fixtures get `WEB_USAGE_TEST_ENABLED=0` and the harness's existing admission-hook mock. These are test isolation settings, not application policy changes.
 
 ## Results and exclusions
 
@@ -38,4 +38,15 @@ By default, each execution creates a unique `/tmp/web-pos-regression-*` director
 
 Any failed process, timeout, invalid/empty browser JSON, failing/empty Node TAP results, missing prerequisite or empty selection returns nonzero. Checks continue after ordinary suite failures to collect useful results. Browser success requires a nonempty `passed` array or a positive integer count; exit zero alone is insufficient. Chrome discovery failures explicitly request `CHROME_BIN` and produce a failed report.
 
-This command does not validate real authentication, deployed APIs, databases, migrations, native printer output, device integrations or production credentials. It performs no live database/API calls or schema changes. Printing checks exercise mocked document/preview flows. There is no blocking broad lint gate and no CI workflow is created. Restricted sandboxes may forbid loopback or Chrome; run the browser portion in an environment that permits them. Planning and runner unit tests require neither.
+This command does not validate real authentication, deployed APIs, databases, migrations, native printer output, device integrations or production credentials. It performs no live database/API calls or schema changes. Printing checks exercise mocked document/preview flows. There is no blocking broad lint gate. Restricted sandboxes may forbid loopback or Chrome; run the browser portion in an environment that permits them. Planning and runner unit tests require neither.
+
+The GitHub Actions workflow in `.github/workflows/regression.yml` runs this command on pull requests, pushes to main/master, and manual dispatch using Node 24, locked dependencies, and the runner's headless Chrome. It uploads logs and `report.json` even after check failures and retains them for 14 days. It has read-only repository permissions and requires no Firebase credentials. The workflow must be pushed to GitHub to run; enforcing it as a required merge check remains a repository-settings choice.
+
+## Live barcode camera checks
+
+`barcodeScanner` runs at desktop and phone sizes. It supplies independently encoded
+barcode pixels through canvas-generated video streams and uses the production ZXing
+decoder. It verifies automatic startup, rear-camera fallback, permission/missing-camera
+errors, EAN-13/Code 39/QR decoding, acceptance, cancellation, cleanup, unchanged product
+PATCH behavior and honest errors on HTTP LAN origins. No physical camera or live
+database is used. LAN HTTP does not support live camera access in mobile browsers.

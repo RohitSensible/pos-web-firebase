@@ -598,3 +598,19 @@
 .category-updated-popup::backdrop { background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); }
 .category-updated-popup .modal-body { align-items: center; text-align: center; }
 @media (max-width: 700px) { .category-edit-page .modal-body { grid-template-columns: minmax(0, 1fr); } }
+
+@media screen and (max-width: 820px), screen and (max-width: 1024px) and (max-height: 600px) {
+  .category-header-row { gap: 14px; }
+  .category-header-actions.category-master-actions { flex-direction: row; align-items: center; width: 100%; }
+  .category-master-actions > .btn-primary-add { flex: 1; justify-content: center; min-height: 44px; }
+  .category-menu-toggle { width: 44px; height: 44px; }
+  .category-toolbar { align-items: stretch; padding: 12px; }
+  .category-toolbar .toolbar-search-box { flex: 1 1 100%; min-width: 0; max-width: none; }
+  .category-toolbar .search-input { min-height: 44px; }
+  .category-toolbar .category-total-summary { padding: 8px 12px; }
+  .category-table-card { padding: 0; border: 0; overflow: visible; background: transparent; box-shadow: none; }
+  .category-table .category-name-cell { min-width: 0; }
+  .category-table .category-desc-text { max-width: 100%; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .category-table .btn-icon-action.edit { background: #eef2ff; border-radius: 8px; }
+  .category-table .btn-icon-action.delete { background: #fff1f2; border-radius: 8px; }
+}

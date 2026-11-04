@@ -11,6 +11,7 @@
     "test:reports": "node tests/reportExcel.test.mjs"
   },
   "dependencies": {
+    "@zxing/browser": "^0.2.1",
     "axios": "^1.20.0",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.47.0",

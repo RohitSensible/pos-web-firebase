@@ -50,6 +50,10 @@
 .master-form-page > form > .modal-footer button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 11px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; }
 .master-form-page > form > .modal-footer button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 .master-form-page > form > .modal-footer .btn-primary-add { min-width: 145px; box-shadow: 0 3px 8px color-mix(in srgb, var(--blue) 18%, transparent); }
+@media screen and (max-width: 820px), screen and (max-width: 1024px) and (max-height: 600px) {
+  .category-modal.master-form-page { overflow: visible; }
+  .master-form-page > form > .modal-footer { position: sticky; bottom: 0; z-index: 14; flex-wrap: wrap; padding-bottom: max(18px, env(safe-area-inset-bottom)); background: var(--card, #fff); }
+}
 @media (max-width: 680px) {
   .master-form-page .master-form-header { padding: 22px 18px; gap: 12px; }
   .master-form-title { gap: 12px; align-items: flex-start; }

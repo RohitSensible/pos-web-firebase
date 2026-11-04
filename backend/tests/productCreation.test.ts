@@ -111,6 +111,22 @@ test('creation accepts existing wholesale and online price fields without adding
   for (const key of ['rent', 'variant', 'addon', 'discountAmount']) assert.equal(key in saved.fields, false);
 });
 
+test('scan-to-add preserves the optional barcode, leading zeros and retry identity', async () => {
+  const f = fixture(); const before = structuredClone(f.records);
+  const draft = { ...input(), barcode: '00123456' };
+  const first = await createOutletProduct(f.db, 'outlet', 'user', assigned, draft);
+  const retried = await createOutletProduct(f.db, 'outlet', 'user', assigned, draft);
+  assert.equal(first.fields.barcode, '00123456');
+  assert.equal(retried.documentId, first.documentId);
+  assert.equal(f.products().length, 1);
+  for (const [path, fields] of before) assert.deepEqual(f.records.get(path), fields);
+  for (const barcode of ['x'.repeat(201), 123456]) {
+    const invalid = fixture(); const original = structuredClone(invalid.records);
+    await assert.rejects(createOutletProduct(invalid.db, 'outlet', 'user', assigned, { ...input(), barcode }), ProductCreationError);
+    assert.deepEqual(invalid.records, original);
+  }
+});
+
 test('manual product creation accepts every Android GST and VAT ID without reading or seeding tax masters', async () => {
   for (const tax of ANDROID_TAX_OPTIONS) {
     const f = fixture(); f.records.delete('MASTERS/masters/TAX_MASTER/gst');

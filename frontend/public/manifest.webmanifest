@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Sensible Biz",
+  "short_name": "Sensible Biz",
+  "description": "Sensible Biz point of sale workspace",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "/icons/sensible-biz-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/sensible-biz-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/sensible-biz-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

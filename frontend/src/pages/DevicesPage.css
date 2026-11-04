@@ -34,4 +34,7 @@
 .devices-discovery-page .devices-copy-feedback { margin-top: 8px; font: 12px/1.5 sans-serif; }
 .devices-discovery-page .devices-copy-feedback p { margin: 0 0 6px; }
 .devices-discovery-page .devices-copy-feedback input { width: 100%; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+@media screen and (max-width: 820px), screen and (max-width: 1024px) and (max-height: 600px) {
+  .devices-discovery-page .devices-table-scroll table.mobile-record-table { min-width: 0; table-layout: auto; }
+}
 .devices-discovery-page :is(button, input, select, .devices-table-scroll):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }

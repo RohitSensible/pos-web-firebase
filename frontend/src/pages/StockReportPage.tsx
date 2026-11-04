@@ -7,6 +7,8 @@ import {
   PackageX, Printer, RefreshCw, Search, X,
 } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
+import { StockPlanning } from './StockPlanning.tsx';
+import type { ReplenishmentDraft } from './stockPlanning.ts';
 import './BillWiseReportPage.css';
 import './ProductWiseReportPage.css';
 import './StockReportPage.css';
@@ -53,6 +55,7 @@ interface StockReportPageProps {
   reportName?: string;
   token: string;
   onSessionExpired: () => void;
+  onPrepareReceipt?: (draft: ReplenishmentDraft) => void;
 }
 
 function money(value = 0): string {
@@ -68,7 +71,7 @@ function todayId(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 'Stock Report' }: StockReportPageProps) => {
+export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 'Stock Report', onPrepareReceipt }: StockReportPageProps) => {
   const initialFilters = useMemo<StockFilters>(() => ({ categoryId: '', status: '', search: '' }), []);
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
@@ -205,6 +208,7 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
         <article><span><PackageX /></span><div><small>Out of Stock</small><strong>{summary.out}</strong></div></article>
       </div>
 
+      {report && !loading && !error && <StockPlanning key={`${outlet.id}:${token}:${reloadKey}`} products={report.products} outlet={outlet} token={token} onSessionExpired={onSessionExpired} onPrepareReceipt={onPrepareReceipt} />}
       <div className="bill-table-card" aria-busy={loading}>
         {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading stock…</strong></div>}
         {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
