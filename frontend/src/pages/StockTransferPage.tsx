@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { MobileAddButton } from './MobileAddButton.tsx';
 import { ArrowRight, ArrowRightLeft, CalendarDays, CheckCircle2, Coffee, Droplets, Eye, Flame, FlaskConical, Info, MapPin, Package, Search, Store, Trash2, Wheat, X } from 'lucide-react';
@@ -26,6 +27,7 @@ export function StockTransferPage({ outlet, token, onSessionExpired, onPreviewCo
   const [date, setDate] = useState(todayInIndia);
   const note = ''; // No note field is established in the supplied stock-log format.
   const [rows, setRows] = useState<TransferRow[]>([]);
+  const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [selectedOnly, setSelectedOnly] = useState(false);
@@ -72,7 +74,7 @@ export function StockTransferPage({ outlet, token, onSessionExpired, onPreviewCo
     return !Number.isSafeInteger(allocatedQuantity(row)) || allocatedQuantity(row) > available ? 'Allocated quantity exceeds available stock. Reduce the quantities to continue.' : '';
   };
   const categories = [...new Set(stockableProducts.map(product => product.category))];
-  const products = stockableProducts.filter(product => (!selectedOnly || rows.some(row => row.productId === product.id)) && (!category || product.category === category) && `${product.name} ${product.code} ${product.category}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const products = mobileSearch ? searchRecords(stockableProducts.filter(product => (!selectedOnly || rows.some(row => row.productId === product.id)) && (!category || product.category === category)), search, product => ({ primary: [product.name], text: [product.name, product.code, product.category], identifiers: [product.code] })) : stockableProducts.filter(product => (!selectedOnly || rows.some(row => row.productId === product.id)) && (!category || product.category === category) && `${product.name} ${product.code} ${product.category}`.toLowerCase().includes(search.trim().toLowerCase()));
   const updateRow = (productId: string, update: (row: TransferRow) => TransferRow) => {
     setRows(current => current.map(row => row.productId === productId ? update(row) : row)); setError('');
   };

@@ -38,6 +38,7 @@ createRoot(document.getElementById('root')!).render(
 void (async () => {
   await until(() => document.querySelectorAll('.gst-bill-row').length === 65);
   const rows = [...document.querySelectorAll<HTMLTableRowElement>('.gst-bill-row')];
+  assert(rows[0].querySelector('[data-label="Bill No."]')!.textContent === 'GST-1', 'GST bill number cell contains only its bill number');
   assert(document.querySelectorAll('.bill-table-card th').length === 10, 'Report includes ten columns after removing IGST');
   assert([...document.querySelectorAll('.bill-table-card th')].some(cell => cell.textContent === 'Product Name'), 'Product Name column is visible on the report');
   assert(![...document.querySelectorAll('.bill-table-card th')].some(cell => cell.textContent === 'IGST'), 'IGST column is removed from the report');
@@ -52,6 +53,7 @@ void (async () => {
   assert(printCalls === 1, 'Print / PDF invokes browser printing');
   rows[64].click(); await until(() => document.querySelector('.bill-detail-modal'));
   assert(document.querySelector('.bill-detail-modal')!.textContent?.includes('Product 65'), 'Bill details still show product items');
+  assert(!document.querySelector('.bill-detail-modal .gst-items-table [data-label="Product"] small'), 'GST details omit product codes and retain product names');
   assert(!document.querySelector('.bill-detail-modal')!.textContent?.includes('IGST'), 'IGST is removed from bill details');
   document.querySelector<HTMLButtonElement>('[aria-label="Close bill details"]')!.click(); await pause();
   document.getElementById('test-results')!.textContent = JSON.stringify({ passed: checks.length, failed: 0, checks });

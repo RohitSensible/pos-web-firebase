@@ -14,9 +14,19 @@
 .product-flags-bulk .flags-empty { text-align: center; padding: 28px 14px; }
 .product-flags-bulk .flags-failures { margin: 0; padding-left: 20px; color: #b91c1c; font-size: 12px; }
 @media (max-width: 640px) {
-  .product-flags-bulk .flags-search { max-width: none; }
-  .product-flags-bulk .flags-header { flex-wrap: wrap; }
-  .product-flags-bulk .flags-header-actions { width: 100%; }
-  .product-flags-bulk .flags-header-actions button { flex: 1; }
-  .product-flags-bulk .flags-table .flags-column { width: 96px; }
+  .product-flags-bulk .products-header.flags-header { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+  .product-flags-bulk .flags-header > div { min-width: 0; max-width: 100%; }
+  .product-flags-bulk .flags-header h1 { display: block; font-size: 20px; line-height: 1.3; overflow-wrap: anywhere; }
+  .product-flags-bulk .flags-header-actions { width: 100%; margin-left: 0; }
+  .product-flags-bulk .flags-header-actions button { flex: 1; min-width: 0; min-height: 44px; justify-content: center; }
+  .product-flags-bulk .flags-search { min-width: 0; min-height: 44px; max-width: none; }
+  .product-flags-bulk .flags-search input { min-width: 0; width: 100%; }
+  .product-flags-bulk .products-table-card { min-width: 0; padding: 0; border: 1px solid #e5ecf5; border-radius: 9px; background: #fff; }
+  .product-flags-bulk .products-table.flags-table { min-width: 0; width: 100%; table-layout: fixed; }
+  .product-flags-bulk .flags-table th { padding: 10px 6px; font-size: 10px; letter-spacing: .02em; white-space: normal; }
+  .product-flags-bulk .flags-table td { padding: 12px 6px; }
+  .product-flags-bulk .flags-table .flags-column { width: 80px; }
+  .product-flags-bulk .flags-heading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 44px; }
+  .product-flags-bulk .flags-table input[type="checkbox"] { width: 24px; height: 24px; }
+  .product-flags-bulk .flags-failures { overflow-wrap: anywhere; }
 }

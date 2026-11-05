@@ -18,7 +18,7 @@ import { ProfileMenu } from './pages/ProfileMenu.tsx';
 import type { StockTransferPreview } from './pages/stockTransferPreviews.ts';
 import {
   ArrowLeft, ArrowRightLeft, BadgeIndianRupee, Banknote, Bot, Calculator, Download,
-  CalendarCheck, CalendarDays, ChevronDown, CircleHelp, ClipboardCheck,
+  CalendarCheck, CalendarDays, ChevronDown, CircleHelp, ClipboardCheck, Clock,
   ClipboardList, CreditCard, Gauge, Home, Image as ImageIcon,
   LayoutDashboard, LayoutGrid, LogOut, MapPin, Menu, Monitor, Package, PackageCheck, Radio, ReceiptText,
   PackageSearch, RefreshCw, SlidersHorizontal, Store, TrendingUp, Upload,
@@ -519,6 +519,12 @@ function Application() {
             <button className="theme-button" type="button" aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} aria-pressed={darkMode} title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={() => setDarkMode(current => !current)}><span aria-hidden="true">☾</span></button>
             <ProfileMenu key={`${session.id}:${selectedOutlet.id}`} session={session} outletId={selectedOutlet.id} onSessionExpired={handleLogout} onChangeOutlet={requestChangeOutlet} />
           </div>
+          {activeNavigation.id === 'Home:Dashboard' && <div className="mobile-dashboard-info" aria-label="Current outlet, branch, date and time">
+            <div className="mobile-dashboard-outlet"><Store aria-hidden="true" /><strong>{selectedOutlet.name}</strong></div>
+            <div><MapPin aria-hidden="true" /><span>{selectedOutlet.branch || 'Branch not specified'}</span></div>
+            <time dateTime={localDayId()}><CalendarDays aria-hidden="true" /><span>{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span></time>
+            <time dateTime={clock}><Clock aria-hidden="true" /><span>{clock}</span></time>
+          </div>}
         </header>
 
         {reconnecting && usage.dailyLimitApplies === null && usage.message && <div className="outlet-connection-status" data-outlet-connection role="alert">

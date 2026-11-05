@@ -11,6 +11,7 @@
 .stock-in-out-report-page .stock-col-supplier { width: 14%; }
 .stock-in-out-report-page .stock-col-date { width: 20%; }
 .stock-in-out-report-page .bill-table-card tr > :nth-child(5) { padding-left: 24px; }
+.stock-in-out-report-page .bill-table-card td:first-child small { display: block; }
 
 /* Print/PDF: let the table fit the page width instead of being clipped by its scroll container. */
 @page stock-in-out-report { size: A4; margin: 10mm; }

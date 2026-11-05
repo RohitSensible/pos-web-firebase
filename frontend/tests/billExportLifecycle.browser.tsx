@@ -65,6 +65,7 @@ void (async () => {
   render();
   assert(exportButton().disabled, 'Export disabled until current list is ready');
   await loadList();
+  assert(![...document.querySelectorAll('button')].some(button => button.textContent?.includes('Refresh report')), 'Bill report omits the removed Refresh report button');
   const row = document.querySelector<HTMLTableRowElement>('tbody tr')!;
   row.click();
   await until(() => document.querySelector<HTMLDialogElement>('dialog')?.open, 'Drawer missing');
@@ -110,8 +111,8 @@ void (async () => {
   await until(() => downloads === 1 && !exportButton().disabled, 'Successful download missing');
 
   const lateGst = await reachGst();
-  clickText('Refresh report');
-  await until(() => lateGst.signal.aborted, 'Refresh did not abort GST');
+  clickText('Apply');
+  await until(() => lateGst.signal.aborted, 'Applying filters did not abort GST');
   lateGst.resolve(gst(1)); await loadList(1); await pause();
   assert(downloads === 1 && workbooks.length === 1, 'Ignored GST abort cannot generate or download a stale workbook');
 
@@ -141,8 +142,8 @@ void (async () => {
   oldOutlet.resolve(null, 401); await loadList(1); await pause();
   assert(downloads === 1 && expired === 0, 'Late old-outlet authentication failure cannot expire the current session');
 
-  clickText('Refresh report');
-  await until(() => pending().length === 1, 'Refresh list missing');
+  clickText('Apply');
+  await until(() => pending().length === 1, 'Applied list missing');
   pending()[0].resolve(null, 503);
   await until(() => document.querySelector('.bill-report-state.error'), 'List failure missing');
   await pause();

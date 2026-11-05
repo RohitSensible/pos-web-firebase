@@ -64,6 +64,7 @@ export function createPlan(options = {}) {
       ['usage-disabled-compatibility', 'backend/tests/webUsageDisabled.test.ts'],
       ['daily-usage-recovery-audit', 'backend/tests/dailyUsageRecoveryAudit.test.mjs'],
       ['goods-received', 'backend/tests/goodsReceived.test.ts'],
+      ['stock-movement-numbers', 'backend/tests/stockMovementNumbers.test.ts'],
       ['goods-receipt-history', 'backend/tests/goodsReceiptHistory.test.ts'],
       ['suppliers', 'backend/tests/suppliers.test.ts'],
       ['supplier-update', 'backend/tests/supplierUpdate.test.ts'],

@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useEffect, useRef, useState } from 'react';
 import { Pencil, UsersRound, X } from 'lucide-react';
 import { useDataLoading } from '../utils/useDataLoading.ts';
@@ -25,6 +26,7 @@ function SuppliersContent({ outlet, token, onSessionExpired }: SuppliersPageProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
+  const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ReceiptSupplier | null>(null);
@@ -48,11 +50,11 @@ function SuppliersContent({ outlet, token, onSessionExpired }: SuppliersPageProp
   }, [base, token, onSessionExpired, reload]);
 
   const query = search.trim().toLowerCase();
-  const filtered = suppliers.filter(supplier => [supplier.name, supplier.mobile, supplier.email, supplier.gstin, supplier.address]
+  const filtered = mobileSearch ? searchRecords(suppliers, search, supplier => ({ primary: [supplier.name], text: [supplier.name, supplier.address], identifiers: [supplier.mobile, supplier.email, supplier.gstin] })) : suppliers.filter(supplier => [supplier.name, supplier.mobile, supplier.email, supplier.gstin, supplier.address]
     .some(value => value.toLowerCase().includes(query)));
   const { rows, hasMore, sentinelRef } = useRowBatches(filtered, query);
 
-  return <section className="devices-page devices-discovery-page">
+  return <section className="devices-page devices-discovery-page suppliers-page">
     <header className="devices-heading"><div><span>MASTERS</span><h1><UsersRound />Suppliers</h1><p>{outlet.name} · Supplier contact details</p></div>
       <MobileAddButton label="Add Supplier" className="devices-refresh" disabled={loading || !!error || !documentId} onClick={() => { setNotice(''); setAdding(true); }} />
     </header>

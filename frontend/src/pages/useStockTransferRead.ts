@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useMasterSync } from '../utils/useMasterSync.ts';
 import { loadProductList, ProductListRequestError, streamProductList } from './productListApi.ts';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 
@@ -10,6 +11,8 @@ export type StockTransferCategory = { id: string; name: string };
 export function useStockTransferRead<T>(url: string | null, token: string, kind: 'outlets' | 'products' | 'categories', onSessionExpired: () => void) {
   const [attempt, setAttempt] = useState(0);
   const key = JSON.stringify([url, token, kind, attempt]);
+  const activeKey = useRef(key);
+  useLayoutEffect(() => { activeKey.current = key; }, [key]);
   const sessionExpired = useRef(onSessionExpired);
   useEffect(() => { sessionExpired.current = onSessionExpired; }, [onSessionExpired]);
   const [state, setState] = useState<{ key: string; data: T[] | null; error: string }>({ key: '', data: null, error: '' });
@@ -47,5 +50,17 @@ export function useStockTransferRead<T>(url: string | null, token: string, kind:
     return () => { clearTimeout(timeout); controller.abort(); };
   }, [url, token, kind, key]);
   const current = url && state.key === key ? state : { data: null, error: '' };
+  const productOutlet = kind === 'products' && url ? /^\/api\/outlets\/([^/]+)\/products(?:\?|$)/.exec(url)?.[1] : undefined;
+  useMasterSync(productOutlet ? decodeURIComponent(productOutlet) : '', token, 'products', !!productOutlet && current.data !== null && !current.error, async signal => {
+    try {
+      const data = await streamProductList<T>(url!, token, signal, () => {});
+      signal.throwIfAborted();
+      if (activeKey.current !== key) throw new Error('Stock product scope changed.');
+      setState({ key, data, error: '' });
+    } catch (failure) {
+      if (!signal.aborted && activeKey.current === key && failure instanceof ProductListRequestError && failure.status === 401) sessionExpired.current();
+      throw failure;
+    }
+  });
   return { data: current.data, error: current.error, loading: !!url && current.data === null && !current.error, retry: () => setAttempt(value => value + 1) };
 }

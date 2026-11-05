@@ -1,3 +1,4 @@
+import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useScopedReportRead, useScopedReportExport } from '../utils/useScopedReportRead.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel, salesTaxRows, salesTaxSummary, type SalesTaxBreakdown } from '../utils/reportExcel.ts';
@@ -80,6 +81,7 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
   const [validationError, setValidationError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
+  const mobileSearch = useMobileSearch();
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters);
 
   const scopeKey = JSON.stringify([outlet.id, token, appliedFilters, reloadKey]);
@@ -130,16 +132,16 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
       const taxSummary = salesTaxSummary(report.categories);
       const totalTax = report.summary.totalTax ?? Number(taxSummary['TOTAL TAX']);
       const rows: (string | number | Date)[][] = [
-        ['Category No', 'Category Name', 'Tax Rate', 'Total Products', 'Items Sold', 'Sale', 'Tax Amount', 'Discount'],
+        ['Category Name', 'Tax Rate', 'Total Products', 'Items Sold', 'Sale', 'Tax Amount', 'Discount'],
         ...report.categories.flatMap(category => salesTaxRows(category).flatMap(group => [
-          [category.categoryNo ?? 0, category.name, group.rate === null ? 0 : `${group.rate}%`,
+          [category.name, group.rate === null ? 0 : `${group.rate}%`,
             group.productCount ?? category.productCount, group.quantity, group.amount, group.taxAmount, 0],
           ...category.products.flatMap(product => salesTaxRows(product)
             .filter(productGroup => !category.taxBreakdown?.length || productGroup.rate === group.rate)
-            .map(productGroup => ['', product.name, productGroup.rate === null ? 0 : `${productGroup.rate}%`, '',
+            .map(productGroup => [product.name, productGroup.rate === null ? 0 : `${productGroup.rate}%`, '',
               productGroup.quantity, productGroup.amount, productGroup.taxAmount, 0])),
         ])),
-        ['Total', '', '', '', report.summary.totalQuantity, report.summary.totalAmount, totalTax, 0],
+        ['Total', '', '', report.summary.totalQuantity, report.summary.totalAmount, totalTax, 0],
       ];
       await downloadReportExcel({
         signal,
@@ -148,6 +150,8 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
       });
     });
   };
+
+  const displayedCategories = useMemo(() => mobileSearch ? rankSearchResults(report?.categories ?? [], appliedFilters.search, category => ({ text: [category.name] })) : report?.categories ?? [], [report, appliedFilters.search, mobileSearch]);
 
   return (
     <section className="bill-report-page category-report-page">
@@ -182,29 +186,29 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
         {!loading && !error && report?.categories.length === 0 && <div className="bill-report-state"><Layers /><strong>No category sales found for these filters.</strong><p>Choose another date or clear some filters.</p></div>}
         {!loading && !error && report && report.categories.length > 0 && (
           <div className="bill-table-scroll">
-            <table>
+            <table className="mobile-report-table">
               <thead><tr><th>Category / Product</th><th>Bills</th><th>Products</th><th>Quantity</th><th>Share</th><th className="amount">Amount</th></tr></thead>
-              {report.categories.map(category => (
+              {displayedCategories.map(category => (
                 <tbody key={category.categoryId}>
                   <tr className="category-summary-row" onClick={() => toggleCategory(category.categoryId)}>
-                    <td><button type="button" className="category-expand-button" aria-expanded={expandedCategories.has(category.categoryId)} onClick={event => { event.stopPropagation(); toggleCategory(category.categoryId); }}><ChevronDown aria-hidden="true" /><strong>{category.name}</strong></button><small>{category.productCount} products sold</small></td>
-                    <td>{category.billCount}</td>
-                    <td>{category.productCount}</td>
-                    <td>{quantity(category.quantity)}</td>
-                    <td><div className="category-share"><span><i style={{ width: `${Math.min(100, category.share)}%` }} /></span><small>{category.share.toFixed(1)}%</small></div></td>
-                    <td className="amount"><strong>{money(category.amount)}</strong></td>
+                    <td data-label="Category / Product" data-mobile-primary="true"><button type="button" className="category-expand-button" aria-expanded={expandedCategories.has(category.categoryId)} onClick={event => { event.stopPropagation(); toggleCategory(category.categoryId); }}><ChevronDown aria-hidden="true" /><strong>{category.name}</strong></button><small>{category.productCount} products sold</small></td>
+                    <td data-label="Bills">{category.billCount}</td>
+                    <td data-label="Products">{category.productCount}</td>
+                    <td data-label="Quantity">{quantity(category.quantity)}</td>
+                    <td data-label="Share"><div className="category-share"><span><i style={{ width: `${Math.min(100, category.share)}%` }} /></span><small>{category.share.toFixed(1)}%</small></div></td>
+                    <td data-label="Amount" className="amount"><strong>{money(category.amount)}</strong></td>
                   </tr>
                   {category.products.map(product => (
                     <tr key={product.productId} className={`category-product-row${expandedCategories.has(category.categoryId) ? '' : ' category-product-collapsed'}`}>
-                      <td colSpan={3}><span className="category-product-name">{product.name}</span></td>
-                      <td>{quantity(product.quantity)}</td>
-                      <td />
-                      <td className="amount">{money(product.amount)}</td>
+                      <td data-label="Product" data-mobile-primary="true" colSpan={3}><span className="category-product-name">{product.name}</span></td>
+                      <td data-label="Quantity">{quantity(product.quantity)}</td>
+                      <td data-label="Share" />
+                      <td data-label="Amount" className="amount">{money(product.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
               ))}
-              <tfoot><tr><td><strong>Total</strong></td><td>{report.summary.totalBills}</td><td /><td>{quantity(report.summary.totalQuantity)}</td><td>100%</td><td className="amount"><strong>{money(report.summary.totalAmount)}</strong></td></tr></tfoot>
+              <tfoot><tr><td data-mobile-primary="true"><strong>Total</strong></td><td data-label="Bills">{report.summary.totalBills}</td><td data-label="Products" /><td data-label="Quantity">{quantity(report.summary.totalQuantity)}</td><td data-label="Share">100%</td><td data-label="Amount" className="amount"><strong>{money(report.summary.totalAmount)}</strong></td></tr></tfoot>
             </table>
           </div>
         )}

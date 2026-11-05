@@ -11,3 +11,22 @@
 .product-price-bulk .price-table tbody tr.changed { background: #f7f6ff; }
 .product-price-bulk .price-table tbody tr.failed { background: #fef2f2; }
 .product-price-bulk .price-missing { color: #cbd5e1; }
+
+@media screen and (max-width: 640px) {
+  .product-flags-bulk.product-price-bulk > .products-table-card { padding: 0; border: 0; background: transparent; box-shadow: none; overflow: visible; }
+  .product-price-bulk .products-table.price-table { display: block; width: 100%; min-width: 0; }
+  .product-price-bulk .price-table > thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .product-price-bulk .price-table > tbody { display: grid; width: 100%; gap: 12px; }
+  .product-price-bulk .price-table > tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; padding: 14px; border: 1px solid #e5ecf5; border-radius: 10px; background: #fff; }
+  .product-price-bulk .price-table td { display: flex; flex-direction: column; gap: 6px; min-width: 0; width: auto; padding: 0; border: 0; }
+  .product-price-bulk .price-table td[data-label]::before { content: attr(data-label); color: #7188ad; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+  .product-price-bulk .price-table .price-name-column { grid-column: 1 / -1; min-width: 0; font-size: 14px; font-weight: 600; white-space: normal; overflow-wrap: anywhere; }
+  .product-price-bulk .price-table .price-same-column { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 8px; width: auto; min-height: 44px; text-align: left; }
+  .product-price-bulk .price-table .price-same-column::before { order: 1; }
+  .product-price-bulk .price-table .price-column { width: auto; justify-content: flex-end; }
+  .product-price-bulk .price-table input[type="checkbox"] { width: 24px; height: 24px; flex-shrink: 0; }
+  .product-price-bulk .price-table input[type="text"] { width: 100%; min-width: 0; max-width: 100%; min-height: 44px; font-size: 16px; }
+  .product-price-bulk .price-table .price-column:nth-child(3):last-child { grid-column: 1 / -1; }
+  .product-price-bulk .price-table > tbody > tr:has(> td[colspan]) { display: block; }
+  .product-price-bulk .price-table td[colspan] { display: block; padding: 14px 0; }
+}

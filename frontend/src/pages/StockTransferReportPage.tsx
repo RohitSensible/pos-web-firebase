@@ -1,3 +1,4 @@
+import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
@@ -85,6 +86,7 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
   const [filterError, setFilterError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
+  const mobileSearch = useMobileSearch();
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters, setPage);
 
   useEffect(() => {
@@ -141,18 +143,20 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
     setPage(1);
   };
 
+  const displayedEntries = useMemo(() => mobileSearch ? rankSearchResults(report?.transfers ?? [], appliedFilters.search, entry => ({ primary: entry.items.map(item => item.name), text: [entry.supplier, entry.remark, ...entry.items.map(item => item.name)], identifiers: [entry.transferNo, ...entry.items.map(item => item.productId), ...entry.references.map(reference => reference.value)] })) : report?.transfers ?? [], [report, appliedFilters.search, mobileSearch]);
+
   const totalPages = Math.max(1, Math.ceil((report?.transfers.length ?? 0) / PAGE_SIZE));
   const hasData = !!report?.transfers.length;
   const exportExcel = async () => {
     if (!report) return;
     const csvRows: (string | number | Date)[][] = [
-      ['Transfer No', 'Day ID', 'Date / Time', 'Type', 'Supplier', 'Product ID', 'Product', 'Quantity', 'Rate', 'Cost', 'Product Total', 'Transfer Total', 'Remark', 'Transfer References'],
+      ['Transfer No', 'Day ID', 'Date / Time', 'Type', 'Supplier', 'Product', 'Quantity', 'Rate', 'Cost', 'Product Total', 'Transfer Total', 'Remark', 'Transfer References'],
       ...report.transfers.flatMap(entry => (entry.items.length ? entry.items : [null]).map(item => [
         entry.transferNo, entry.dayId, (entry.createdDate ? new Date(entry.createdDate) : '—'), entry.type, entry.supplier,
-        item?.productId ?? '', item?.name ?? 'No product details available', item?.quantity ?? '',
+        item?.name ?? 'No product details available', item?.quantity ?? '',
         item?.price ?? '', item?.cost ?? '', item?.total ?? '', entry.finalTotal, entry.remark, entry.references.map(reference => `${reference.field}: ${reference.value}`).join(' · '),
       ])),
-      ['Total', '', '', '', '', '', '', report.summary.totalQuantity, '', '', '', report.summary.totalAmount, '', ''],
+      ['Total', '', '', '', '', '', report.summary.totalQuantity, '', '', '', report.summary.totalAmount, '', ''],
     ];
     await downloadReportExcel({
       name: reportName, outlet, startDate: appliedFilters.startDate, endDate: appliedFilters.endDate,
@@ -191,12 +195,12 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
       {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><p>Saved records could not be loaded.{previews.length > 0 ? ' Session previews above remain available.' : ' Try loading them again.'}</p><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
       {!loading && !error && !hasData && <div className="bill-report-state"><Package /><strong>No saved stock transfers found for these filters.</strong><p>Choose another date range or clear the search.</p></div>}
       {!loading && !error && hasData && report && <>
-        <div className="bill-table-scroll"><table>
+        <div className="bill-table-scroll"><table className="mobile-report-table">
           <thead><tr><th>Transfer No.</th><th>Date / Time</th><th>Type</th><th>Supplier</th><th>Products</th><th className="amount">Quantity</th><th className="amount">Amount</th></tr></thead>
-          <tbody>{report.transfers.map((entry, index) => <tr key={entry.documentId} className={index < (page - 1) * PAGE_SIZE || index >= page * PAGE_SIZE ? 'stock-transfer-other-page' : undefined} tabIndex={0} aria-label={`View stock transfer ${entry.transferNo}`} onClick={() => setSelectedTransfer(entry)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedTransfer(entry); } }}>
-            <td><strong>{entry.transferNo}</strong><small>{entry.dayId}</small></td><td>{dateTime(entry.createdDate)}</td><td>{entry.type}</td><td>{entry.supplier || '—'}</td><td>{entry.items.map(item => item.name).join(', ') || '—'}</td><td className="amount">{quantity(entry.quantity)}</td><td className="amount"><strong>{money(entry.finalTotal)}</strong></td>
+          <tbody>{displayedEntries.map((entry, index) => <tr key={entry.documentId} className={index < (page - 1) * PAGE_SIZE || index >= page * PAGE_SIZE ? 'stock-transfer-other-page' : undefined} tabIndex={0} aria-label={`View stock transfer ${entry.transferNo}`} onClick={() => setSelectedTransfer(entry)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedTransfer(entry); } }}>
+            <td data-label="Transfer No." data-mobile-primary="true"><strong>{entry.transferNo}</strong><small>{entry.dayId}</small></td><td data-label="Date / Time">{dateTime(entry.createdDate)}</td><td data-label="Type">{entry.type}</td><td data-label="Supplier">{entry.supplier || '—'}</td><td data-label="Products">{entry.items.map(item => item.name).join(', ') || '—'}</td><td data-label="Quantity" className="amount">{quantity(entry.quantity)}</td><td data-label="Amount" className="amount"><strong>{money(entry.finalTotal)}</strong></td>
           </tr>)}</tbody>
-          <tfoot><tr><td><strong>Total</strong></td><td colSpan={4}>{report.summary.totalTransfers} transfers</td><td className="amount">{quantity(report.summary.totalQuantity)}</td><td className="amount"><strong>{money(report.summary.totalAmount)}</strong></td></tr></tfoot>
+          <tfoot><tr><td data-mobile-primary="true"><strong>Total</strong></td><td colSpan={4}>{report.summary.totalTransfers} transfers</td><td data-label="Quantity" className="amount">{quantity(report.summary.totalQuantity)}</td><td data-label="Amount" className="amount"><strong>{money(report.summary.totalAmount)}</strong></td></tr></tfoot>
         </table></div>
         <div className="bill-pagination"><span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, report.transfers.length)} of {report.transfers.length}</span><div><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}><ChevronLeft /></button><strong>Page {page} of {totalPages}</strong><button type="button" disabled={page >= totalPages} onClick={() => setPage(value => value + 1)}><ChevronRight /></button></div></div>
       </>}
@@ -210,7 +214,7 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
           ['Supplier', selectedTransfer.supplier], ['Source', selectedTransfer.source], ['State', selectedTransfer.state], ['Remark', selectedTransfer.remark],
           ...selectedTransfer.references.map(reference => [reference.field, reference.value]),
         ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value || '—'}</strong></div>)}</div>
-        <h3>Transferred Products</h3><div className="bill-items-table"><table><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Cost</th><th>Total</th></tr></thead><tbody>{selectedTransfer.items.length ? selectedTransfer.items.map((item, index) => <tr key={index}><td><strong>{item.name}</strong><small>{item.productId}{item.remark ? ` · ${item.remark}` : ''}</small></td><td>{quantity(item.quantity)}</td><td>{money(item.price)}</td><td>{money(item.cost)}</td><td>{money(item.total)}</td></tr>) : <tr><td colSpan={5}>No product details available</td></tr>}</tbody></table></div>
+        <h3>Transferred Products</h3><div className="bill-items-table"><table className="mobile-report-table"><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Cost</th><th>Total</th></tr></thead><tbody>{selectedTransfer.items.length ? selectedTransfer.items.map((item, index) => <tr key={index}><td data-label="Product" data-mobile-primary="true"><strong>{item.name}</strong>{item.remark && <small>{item.remark}</small>}</td><td data-label="Qty">{quantity(item.quantity)}</td><td data-label="Rate">{money(item.price)}</td><td data-label="Cost">{money(item.cost)}</td><td data-label="Total">{money(item.total)}</td></tr>) : <tr><td data-mobile-primary="true" colSpan={5}>No product details available</td></tr>}</tbody></table></div>
         <div className="bill-total-detail"><div><span>Transferred Quantity</span><strong>{quantity(selectedTransfer.quantity)}</strong></div><div><span>Sub Total</span><strong>{money(selectedTransfer.total)}</strong></div><div><span>Round Off</span><strong>{money(selectedTransfer.roundOff)}</strong></div><div className="grand-total"><span>Transfer Total</span><strong>{money(selectedTransfer.finalTotal)}</strong></div></div>
       </div>
       <footer><button type="button" onClick={() => setSelectedTransfer(null)}>Close</button></footer>

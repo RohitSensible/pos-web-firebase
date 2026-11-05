@@ -17,6 +17,14 @@ const round = (value: number) => Math.round(value * 100) / 100;
 export function stockMovementRecord(documentId: string, data: Record<string, unknown>, rates: ReadonlyMap<string, ProductRate> = new Map()) {
   // Normalize the existing GOODS_RECEIVED transaction fields.
   const goods = goodsTransactionRecord(documentId, data);
+  const savedNumber = typeof data.goodsReceivedNo === 'string' ? data.goodsReceivedNo.trim()
+    : typeof data.goodsReceivedNo === 'number' && Number.isFinite(data.goodsReceivedNo) ? String(data.goodsReceivedNo) : '';
+  // A document/request/device ID is not a goods-received bill number. In
+  // particular, the web receipt form has historically copied its document ID
+  // into goodsReceivedNo. Keep the stored record intact and report no number.
+  const internalIds = [documentId, data.id, data.deviceId, data.transactionId, data.requestId]
+    .filter((value): value is string => typeof value === 'string').map(value => value.trim());
+  const transactionNo = savedNumber && !internalIds.includes(savedNumber) ? savedNumber : '—';
   const items = goods.items.map(item => {
     const rate = rates.get(item.productId);
     const price = item.price || (!item.cost && rate ? rate.price : 0);
@@ -28,7 +36,7 @@ export function stockMovementRecord(documentId: string, data: Record<string, unk
   const quantity = goods.quantity || items.reduce((sum, item) => sum + item.quantity, 0);
   const total = goods.total || round(items.reduce((sum, item) => sum + item.total, 0));
   const finalTotal = goods.finalTotal || round(total + goods.roundOff);
-  return { ...goods, items, remark, quantity, total, finalTotal, direction: stockDirection(data) };
+  return { ...goods, transactionNo, items, remark, quantity, total, finalTotal, direction: stockDirection(data) };
 }
 
 // Product IDs whose lines have no saved rate and need a PRODUCT lookup.

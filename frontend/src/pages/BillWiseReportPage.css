@@ -1,3 +1,5 @@
+@import './MobileReports.css';
+
 .bill-report-page { color: #293d50; }
 .report-print-shop-name { display: none; }
 .bill-report-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
@@ -152,16 +154,46 @@ dialog.bill-detail-backdrop[open] { display: flex; justify-content: flex-end; }
 .bill-print-error { margin-bottom: 10px; color: #b52c32; font-size: 12px; }
 .bill-detail-modal > footer button:disabled { opacity: .6; cursor: wait; }
 
+/* Row numbers belong to the PDF, leaving the existing screen tables unchanged. */
+.bill-report-page .bill-table-card .report-serial-number,
+.bill-items-table .report-serial-number { display: none; }
+.bill-sales-report-page .bill-table-card td:nth-child(2) small { display: block; margin-top: 3px; color: #8a99a6; font-size: 8px; }
+@media screen {
+  .bill-sales-report-page .bill-table-card td:nth-child(2) small { font-size: 10px; }
+}
+
+@media print {
+  .bill-report-page .bill-table-card .report-serial-number,
+  .print-document .bill-items-table .report-serial-number { display: table-cell; width: 7%; text-align: center; font-variant-numeric: tabular-nums; }
+  html:has(.bill-sales-report-page), body:has(.bill-sales-report-page) { background: #fff; color-scheme: light; }
+  #root:has(.bill-sales-report-page), .retail-dashboard-shell:has(.bill-sales-report-page),
+  .dashboard-stage:has(.bill-sales-report-page) { display: block; width: 100%; min-width: 0; min-height: 0; height: auto; overflow: visible; }
+  .bill-sales-report-page .bill-table-card { min-height: 0; overflow: visible; border-radius: 0; }
+  .bill-sales-report-page .bill-table-scroll { overflow: visible; }
+  .bill-sales-report-page .bill-table-card table { width: 100%; table-layout: fixed; }
+  .bill-sales-report-page .bill-table-card th,
+  .bill-sales-report-page .bill-table-card td { padding: 7px 5px; white-space: normal; overflow-wrap: anywhere; }
+  .bill-sales-report-page .bill-table-card td { display: table-cell; }
+  .bill-sales-report-page .bill-table-card td small { display: block; }
+  .bill-sales-report-page thead { display: table-header-group; }
+  .bill-sales-report-page tr { break-inside: avoid; }
+}
+
 /* An individual receipt lives in its own document, outside the report overlay. */
 @media print {
   html:has(body.print-document), body.print-document { min-height: 0; height: auto; background: #fff; color: #000; color-scheme: light; }
-  .print-document .bill-detail-modal { display: block; width: 100%; max-width: none; height: auto; background: #fff; box-shadow: none; }
+  .print-document .bill-detail-modal { display: block; width: 100%; max-width: none; height: auto; overflow: visible; background: #fff; box-shadow: none; }
   .print-document .bill-detail-modal > header { display: block; padding: 0 0 16px; color: #000; background: #fff; border-bottom: 1px solid #bbb; break-inside: avoid; }
   .print-document .bill-detail-modal > header span, .print-document .bill-detail-modal > header p { color: #333; }
   .print-document .bill-print-outlet { font-size: 24px; }
   .print-document .bill-detail-body { overflow: visible; padding: 16px 0 0; }
   .print-document .bill-detail-meta strong { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
   .print-document .bill-items-table { overflow: visible; }
+  .print-document .bill-sales-detail .bill-items-table table { table-layout: fixed; }
+  .print-document .bill-sales-detail .bill-items-table th:nth-child(2) { width: 45%; }
+  .print-document .bill-sales-detail .bill-items-table th:nth-child(3) { width: 10%; }
+  .print-document .bill-sales-detail .bill-items-table th:nth-child(4),
+  .print-document .bill-sales-detail .bill-items-table th:nth-child(5) { width: 19%; }
   .print-document .bill-items-table th, .print-document .bill-items-table td { font-size: 11px; overflow-wrap: anywhere; }
   .print-document .bill-items-table thead { display: table-header-group; }
   .print-document .bill-items-table tr, .print-document .bill-detail-meta > div,

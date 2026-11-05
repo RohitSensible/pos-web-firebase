@@ -57,6 +57,7 @@ void (async () => {
   reply(0, Array.from({ length: 101 }, (_, i) => product(101 - i)), 'Old category');
   await waitFor(() => visibleRows().length === 50, 'initial rows');
   assert(visibleRows()[0]!.textContent?.includes('Product 1'), 'Numeric product code sorting retained');
+  assert(!document.querySelector('[data-label="Code"]'), 'Stock report excludes product codes on screen and in print');
   next().click(); await pause(); next().click(); await pause();
   assert(visibleRows().length === 1 && document.querySelector('.bill-pagination')!.textContent!.includes('Page 3 of 3'), 'Third page is reachable');
   assert(document.querySelectorAll('tbody tr').length === 101 && document.querySelectorAll('.stock-print-only-row').length === 100, 'All filtered rows exist once for print and only current page is visible');
@@ -113,8 +114,8 @@ void (async () => {
   const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(await downloaded!.arrayBuffer());
   const sheet = workbook.worksheets[0]!;
-  assert(sheet.getCell('A33').value === '6' && sheet.getCell('A87').value === '60', 'Excel includes every filtered row in numeric order');
-  assert(sheet.getCell('B88').value === 'Total' && sheet.getCell('E88').value === 1815, 'Excel total matches all filtered quantities');
+  assert(sheet.getCell('A33').value === 'Product 6' && sheet.getCell('A87').value === 'Product 60', 'Excel includes every filtered row in numeric order');
+  assert(sheet.getCell('A88').value === 'Total' && sheet.getCell('D88').value === 1815, 'Excel total matches all filtered quantities');
   const input = document.querySelector<HTMLInputElement>('input')!;
   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'no matching stock');
   input.dispatchEvent(new Event('input', { bubbles: true }));

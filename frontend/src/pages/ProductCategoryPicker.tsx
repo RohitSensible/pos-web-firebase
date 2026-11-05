@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useId, useState } from 'react';
 import { categoryReferenceMap } from '../../../shared/categoryReferences.ts';
 import { Check, ChevronDown, Image as ImageIcon } from 'lucide-react';
@@ -20,6 +21,7 @@ export function ProductCategoryPicker({ products, categories, selected, max, sea
   products: ImageProduct[]; categories: PickerCategory[]; selected: string[]; max: number; search: string; disabled: boolean;
   outletId: string; token: string; onSessionExpired: () => void; onChange: (selected: string[]) => void;
 }) {
+  const mobileSearch = useMobileSearch();
   const instanceId = useId();
   const query = search.trim().toLowerCase();
   const categoryGroups = new Map(categories.map((category, index) => [category.id, {
@@ -34,8 +36,10 @@ export function ProductCategoryPicker({ products, categories, selected, max, sea
   }
   const groups = [...categoryGroups.values(), uncategorized].filter(group => group.items.length > 0);
   const matches = (item: ImageProduct) => `${productName(item)} ${String(item.fields.code ?? '')}`.toLowerCase().includes(query);
-  const visibleGroups = groups.map(group => ({ ...group, visible: query ? group.items.filter(matches) : group.items }))
+  const productFields = (item: ImageProduct) => ({ text: [productName(item)], identifiers: [item.fields.code] });
+  const matchingGroups = groups.map(group => ({ ...group, visible: mobileSearch ? searchRecords(group.items, search, productFields) : query ? group.items.filter(matches) : group.items }))
     .filter(group => group.visible.length > 0);
+  const visibleGroups = mobileSearch ? rankSearchResults(matchingGroups, search, group => ({ text: group.visible.flatMap(item => productFields(item).text), identifiers: group.visible.flatMap(item => productFields(item).identifiers) })) : matchingGroups;
   // Open the categories that already hold a selection; the rest start collapsed.
   const [open, setOpen] = useState(() => new Set(groups.filter(group => group.items.some(item => selected.includes(item.documentId))).map(group => group.id)));
   const [notice, setNotice] = useState('');

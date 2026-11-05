@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import { ProductsPage } from '../src/pages/ProductsPage.tsx';
 import { CategoryPage } from '../src/pages/CategoryPage.tsx';
 import { CustomersPage } from '../src/pages/CustomersPage.tsx';
+import { UnsavedChangesPrompt } from '../src/utils/unsavedChanges.tsx';
 import '../src/index.css';
 
 const checks: string[] = [];
@@ -42,7 +43,7 @@ const onSessionExpired = () => { throw new Error('Unexpected session expiry'); }
 const rows = () => document.querySelector('tbody, .customers-list')?.textContent ?? '';
 const button = (label: string) => [...document.querySelectorAll('button')].find(node => node.textContent?.trim() === label)!;
 void (async () => {
-  flushSync(() => root.render(<ProductsPage outlet={outlet} token="token" onSessionExpired={onSessionExpired} />));
+  flushSync(() => root.render(<><ProductsPage outlet={outlet} token="token" onSessionExpired={onSessionExpired} /><UnsavedChangesPrompt /></>));
   await until(() => feeds.has('products') && rows().includes('Original product')); await pause(450);
   let release!: () => void;
   holdProducts = new Promise<void>(resolve => { release = resolve; });
@@ -56,14 +57,14 @@ void (async () => {
   products = []; notify('products'); await until(() => !rows().includes('Updated product'));
   assert(!rows().includes('Updated product'), 'remote product deletion removes the row');
 
-  flushSync(() => root.render(<CategoryPage outlet={outlet} token="token" onSessionExpired={onSessionExpired} />));
+  flushSync(() => root.render(<><CategoryPage outlet={outlet} token="token" onSessionExpired={onSessionExpired} /><UnsavedChangesPrompt /></>));
   await until(() => feeds.has('categories') && rows().includes('Original category'));
   categories = [{ ...categories[0]!, name: 'Updated category', productCount: 3 }]; notify('categories');
   await until(() => rows().includes('Updated category') && rows().includes('3 items'));
   assert(rows().includes('3 items'), 'category names and product counts update automatically');
   assert(!feeds.has('products'), 'navigation closes the previous list subscription');
 
-  flushSync(() => root.render(<CustomersPage outlet={outlet} token="token" onSessionExpired={onSessionExpired} />));
+  flushSync(() => root.render(<><CustomersPage outlet={outlet} token="token" onSessionExpired={onSessionExpired} /><UnsavedChangesPrompt /></>));
   await until(() => feeds.has('customers') && rows().includes('Original customer'));
   customers = [{ ...customers[0]!, name: 'Updated customer' }]; notify('customers');
   await until(() => rows().includes('Updated customer'));
@@ -75,7 +76,8 @@ void (async () => {
   customers = [{ ...customers[0]!, name: 'Customer changed while editing' }];
   await pause(450);
   assert(input.value === 'Unsaved customer' && !feeds.has('customers'), 'live updates preserve unsaved forms and pause their subscription');
-  button('Cancel').click(); await until(() => rows().includes('Customer changed while editing'));
+  button('Cancel').click(); await until(() => button('Discard'));
+  button('Discard').click(); await until(() => rows().includes('Customer changed while editing'));
   assert(rows().includes('Customer changed while editing'), 'closing a form resumes updates and reconciles missed changes');
   feeds.get('customers')!.close(); feeds.delete('customers');
   customers = [];

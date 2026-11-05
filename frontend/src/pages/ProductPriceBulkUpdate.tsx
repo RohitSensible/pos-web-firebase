@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -68,11 +69,13 @@ export function ProductPriceBulkUpdate({ products, outletId, token, onClose, onS
     });
     return [...keys];
   }, [rows, premises]);
+  const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
+    if (mobileSearch) return searchRecords(rows, search, product => ({ text: [productName(product)], identifiers: [codeText(product)] }));
     return rows.filter(product => productName(product).toLowerCase().includes(query) || codeText(product).toLowerCase().includes(query));
-  }, [rows, search]);
+  }, [rows, search, mobileSearch]);
   // Baseline holds the stored values; it follows each save so a retry resends only what is still pending.
   const [baseline, setBaseline] = useState(() => new Map(products.flatMap(product => { const table = priceTableOf(product); return table ? [[product.documentId, table] as const] : []; })));
   const [draft, setDraft] = useState(() => new Map([...baseline].map(([id, table]) => [id, textsOf(table)])));
@@ -203,9 +206,9 @@ export function ProductPriceBulkUpdate({ products, outletId, token, onClose, onS
               <td className="products-name price-name-column">{name}
                 {!texts && <span className="flags-row-error">Price table is invalid; edit is unavailable.</span>}
                 {error && <span className="flags-row-error">{error}</span>}</td>
-              <td className="price-same-column"><input type="checkbox" aria-label={`Same price for all premises for ${name}`} checked={same}
+              <td className="price-same-column" data-label="Same for all"><input type="checkbox" aria-label={`Same price for all premises for ${name}`} checked={same}
                 disabled={saving || !texts || columns.length < 2} onChange={event => link(product.documentId, event.target.checked)} /></td>
-              {columns.map(key => <td key={key} className="price-column">{texts
+              {columns.map(key => <td key={key} className="price-column" data-label={columnLabel(key)}>{texts
                 ? <input type="text" inputMode="decimal" aria-label={`${columnLabel(key)} for ${name}`} value={texts[key] ?? ''}
                     aria-invalid={(texts[key] ?? '') !== priceText(baseline.get(product.documentId)?.[key]) && !validPrice(texts[key] ?? '')}
                     disabled={saving} onChange={event => edit(product.documentId, key, event.target.value)} />

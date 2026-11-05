@@ -6,8 +6,8 @@ import '../src/App.css';
 import '../src/Theme.css';
 const results: string[] = [];
 const requests: URLSearchParams[] = [];
-const movement = (n: number, direction: 'in' | 'out', name: string, qty: number) => ({ documentId: `d${n}`, transactionNo: `stock-${n}`, dayId: '2026-10-24',
-  createdDate: Date.UTC(2026, 9, 24, 7, 19 + n), type: direction === 'in' ? 'STOCK-IN' : 'STOCK-OUT', direction, supplier: '', remark: '', source: '', state: '',
+const movement = (n: number, direction: 'in' | 'out', name: string, qty: number) => ({ documentId: `internal-transaction-${n}`, transactionNo: n === 3 ? '—' : n === 2 ? '2611055' : '2611056', dayId: '2026-10-24',
+  createdDate: Date.UTC(2026, 9, 24, 7, 19 + n), type: direction === 'in' ? 'STOCK-IN' : 'STOCK-OUT', direction, supplier: 'samiksha', remark: '', source: '', state: '',
   quantity: qty, total: qty * 2, roundOff: 0, finalTotal: qty * 2, items: [{ productId: `p${n}`, name, quantity: qty, price: 2, cost: 0, total: qty * 2, remark: '' }] });
 const all = [movement(1, 'out', 'PAPAD ROASTED', 10), movement(2, 'in', 'MASALA PAPAD', 50), movement(3, 'in', 'PAPAD ROASTED', 100)];
 window.fetch = async url => {
@@ -21,7 +21,7 @@ const assert = (condition: unknown, message: string) => { if (!condition) throw 
 const pause = () => new Promise(resolve => setTimeout(resolve, 25));
 async function waitFor(check: () => unknown, message: string) { for (let i = 0; i < 150; i++) { if (check()) return; await pause(); } throw new Error(`Timed out: ${message}`); }
 const tab = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(node => node.textContent === label)!;
-const names = () => [...document.querySelectorAll('tbody tr td:first-child')].map(cell => cell.textContent).join(',');
+const names = () => [...document.querySelectorAll('.bill-table-scroll tbody tr td:first-child > strong')].map(cell => cell.textContent).join(',');
 const headings = () => [...document.querySelectorAll('.bill-table-scroll thead th')].map(cell => cell.textContent).join('|');
 const cards = () => [...document.querySelectorAll('.stock-summary-grid small')].map(cell => cell.textContent).join('|');
 // Simulate the obsolete stylesheet still loaded by an existing browser tab.
@@ -60,10 +60,16 @@ void (async () => {
   assert(headings() === 'Product Name|Type|Quantity|Price|Supplier|Date / Time', `columns ${headings()}`);
   assert(cards() === 'Stock-In Transactions|Stock In Quantity|Total Amount', `cards ${cards()}`);
   assert(document.querySelector('tfoot')!.textContent!.includes('Total Stock-In') && document.querySelector('tfoot')!.textContent!.includes('150'), 'stock-in total');
-  assert(!document.body.textContent!.includes('stock-2') && !document.querySelector('select'), 'no transaction numbers or direction dropdown');
+  assert(document.body.textContent!.includes('Goods received no.: 2611055') && document.body.textContent!.includes('Goods received no.: —'), 'Stock In shows the stored number and the missing-number placeholder');
+  const firstCell = document.querySelector('.bill-table-scroll tbody td')!;
+  assert(firstCell.querySelector('small')!.getBoundingClientRect().top >= firstCell.querySelector('strong')!.getBoundingClientRect().bottom, 'Goods-received number appears below the product name without overlapping it');
+  assert(!document.body.textContent!.includes('internal-transaction-') && !document.querySelector('select'), 'Internal IDs never appear as goods-received numbers; no direction dropdown');
+  assert([...document.querySelectorAll('[data-label="Supplier"]')].every(cell => cell.textContent === 'samiksha'), 'Supplier values remain unchanged');
   document.querySelector<HTMLTableRowElement>('.bill-table-scroll tbody tr')!.click();
   await waitFor(() => document.querySelector('.bill-detail-modal'), 'stock details');
   const details = document.querySelector('.bill-detail-modal')!;
+  assert(details.textContent!.includes('Goods received no.') && details.textContent!.includes('2611055') && details.textContent!.includes('samiksha'), 'Details retain the real number and supplier');
+  assert(details.querySelector('[data-label="Product"]')!.textContent === 'MASALA PAPAD', 'Stock details show the product name without its internal product ID');
   assert(!details.textContent!.includes('₹') && details.textContent!.includes('100.00') && details.textContent!.includes('0.00'), 'stock detail amounts have decimal places without rupee symbols');
   document.querySelector<HTMLButtonElement>('[aria-label="Close transaction details"]')!.click(); await pause();
   results.push('Stock detail amounts show numbers without rupee symbols');
@@ -74,10 +80,12 @@ void (async () => {
   assert(requests.at(-1)!.get('direction') === 'out' && tab('STOCK-OUT').getAttribute('aria-selected') === 'true', 'Stock-Out tab loads stock-out only');
   assertNeutralTabs();
   assert(cards() === 'Stock-Out Transactions|Stock Out Quantity|Total Amount' && document.querySelector('tfoot')!.textContent!.includes('Total Stock-Out'), 'stock-out cards and total');
+  assert(document.body.textContent!.includes('Goods received no.: 2611056') && !document.body.textContent!.includes('internal-transaction-'), 'Stock Out displays its stored number without exposing internal IDs');
   const before = requests.length; tab('STOCK-OUT').click(); await pause();
   assert(requests.length === before, 'clicking the active tab does not reload');
   results.push('Stock-Out tab shows only stock-out rows with its own cards and totals');
   results.push('Both directions retain neutral boxed colors in light and dark mode even with legacy red/green CSS loaded');
+  results.push('Stored goods-received numbers and missing-number placeholders display correctly in both directions with supplier values unchanged');
   if (!location.hash.includes('preview')) root.unmount();
   document.getElementById('test-results')!.style.display = 'none';
   document.getElementById('test-results')!.textContent = JSON.stringify({ passed: results });

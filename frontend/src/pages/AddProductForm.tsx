@@ -26,13 +26,14 @@ interface Options {
 interface Props {
   outletId: string; token: string; initialCategory: string | null; product?: CreatedProduct;
   initialBarcode?: string;
+  scanBarcodeOnOpen?: boolean;
   onCancel: () => void; onCreated: (product: CreatedProduct) => void; onSessionExpired: () => void;
 }
 export function AddProductForm(props: Props) {
   return <ScopedProductForm key={JSON.stringify([props.outletId, props.token, props.product?.documentId])} {...props} />;
 }
 
-function ScopedProductForm({ outletId, token, initialCategory, initialBarcode, onCancel, onCreated, onSessionExpired, product }: Props) {
+function ScopedProductForm({ outletId, token, initialCategory, initialBarcode, scanBarcodeOnOpen = false, onCancel, onCreated, onSessionExpired, product }: Props) {
   const nameRef = useRef<HTMLInputElement>(null);
   const savingRef = useRef(false);
   const createdForImageRetry = useRef<CreatedProduct | null>(null);
@@ -40,7 +41,7 @@ function ScopedProductForm({ outletId, token, initialCategory, initialBarcode, o
   const [options, setOptions] = useState<Options | null>(null);
   const originalDraft = useRef(product ? productDraftFromFields(product.fields) : null);
   const { confirmAction, confirmation } = useActionConfirmation();
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(scanBarcodeOnOpen);
   const [barcodeImageOpen, setBarcodeImageOpen] = useState(false);
   const [draft, setDraft] = useState<ProductDraft>(product ? productDraftFromFields(product.fields) : { name: '', price: '', mrpPrice: '0', costPrice: '0',
     category: initialCategory ?? '', regionalName: '', discount: '0', shortName: '', taxIndex: '',
@@ -190,9 +191,9 @@ function ScopedProductForm({ outletId, token, initialCategory, initialBarcode, o
   const allDefaultPrices = savedPrices.length > 0 && savedPrices.every(value => value === priceTable['default price']);
   const discountAmount = Number(draft.price) * Number(draft.discount) / 100;
   return (
-    <section className="category-modal add-product-modal" aria-labelledby="add-product-title">
+    <section className={`category-modal add-product-modal${product ? ' edit-product-modal' : ''}`} aria-labelledby="add-product-title">
       <form noValidate onSubmit={event => void save(event)}>{confirmation}
-        {scannerOpen && <BarcodeScanner onCancel={() => setScannerOpen(false)} onUse={value => { update('barcode', value); setScannerOpen(false); }} />}
+        {scannerOpen && options && <BarcodeScanner onCancel={() => setScannerOpen(false)} onUse={value => { update('barcode', value); setScannerOpen(false); }} />}
         {barcodeImageOpen && <BarcodeImageUpload onCancel={() => setBarcodeImageOpen(false)} onUse={value => { update('barcode', value); setBarcodeImageOpen(false); }} />}
         <div className="modal-header"><h3 id="add-product-title">{product ? 'Edit Product' : 'Add New Product'}</h3>
           <button type="submit" className="btn-primary-add product-mobile-save" disabled={saving || !options || !options.categories.length}>{saving ? (product ? 'Updating…' : 'Saving…') : !product && createdForImageRetry.current ? 'Retry Image Save' : product ? 'Update' : 'Save'}</button>
@@ -210,16 +211,18 @@ function ScopedProductForm({ outletId, token, initialCategory, initialBarcode, o
             {text('costPrice', 'Purchase Price', true)}
           </div>
           <label className="product-checkbox product-wide"><input type="checkbox" checked={allDefaultPrices} disabled />Default price set to all premises</label>
-          {text('onlinePrice', 'Online Price', true)}
-          {premisePrices.map(({ name, label, price }) => {
-            const key = productPremisesPriceKey(name, priceTable);
-            return <div className="form-field" key={name}><label>{label}
-              <input aria-label={label} type="number" min="0" step="any" readOnly={!product} disabled={saving || !options}
-                aria-invalid={!!errors[`premises:${key}`] || !!errors.premisesPrices}
-                value={draft.premisesPrices?.[key] ?? (typeof price === 'number' || typeof price === 'string' ? String(price) : '')}
-                placeholder={`Default: ${draft.price || '0'}`} onChange={event => update('premisesPrices', { ...draft.premisesPrices, [key]: event.target.value })} /></label>
-              {issue(`premises:${key}`)}</div>;
-          })}
+          <div className="product-premises-pricing-fields">
+            {text('onlinePrice', 'Online Price', true)}
+            {premisePrices.map(({ name, label, price }) => {
+              const key = productPremisesPriceKey(name, priceTable);
+              return <div className="form-field" key={name}><label>{label}
+                <input aria-label={label} type="number" min="0" step="any" readOnly={!product} disabled={saving || !options}
+                  aria-invalid={!!errors[`premises:${key}`] || !!errors.premisesPrices}
+                  value={draft.premisesPrices?.[key] ?? (typeof price === 'number' || typeof price === 'string' ? String(price) : '')}
+                  placeholder={`Default: ${draft.price || '0'}`} onChange={event => update('premisesPrices', { ...draft.premisesPrices, [key]: event.target.value })} /></label>
+                {issue(`premises:${key}`)}</div>;
+            })}
+          </div>
           {issue('premisesPrices')}
           <div className="form-field"><label htmlFor="product-code">Search Code</label><input id="product-code" readOnly value={options?.code ?? storedText('code')} placeholder="Loading…" /></div>
           {product ? text('barcode', 'Barcode') : <><div className="product-create-barcode">{text('barcode', 'Barcode')}</div><div className="product-create-barcode-desktop"><div className="form-field"><label htmlFor="product-barcode-readonly">Barcode</label><input id="product-barcode-readonly" readOnly value={draft.barcode ?? storedText('barcode')} placeholder="Not set" /></div></div></>}

@@ -1,3 +1,4 @@
+import { searchRecords } from '../utils/useMobileSearch.ts';
 import { markDataLoadingBackground } from '../utils/dataLoading.ts';
 import { categoryReferenceMap } from '../../../shared/categoryReferences.ts';
 import { ComboDetailsDialog } from './ComboDetailsDialog.tsx';
@@ -9,7 +10,7 @@ import { loadProductList, ProductListRequestError, streamProductList } from './p
 import { DeleteConfirmation } from './DeleteConfirmation.tsx';
 import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
 import { SuccessPopup } from './SuccessPopup.tsx';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowDownUp, Check, ChevronDown, FileSpreadsheet, IndianRupee, ImagePlus, Images, MoreVertical, Package, PackageCheck, Pencil, Percent, ScanBarcode, Search, Trash2, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import './ProductsPage.css';
@@ -47,6 +48,14 @@ interface ProductsPageProps {
   onSessionExpired: () => void;
 }
 
+const phoneHeaderQuery = 'screen and (max-width: 600px), screen and (max-width: 1024px) and (max-height: 500px)';
+const phoneHeaderSnapshot = () => window.matchMedia(phoneHeaderQuery).matches;
+function subscribePhoneHeader(onChange: () => void) {
+  const query = window.matchMedia(phoneHeaderQuery);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
 function productText(value: unknown): string {
   return typeof value === 'string' || typeof value === 'number' ? String(value) : '—';
 }
@@ -57,6 +66,7 @@ export function ProductsPage(props: ProductsPageProps) {
 }
 
 function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPageProps) {
+  const phoneHeader = useSyncExternalStore(subscribePhoneHeader, phoneHeaderSnapshot);
   const [products, setProducts] = useState<ProductDocument[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -108,6 +118,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [excelOpen, setExcelOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ProductDocument | null>(null);
+  const [scanEditOnOpen, setScanEditOnOpen] = useState(false);
   const [comboTarget, setComboTarget] = useState<{ documentId: string; name: string } | null>(null);
   const [noticeIsError, setNoticeIsError] = useState(false);
   const [notice, setNotice] = useTimedNotice(false);
@@ -231,10 +242,11 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
 
   const visibleProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
+    if (phoneHeader) return searchRecords(sortProducts(categoryProducts, sort), search, product => ({ primary: [product.fields.name], text: [product.fields.name, product.fields.regionalName], identifiers: [product.fields.code, product.fields.barcode] }));
     return sortProducts(categoryProducts.filter(product =>
       !query || ['name', 'code', 'regionalName'].some(field =>
         productText(product.fields[field]).toLowerCase().includes(query))), sort);
-  }, [categoryProducts, search, sort]);
+  }, [categoryProducts, search, sort, phoneHeader]);
 
   const { rows: renderedProducts, hasMore: hasMoreRows, sentinelRef: moreRowsRef } =
     useRowBatches(visibleProducts, `${selectedCategory ?? ''}\u0000${search}\u0000${sort}`);
@@ -293,11 +305,11 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
     }} />;
 
   if (editTarget) return <AddProductForm key={`edit-${editTarget.documentId}`} outletId={outlet.id} token={token}
-    initialCategory={selectedCategory} product={editTarget} onSessionExpired={onSessionExpired}
-    onCancel={() => setEditTarget(null)} onCreated={updated => {
+    initialCategory={selectedCategory} product={editTarget} scanBarcodeOnOpen={scanEditOnOpen} onSessionExpired={onSessionExpired}
+    onCancel={() => { setEditTarget(null); setScanEditOnOpen(false); }} onCreated={updated => {
       setProducts(current => current.map(product => product.documentId === updated.documentId ? updated : product));
       const imageChanged = productImageReference(updated.fields) !== productImageReference(editTarget.fields);
-      setEditTarget(null); setNoticeIsError(false);
+      setEditTarget(null); setScanEditOnOpen(false); setNoticeIsError(false);
       setNotice(`Product updated successfully.${imageChanged ? productImageReference(updated.fields) ? ' Image uploaded successfully.' : ' Image removed successfully.' : ''}`);
     }} />;
 
@@ -309,6 +321,12 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
           setNotice(`Product added successfully.${productImageReference(product.fields) ? ' Image uploaded successfully.' : ''}`);
         }} />
   );
+
+  const categoryFilter = <select className="products-category-filter" aria-label="Filter by category" value={selectedCategory ?? ''}
+    onChange={event => setSelectedCategory(event.target.value || null)}>
+    <option value="">All Categories</option>
+    {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+  </select>;
 
   return (
     <section className="products-page-shell" aria-label="Products" aria-busy={busyLoading}>
@@ -369,6 +387,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
                 onClick={() => requestImageAction('remove')}><span className="products-menu-icon"><Trash2 size={15} /></span>Remove all product images</button>
             </div>}
           </div>
+          {phoneHeader && categoryFilter}
           <div className="products-menu-anchor">
             <button type="button" className="products-menu-toggle" aria-label="More options" aria-haspopup="menu" aria-expanded={openMenu === 'more'}
               aria-controls="products-more-menu" onClick={() => toggleMenu('more')}><MoreVertical size={17} /></button>
@@ -432,11 +451,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
           <div><span className="products-summary-label">Total Products</span><strong aria-live="polite">{loading || error ? '—' : categoryProducts.length}</strong></div>
           <button type="button" className="products-scan-add" aria-label="Scan barcode to add product" disabled={busyLoading || !!error} onClick={() => setScanToAddOpen(true)}><ScanBarcode size={18} aria-hidden="true" />Scan to add</button>
         </article>
-        <select aria-label="Filter by category" value={selectedCategory ?? ''}
-          onChange={event => setSelectedCategory(event.target.value || null)}>
-          <option value="">All Categories</option>
-          {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select>
+        {!phoneHeader && categoryFilter}
       </div>
       {loading || error || visibleProducts.length === 0 ? (
         <div className="products-empty" data-inline-loading={loading || (progress && !error) ? '' : undefined} role={error ? 'alert' : 'status'}>
@@ -452,7 +467,10 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
                 <tr key={product.documentId}>
                   <td data-label="Code"><span className="products-code">{productText(product.fields.code)}</span></td>
                   <td data-label="Product" className="products-name mobile-record-name">{product.fields.type === 2 ? <button type="button" className="products-combo-link" aria-label={`View products in ${productText(product.fields.name)}`}
-                    onClick={event => { event.currentTarget.focus(); setComboTarget({ documentId: product.documentId, name: productText(product.fields.name) }); }}>{productText(product.fields.name)}<small>View items</small></button> : productText(product.fields.name)}</td>
+                    onClick={event => { event.currentTarget.focus(); setComboTarget({ documentId: product.documentId, name: productText(product.fields.name) }); }}>{productText(product.fields.name)}<small>View items</small></button> : productText(product.fields.name)}
+                    <button type="button" className="products-card-scan" disabled={deleting} aria-label={`Scan barcode for ${productText(product.fields.name)}`} title="Scan barcode"
+                      onClick={() => { setNotice(''); setScanEditOnOpen(true); setEditTarget(product); }}><ScanBarcode size={20} aria-hidden="true" /></button>
+                  </td>
                   <td data-label="Regional name">{productText(product.fields.regionalName) || '—'}</td>
                   <td data-label="Sale price"><span className="products-price"><Package size={15} />₹ {productText(product.fields.price)}</span></td>
                   <td data-label="Image"><ProductImageUpload name={productText(product.fields.name)} outletId={outlet.id} documentId={product.documentId}
@@ -467,7 +485,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
                       }));
                     }} /></td>
                   <td className="mobile-record-actions"><div className="products-row-actions">
-                    <button type="button" data-mobile-label="Edit" disabled={deleting} aria-label="Edit product" title="Edit product" onClick={() => { setNotice(''); setEditTarget(product); }}><Pencil size={14} /></button>
+                    <button type="button" data-mobile-label="Edit" disabled={deleting} aria-label="Edit product" title="Edit product" onClick={() => { setNotice(''); setScanEditOnOpen(false); setEditTarget(product); }}><Pencil size={14} /></button>
                     <button type="button" data-mobile-label="Delete" disabled={deleting} aria-label="Delete product" title="Delete product" onClick={() => setDeleteTarget({ id: product.documentId, name: productText(product.fields.name) })}><Trash2 size={14} /></button>
                   </div></td>
                 </tr>

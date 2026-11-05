@@ -1,3 +1,4 @@
+import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel, salesTaxRows, salesTaxSummary, type SalesTaxBreakdown } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
@@ -92,6 +93,7 @@ export const ProductWiseReportPage = ({ outlet, token, onSessionExpired, reportN
     return () => { exportJob.current?.abort(); exportJob.current = null; };
   }, [scope]);
 
+  const mobileSearch = useMobileSearch();
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters);
 
   useEffect(() => {
@@ -131,6 +133,8 @@ export const ProductWiseReportPage = ({ outlet, token, onSessionExpired, reportN
     });
   }, [report, sort]);
 
+  const displayedProducts = useMemo(() => mobileSearch ? rankSearchResults(sortedProducts, appliedFilters.search, product => ({ primary: [product.name], text: [product.name, product.category], identifiers: [product.code] })) : sortedProducts, [sortedProducts, appliedFilters.search, mobileSearch]);
+
   const applyFilters = () => {
     const dateError = reportDateError(filters.startDate, filters.endDate);
     if (dateError) {
@@ -159,12 +163,12 @@ export const ProductWiseReportPage = ({ outlet, token, onSessionExpired, reportN
       const taxSummary = salesTaxSummary([...report.products].sort((left, right) => compareCodes(left.code, right.code)));
       const totalTax = report.summary.totalTax ?? Number(taxSummary['TOTAL TAX']);
       const rows: (string | number | Date)[][] = [
-        ['Search Code', 'Product Name', 'Category', 'Tax Rate', 'Qty Sold', 'Sale', 'Tax Amount', 'Discount'],
+        ['Product Name', 'Category', 'Tax Rate', 'Qty Sold', 'Sale', 'Tax Amount', 'Discount'],
         ...sortedProducts.flatMap(product => salesTaxRows(product).map(group => [
-          product.code, product.name, product.category, group.rate === null ? 0 : `${group.rate}%`,
+          product.name, product.category, group.rate === null ? 0 : `${group.rate}%`,
           group.quantity, group.amount, group.taxAmount, 0,
         ])),
-        ['', 'Total', '', '', report.summary.totalQuantity, report.summary.totalAmount, totalTax, 0],
+        ['Total', '', '', report.summary.totalQuantity, report.summary.totalAmount, totalTax, 0],
       ];
       await downloadReportExcel({
         signal: controller.signal, name: reportName, outlet, startDate: appliedFilters.startDate, endDate: appliedFilters.endDate,
@@ -183,7 +187,7 @@ export const ProductWiseReportPage = ({ outlet, token, onSessionExpired, reportN
   return (
     <section className="bill-report-page category-report-page product-report-page">
       <div className="bill-report-heading">
-        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Product Wise Report</h1><p>{outlet.name} · Billing totals for each product, with product codes.</p></div>
+        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Product Wise Report</h1><p>{outlet.name} · Billing totals for each product.</p></div>
         <div className="bill-report-actions">
           <button type="button" onClick={exportExcel} disabled={!canOutput || exporting}><Download /> {exporting ? 'Exporting…' : 'Export Excel'}</button>
           <button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / PDF</button>
@@ -222,7 +226,40 @@ export const ProductWiseReportPage = ({ outlet, token, onSessionExpired, reportN
         {!loading && !error && report?.products.length === 0 && <div className="bill-report-state"><PackageSearch /><strong>No product sales found for these filters.</strong><p>Choose another date or clear some filters.</p><button type="button" onClick={resetFilters}><X /> Clear filters</button></div>}
         {!loading && !error && report && report.products.length > 0 && (
           <>
-            <div className="bill-table-scroll"><table><thead><tr><th>Code</th><th>Product</th><th>Category</th><th>Bills</th><th>Quantity</th><th className="amount">Avg Rate</th><th>Share</th><th className="amount">Amount</th></tr></thead><tbody>{sortedProducts.map(product => <tr key={product.productId}><td className="product-code-cell"><span className="product-code">{product.code || '—'}</span></td><td><strong>{product.name}</strong></td><td>{product.category}</td><td>{product.billCount}</td><td>{quantity(product.quantity)}</td><td className="amount">{money(product.averageRate)}</td><td><div className="category-share"><span><i style={{ width: `${Math.min(100, product.share)}%` }} /></span><small>{product.share.toFixed(1)}%</small></div></td><td className="amount"><strong>{money(product.amount)}</strong></td></tr>)}</tbody><tfoot><tr><td /><td><strong>Total</strong></td><td /><td>{report.summary.totalBills}</td><td>{quantity(report.summary.totalQuantity)}</td><td /><td>100%</td><td className="amount"><strong>{money(report.summary.totalAmount)}</strong></td></tr></tfoot></table></div>
+            <div className="bill-table-scroll">
+              <table className="mobile-report-table">
+                <thead><tr>
+                  <th className="report-serial-number" scope="col">Sr. No.</th>
+                  <th className="product-report-name" scope="col">Product</th>
+                  <th className="product-report-category" scope="col">Category</th>
+                  <th className="product-report-bills" scope="col">Bills</th>
+                  <th className="product-report-quantity" scope="col">Quantity</th>
+                  <th className="amount product-report-rate" scope="col">Avg Rate</th>
+                  <th className="product-report-share" scope="col">Share</th>
+                  <th className="amount product-report-amount" scope="col">Amount</th>
+                </tr></thead>
+                <tbody>{displayedProducts.map((product, index) => <tr key={product.productId}>
+                  <td data-label="Sr. No." className="report-serial-number">{index + 1}</td>
+                  <td data-label="Product" data-mobile-primary="true" className="product-report-name"><strong>{product.name}</strong></td>
+                  <td data-label="Category">{product.category}</td>
+                  <td data-label="Bills">{product.billCount}</td>
+                  <td data-label="Quantity">{quantity(product.quantity)}</td>
+                  <td data-label="Avg Rate" className="amount">{money(product.averageRate)}</td>
+                  <td data-label="Share" className="product-report-share"><div className="category-share"><span><i style={{ width: `${Math.min(100, product.share)}%` }} /></span><small>{product.share.toFixed(1)}%</small></div></td>
+                  <td data-label="Amount" className="amount"><strong>{money(product.amount)}</strong></td>
+                </tr>)}</tbody>
+                <tfoot><tr>
+                  <td data-label="Sr. No." className="report-serial-number" />
+                  <td data-mobile-primary="true"><strong>Total</strong></td>
+                  <td data-label="Category" />
+                  <td data-label="Bills">{report.summary.totalBills}</td>
+                  <td data-label="Quantity">{quantity(report.summary.totalQuantity)}</td>
+                  <td data-label="Avg Rate" />
+                  <td data-label="Share" className="product-report-share">100%</td>
+                  <td data-label="Amount" className="amount"><strong>{money(report.summary.totalAmount)}</strong></td>
+                </tr></tfoot>
+              </table>
+            </div>
           </>
         )}
       </div>

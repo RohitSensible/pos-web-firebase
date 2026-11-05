@@ -1,3 +1,4 @@
+import { searchRecords } from '../utils/useMobileSearch.ts';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { OutletMasterDeleteButton } from './OutletMasterDeleteButton.tsx';
@@ -6,7 +7,7 @@ import { DeleteConfirmation } from './DeleteConfirmation.tsx';
 import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
 import { SuccessPopup } from './SuccessPopup.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from 'react';
 import { ArrowLeft, MoreVertical, Pencil, Search, Store, Trash2, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { createRequestId } from '../utils/requestId.ts';
@@ -30,9 +31,18 @@ interface Draft {
 const text = (value: unknown) => typeof value === 'string' || typeof value === 'number' ? String(value) : '—';
 const sorted = (rows: Premise[]) => [...rows].sort((a, b) => text(a.fields.code).localeCompare(text(b.fields.code), 'en', { numeric: true }));
 
+const phoneHeaderQuery = 'screen and (max-width: 600px), screen and (max-width: 1024px) and (max-height: 500px)';
+const phoneHeaderSnapshot = () => window.matchMedia(phoneHeaderQuery).matches;
+function subscribePhoneHeader(onChange: () => void) {
+  const query = window.matchMedia(phoneHeaderQuery);
+  query.addEventListener('change', onChange);
+  return () => query.removeEventListener('change', onChange);
+}
+
 export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
   outlet: OutletSummary; token: string; onSessionExpired: () => void; onClose?: () => void;
 }) {
+  const phoneHeader = useSyncExternalStore(subscribePhoneHeader, phoneHeaderSnapshot);
   const [data, setData] = useState<Configuration | null>(null);
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
@@ -90,9 +100,9 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
     return () => controller.abort();
   }, [endpoint, token, onSessionExpired, reload]);
 
-  const visible = useMemo(() => (data?.premises ?? []).filter(row =>
+  const visible = useMemo(() => phoneHeader ? searchRecords(data?.premises ?? [], search, row => ({ primary: [row.fields.name], text: [row.fields.name, row.fields.type], identifiers: [row.fields.code] })) : (data?.premises ?? []).filter(row =>
     ['name', 'code', 'type'].some(field => text(row.fields[field]).toLowerCase().includes(search.trim().toLowerCase()))
-  ), [data, search]);
+  ), [data, search, phoneHeader]);
   const change = <K extends keyof Draft,>(field: K, value: Draft[K]) => {
     setSaveError(''); setDraft(current => current ? { ...current, [field]: value } : current);
   };
@@ -183,6 +193,8 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
     </section>
   );
 
+  const totalPremises = <span className="premises-total">Total Premises <strong>{data?.premises.length ?? '—'}</strong></span>;
+
   return (
     <section className="premises-page" aria-label="Premises" aria-busy={!data && !error}>
       {deleteAllOpen && <DeleteConfirmation kind="premises" name="all premises" busy={deletingAll} error={deleteAllError}
@@ -194,6 +206,7 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
           ? <button type="button" className="btn-secondary" onClick={onClose}><ArrowLeft size={16} />Back to Products</button>
           : <MobileAddButton label="Add New Premises" className="btn-primary-add" onClick={openAdd} />}
           <div className="category-more-actions">
+            {phoneHeader && totalPremises}
             <button type="button" className="category-menu-toggle" aria-label="Premises options" aria-expanded={menuOpen}
               aria-controls="premises-options-menu" onClick={() => setMenuOpen(value => !value)}><MoreVertical size={17} /></button>
             {menuOpen && <div id="premises-options-menu" className="category-options-menu">
@@ -203,7 +216,7 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
       {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
       <div className="category-toolbar"><label className="toolbar-search-box"><span className="search-input-icon"><Search size={16} /></span>
         <input className="search-input" type="search" aria-label="Search premises" placeholder="Search premises name, code, type…" value={search} onChange={event => setSearch(event.target.value)} /></label>
-        <span className="premises-total">Total Premises <strong>{data?.premises.length ?? '—'}</strong></span></div>
+        {!phoneHeader && totalPremises}</div>
       {error ? <p role="alert" className="category-form-error">{error}<button type="button" className="btn-secondary" onClick={() => setReload(value => value + 1)}>Retry</button></p>
         : !data ? <p role="status" data-inline-loading>Loading premises…</p>
         : !visible.length ? <div className="premises-empty">{search ? 'No premises match your search.' : 'No premises created yet.'}</div>

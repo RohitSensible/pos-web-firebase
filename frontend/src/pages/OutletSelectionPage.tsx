@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Building2, CalendarDays, LogOut, MapPin, RefreshCw, Search, Store, X } from 'lucide-react';
@@ -36,6 +37,7 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
   useDataLoading(loading, 'Outlets');
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const mobileSearch = useMobileSearch();
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const clearSearch = () => {
@@ -46,6 +48,7 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
   const filteredOutlets = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return outlets;
+    if (mobileSearch) return searchRecords(outlets, searchQuery, outlet => ({ primary: [outlet.name], text: [outlet.name, outlet.branch, outlet.country], identifiers: [outlet.id, outlet.dealerCode, outlet.fssaiNo] }));
 
     return outlets.filter(outlet => [
       outlet.name,
@@ -55,7 +58,7 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
       outlet.dealerCode,
       outlet.fssaiNo,
     ].some(value => value.toLowerCase().includes(query)));
-  }, [outlets, searchQuery]);
+  }, [outlets, searchQuery, mobileSearch]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -121,8 +124,8 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
       <section className="outlet-selection-content" aria-busy={loading}>
         <div className="outlet-selection-title">
           <span>POS WORKSPACE</span>
-          <h1>Select an outlet</h1>
-          <p>Choose the business location you want to manage for this session.</p>
+          <h1><span className="outlet-desktop-copy">Select an outlet</span><span className="outlet-mobile-copy">Your Outlets</span></h1>
+          <p><span className="outlet-desktop-copy">Choose the business location you want to manage for this session.</span><span className="outlet-mobile-copy">Manage and open your outlets</span></p>
         </div>
 
         {!loading && !error && outlets.length > 0 && (
@@ -133,7 +136,7 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
               type="search"
               value={searchQuery}
               onChange={event => setSearchQuery(event.target.value)}
-              placeholder="Search by outlet name, branch, ID or dealer code"
+              placeholder="Search by outlet name"
               aria-label="Search outlets"
               aria-describedby="outlet-search-count"
             />
@@ -176,8 +179,8 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
                 </div>
                 <dl>
                   <div><dt>Outlet ID</dt><dd>{outlet.id}</dd></div>
-                  <div><dt>Dealer code</dt><dd>{outlet.dealerCode || '—'}</dd></div>
-                  <div><dt>FSSAI number</dt><dd>{outlet.fssaiNo || '—'}</dd></div>
+                  <div className="outlet-extra-detail"><dt>Dealer code</dt><dd>{outlet.dealerCode || '—'}</dd></div>
+                  <div className="outlet-extra-detail"><dt>FSSAI number</dt><dd>{outlet.fssaiNo || '—'}</dd></div>
                   <div><dt><CalendarDays /> Renewal</dt><dd>{formatDate(outlet.renewalDate)}</dd></div>
                 </dl>
                 <div className="outlet-card-footer">

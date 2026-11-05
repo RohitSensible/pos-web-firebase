@@ -1,7 +1,9 @@
 import { markDataLoadingBackground } from '../utils/dataLoading.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
+import { useMasterSync } from '../utils/useMasterSync.ts';
+import { invalidateMasterSnapshots } from '../utils/masterSnapshots.ts';
 import { ActionConfirmation } from './ActionPopup.tsx';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
 import { ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Package, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
@@ -38,6 +40,9 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
   const busy = useRef(false);
   useWorkspaceBack(!!mode, () => { if (!locked) { setMode(null); setError(''); } });
   const base = `/api/outlets/${encodeURIComponent(outlet.id)}`;
+  const balanceScope = JSON.stringify([base, token, reload]);
+  const activeBalanceScope = useRef(balanceScope);
+  useLayoutEffect(() => { activeBalanceScope.current = balanceScope; }, [balanceScope]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -91,6 +96,18 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
   };
   const canReview = rows.length > 0 && !rows.some(rowError) && !loading && !streaming && !loadError;
   const locked = saving || uncertain;
+  useMasterSync(outlet.id, token, 'products', !loading && !streaming && !loadError && !locked && !confirming, async signal => {
+    try {
+      const data = await streamProductList<Product>(`${base}/products`, token, signal, () => {});
+      signal.throwIfAborted();
+      if (activeBalanceScope.current !== balanceScope) throw new Error('Stock product scope changed.');
+      // Refresh persisted balances without replacing quantities or remarks in the draft.
+      setProducts(data.filter(product => product.fields.stockable === true));
+    } catch (failure) {
+      if (!signal.aborted && failure instanceof ProductListRequestError && failure.status === 401) onSessionExpired();
+      throw failure;
+    }
+  });
   const addProduct = (productId: string) => {
     if (!productId || locked) return;
     if (findProduct(productId)?.fields.stockable !== true) { setError('Select a product marked Stockable.'); return; }
@@ -116,6 +133,7 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
         else setUncertain(true);
         throw new Error(result.message || 'The stock save could not be confirmed. Retry the same confirmation.');
       }
+      invalidateMasterSnapshots(`${base}/products`);
       pending.current = null; setUncertain(false); setRows([]); setConfirming(false);
       setSuccess(mode === 'in' ? 'Stock added successfully' : 'Stock removed successfully');
       setReload(value => value + 1);
@@ -128,7 +146,7 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
 
   return <section className="devices-page stock-adjustment-page stock-movement-page">
     <header className="devices-heading"><div><span>MASTERS</span><h1>{mode === 'in' ? <ArrowDownToLine /> : mode === 'out' ? <ArrowUpFromLine /> : <Package />}{mode ? mode === 'in' ? 'Stock In' : 'Stock Out' : 'Stock In and Out'}</h1><p>{outlet.name} · {mode ? 'Select stockable products and quantities, then review before saving.' : 'Receive stock or record stock leaving your outlet.'}</p></div>
-      {mode && <button type="button" className="devices-refresh" disabled={locked} onClick={() => { setMode(null); setError(''); }}><ArrowLeft /> Back</button>}
+      {mode && <button type="button" className="devices-refresh stock-mode-back" disabled={locked} onClick={() => { setMode(null); setError(''); }}><ArrowLeft /> Back</button>}
     </header>
     {!mode ? <div className="stock-choice-grid">{(['in', 'out'] as const).map(direction => <article className="stock-choice-card" key={direction}>
       {direction === 'in' ? <ArrowDownToLine /> : <ArrowUpFromLine />}<h2>{direction === 'in' ? 'Stock In' : 'Stock Out'}</h2><p>{direction === 'in' ? 'Add received quantities to current stock.' : 'Record issued quantities with a remark.'}</p>

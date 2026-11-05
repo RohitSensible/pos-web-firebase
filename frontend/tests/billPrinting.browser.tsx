@@ -10,7 +10,7 @@ const assert = (ok: unknown, message: string) => { if (!ok) throw new Error(mess
 const pause = () => new Promise(resolve => setTimeout(resolve, 25));
 async function until(check: () => unknown, message: string) { for (let i = 0; i < 200; i++) { if (check()) return; await pause(); } throw new Error(message); }
 const outletName = 'Outlet "Central" \\ Main';
-const bill = (billNo: string, name: string) => ({ documentId: billNo, billNo, serialNo: billNo, billType: 'INVOICE', dayId: '2026-11-01', createdDate: 1793491200000,
+const bill = (billNo: string, name: string) => ({ documentId: billNo, billNo, serialNo: '11', billType: 'INVOICE', dayId: '2026-11-01', createdDate: 1793491200000,
   finalTotal: 120.50, taxAmount: 20, discount: 0, serviceChargeAmount: 0, roundOff: .50, shiftId: 'shift', deviceId: '', table: '', vehicleNo: '', remark: '',
   customerDetails: { name: 'Customer One' }, employee: { name: 'Employee One' }, payments: { cash: 120.50 }, paymentModes: ['cash'],
   items: Array.from({ length: 90 }, (_, i) => ({ name: `${name} ${i + 1}`, quantity: 1, price: 1, total: 1, taxPercentage: 0, remark: '' })) });
@@ -33,6 +33,8 @@ void (async () => {
   document.querySelector<HTMLButtonElement>('.bill-report-actions button:last-child')!.click();
   assert(reportPrints === 1, 'Report Print / PDF still prints the full report');
   const billRow = document.querySelector<HTMLTableRowElement>('.bill-table-scroll tbody tr')!;
+  assert(billRow.querySelector('[data-label="Bill No."]')!.textContent === 'BILL-ONE', 'Bill number cell contains only the actual bill number, without the secondary serial number');
+  assert(billRow.querySelector('.report-serial-number')!.textContent === '1', 'Row serial numbering remains separate from the bill number');
   billRow.click();
   await until(() => document.querySelector('.bill-detail-modal'), 'Bill details did not open');
   const drawer = document.querySelector<HTMLDialogElement>('dialog.bill-detail-backdrop')!;
@@ -47,6 +49,7 @@ void (async () => {
   assert(doc.title === `${outletName} - Bill BILL-ONE`, 'PDF title identifies the selected outlet and bill');
   assert(content.includes(outletName) && content.includes('BILL-ONE') && !content.includes('BILL-TWO'), 'Receipt contains only the selected bill and current outlet');
   assert(content.includes('Selected Product 90') && !content.includes('Other Product'), 'Every selected bill item is included, including content beyond the scrolling panel');
+  assert([...doc.querySelectorAll('.bill-items-table tbody .report-serial-number')].every((cell, index) => cell.textContent === String(index + 1)) && doc.querySelectorAll('.bill-items-table tbody .report-serial-number').length === 90, 'Every receipt item has its sequential PDF serial number, including later pages');
   assert(content.includes('Customer One') && content.includes('Employee One') && content.includes('Cash') && content.includes('Round off') && content.includes('120.50'), 'Receipt keeps bill metadata, payments and totals');
   assert(!doc.querySelector('button, footer, .bill-report-page, .bill-report-filters'), 'Receipt excludes report data and interactive controls');
   assert(!!doc.querySelector('[data-print-page-settings]'), 'Individual bill uses the same outlet footer as reports');

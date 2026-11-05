@@ -1,3 +1,4 @@
+import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
@@ -80,6 +81,7 @@ export const StockInOutReportPage = ({ outlet, token, onSessionExpired, reportNa
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
+  const mobileSearch = useMobileSearch();
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters, setPage);
 
   useEffect(() => {
@@ -143,19 +145,21 @@ export const StockInOutReportPage = ({ outlet, token, onSessionExpired, reportNa
   };
   const isIn = appliedFilters.direction === 'in';
   const directionLabel = isIn ? 'Stock-In' : 'Stock-Out';
+  const displayedEntries = useMemo(() => mobileSearch ? rankSearchResults(report?.movements ?? [], appliedFilters.search, entry => ({ primary: entry.items.map(item => item.name), text: [entry.supplier, entry.remark, ...entry.items.map(item => item.name)], identifiers: [entry.transactionNo, ...entry.items.map(item => item.productId)] })) : report?.movements ?? [], [report, appliedFilters.search, mobileSearch]);
+
   const totalPages = Math.max(1, Math.ceil((report?.movements.length ?? 0) / PAGE_SIZE));
-  const rows = report?.movements.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
+  const rows = displayedEntries.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) ?? [];
   const hasData = !!report?.movements.length;
   const exportExcel = async () => {
     if (!report) return;
     const csvRows: (string | number | Date)[][] = [
-      ['Transaction No', 'Day ID', 'Date / Time', 'Type', 'Direction', 'Supplier', 'Product ID', 'Product', 'Quantity', 'Rate', 'Cost', 'Product Total', 'Transaction Total', 'Remark'],
+      ['Transaction No', 'Day ID', 'Date / Time', 'Type', 'Direction', 'Supplier', 'Product', 'Quantity', 'Rate', 'Cost', 'Product Total', 'Transaction Total', 'Remark'],
       ...report.movements.flatMap(entry => (entry.items.length ? entry.items : [null]).map(item => [
         entry.transactionNo, entry.dayId, (entry.createdDate ? new Date(entry.createdDate) : '—'), entry.type, entry.direction === 'in' ? 'Stock In' : 'Stock Out', entry.supplier,
-        item?.productId ?? '', item?.name ?? 'No product details available', item?.quantity ?? '',
+        item?.name ?? 'No product details available', item?.quantity ?? '',
         item?.price ?? '', item?.cost ?? '', item?.total ?? '', entry.finalTotal, entry.remark,
       ])),
-      [`Total ${directionLabel} / total amount`, '', '', '', '', '', '', '', isIn ? report.summary.stockInQuantity : report.summary.stockOutQuantity, '', '', '', report.summary.totalAmount, ''],
+      [`Total ${directionLabel} / total amount`, '', '', '', '', '', '', isIn ? report.summary.stockInQuantity : report.summary.stockOutQuantity, '', '', '', report.summary.totalAmount, ''],
     ];
     await downloadReportExcel({
       name: `${reportName} - ${directionLabel}`, outlet, startDate: appliedFilters.startDate, endDate: appliedFilters.endDate,
@@ -193,13 +197,13 @@ export const StockInOutReportPage = ({ outlet, token, onSessionExpired, reportNa
       {!loading && error && <div className="bill-report-state error"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
       {!loading && !error && !hasData && <div className="bill-report-state"><Package /><strong>No {directionLabel.toLowerCase()} transactions found for these filters.</strong><p>Choose another date range or clear the search.</p></div>}
       {!loading && !error && hasData && report && <>
-        <div className="bill-table-scroll"><table>
+        <div className="bill-table-scroll"><table className="mobile-report-table">
           <colgroup><col className="stock-col-products" /><col className="stock-col-type" /><col className="stock-col-quantity" /><col className="stock-col-price" /><col className="stock-col-supplier" /><col className="stock-col-date" /></colgroup>
           <thead><tr><th>Product Name</th><th>Type</th><th className="amount">Quantity</th><th className="amount">Price</th><th>Supplier</th><th>Date / Time</th></tr></thead>
           <tbody>{rows.map(entry => <tr key={entry.documentId} tabIndex={0} aria-label={`View stock transaction ${entry.transactionNo}`} onClick={() => setSelectedMovement(entry)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setSelectedMovement(entry); } }}>
-            <td><strong>{entry.items.map(item => item.name).join(', ') || '—'}</strong></td><td>{entry.type}</td><td className="amount">{quantity(entry.quantity)}</td><td className="amount"><strong>{money(entry.finalTotal)}</strong></td><td>{entry.supplier || '—'}</td><td>{dateTime(entry.createdDate)}</td>
+            <td data-label="Product Name" data-mobile-primary="true"><strong>{entry.items.map(item => item.name).join(', ') || '—'}</strong><small>Goods received no.: {entry.transactionNo || '—'}</small></td><td data-label="Type">{entry.type}</td><td data-label="Quantity" className="amount">{quantity(entry.quantity)}</td><td data-label="Price" className="amount"><strong>{money(entry.finalTotal)}</strong></td><td data-label="Supplier">{entry.supplier || '—'}</td><td data-label="Date / Time">{dateTime(entry.createdDate)}</td>
           </tr>)}</tbody>
-          <tfoot><tr><td><strong>Total {directionLabel}</strong></td><td>{report.summary.totalTransactions} transactions</td><td className="amount">{quantity(isIn ? report.summary.stockInQuantity : report.summary.stockOutQuantity)}</td><td className="amount"><strong>{money(report.summary.totalAmount)}</strong></td><td colSpan={2} /></tr></tfoot>
+          <tfoot><tr><td data-mobile-primary="true"><strong>Total {directionLabel}</strong></td><td data-label="Type">{report.summary.totalTransactions} transactions</td><td data-label="Quantity" className="amount">{quantity(isIn ? report.summary.stockInQuantity : report.summary.stockOutQuantity)}</td><td data-label="Price" className="amount"><strong>{money(report.summary.totalAmount)}</strong></td><td colSpan={2} /></tr></tfoot>
         </table></div>
         <div className="bill-pagination"><span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, report.movements.length)} of {report.movements.length}</span><div><button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}><ChevronLeft /></button><strong>Page {page} of {totalPages}</strong><button type="button" disabled={page >= totalPages} onClick={() => setPage(value => value + 1)}><ChevronRight /></button></div></div>
       </>}
@@ -208,10 +212,10 @@ export const StockInOutReportPage = ({ outlet, token, onSessionExpired, reportNa
       <header><div><span>STOCK IN-OUT DETAILS</span><h2>{selectedMovement.direction === 'in' ? 'Stock In' : 'Stock Out'}</h2><p>{dateTime(selectedMovement.createdDate)}</p></div><button type="button" aria-label="Close transaction details" autoFocus onClick={() => setSelectedMovement(null)}><X /></button></header>
       <div className="bill-detail-body">
         <div className="bill-detail-meta">{[
-          ['Day ID', selectedMovement.dayId], ['Type', selectedMovement.type], ['Supplier', selectedMovement.supplier],
+          ['Goods received no.', selectedMovement.transactionNo], ['Day ID', selectedMovement.dayId], ['Type', selectedMovement.type], ['Supplier', selectedMovement.supplier],
           ...(selectedMovement.remark ? [['Remark', selectedMovement.remark]] : []),
         ].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value || '—'}</strong></div>)}</div>
-        <h3>Products</h3><div className="bill-items-table"><table><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Cost</th><th>Total</th></tr></thead><tbody>{selectedMovement.items.length ? selectedMovement.items.map((item, index) => <tr key={index}><td><strong>{item.name}</strong><small>{item.productId}{item.remark ? ` · ${item.remark}` : ''}</small></td><td>{quantity(item.quantity)}</td><td>{money(item.price)}</td><td>{money(item.cost)}</td><td>{money(item.total)}</td></tr>) : <tr><td colSpan={5}>No product details available</td></tr>}</tbody></table></div>
+        <h3>Products</h3><div className="bill-items-table"><table className="mobile-report-table"><thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Cost</th><th>Total</th></tr></thead><tbody>{selectedMovement.items.length ? selectedMovement.items.map((item, index) => <tr key={index}><td data-label="Product" data-mobile-primary="true"><strong>{item.name}</strong>{item.remark && <small>{item.remark}</small>}</td><td data-label="Qty">{quantity(item.quantity)}</td><td data-label="Rate">{money(item.price)}</td><td data-label="Cost">{money(item.cost)}</td><td data-label="Total">{money(item.total)}</td></tr>) : <tr><td data-mobile-primary="true" colSpan={5}>No product details available</td></tr>}</tbody></table></div>
         <div className="bill-total-detail"><div><span>Quantity</span><strong>{quantity(selectedMovement.quantity)}</strong></div><div><span>Sub Total</span><strong>{money(selectedMovement.total)}</strong></div><div><span>Round Off</span><strong>{money(selectedMovement.roundOff)}</strong></div><div className="grand-total"><span>Transaction Total</span><strong>{money(selectedMovement.finalTotal)}</strong></div></div>
       </div>
       <footer><button type="button" onClick={() => setSelectedMovement(null)}>Close</button></footer>

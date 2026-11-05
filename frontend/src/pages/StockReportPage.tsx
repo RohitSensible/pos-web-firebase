@@ -1,7 +1,9 @@
+import { useMobileSearch, createSearchMatcher, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
 import { useReportSearch } from './useReportSearch.ts';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useMasterSync } from '../utils/useMasterSync.ts';
 import {
   AlertTriangle, Boxes, ChevronLeft, ChevronRight, Download, Filter, PackageSearch,
   PackageX, Printer, RefreshCw, Search, X,
@@ -97,47 +99,55 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
   const error = currentRead?.status === 'error' ? currentRead.error : '';
   useDataLoading(loading, 'Stock Report');
 
+  const mobileSearch = useMobileSearch();
   useReportSearch(filters.search, appliedFilters.search, setAppliedFilters, setPage);
 
+  const readReport = useCallback(async (signal: AbortSignal) => {
+    const isCurrent = () => !signal.aborted && activeScope.current === scope;
+    const response = await fetch(`/api/outlets/${encodeURIComponent(scope.outletId)}/reports/stock`, {
+      headers: { Authorization: `Bearer ${scope.token}` }, cache: 'no-store', signal,
+    });
+    signal.throwIfAborted();
+    if (!isCurrent()) throw new Error('Stock report scope changed.');
+    if (response.status === 401) {
+      sessionExpired.current();
+      throw new Error('Your session has expired.');
+    }
+    const result = await response.json() as { success: boolean; message?: string; data?: StockReportResponse };
+    signal.throwIfAborted();
+    if (!isCurrent()) throw new Error('Stock report scope changed.');
+    if (!response.ok || !result.data) throw new Error(result.message || 'Unable to load stock.');
+    setRead({ scope, status: 'success', report: result.data });
+  }, [scope]);
   useEffect(() => {
     const controller = new AbortController();
-    const isCurrent = () => !controller.signal.aborted && activeScope.current === scope;
-    void (async () => {
-      try {
-        const response = await fetch(`/api/outlets/${encodeURIComponent(scope.outletId)}/reports/stock`, {
-          headers: { Authorization: `Bearer ${scope.token}` }, cache: 'no-store', signal: controller.signal,
-        });
-        if (!isCurrent()) return;
-        if (response.status === 401) {
-          sessionExpired.current();
-          throw new Error('Your session has expired.');
-        }
-        const result = await response.json() as { success: boolean; message?: string; data?: StockReportResponse };
-        if (!isCurrent()) return;
-        if (!response.ok || !result.data) throw new Error(result.message || 'Unable to load stock.');
-        setRead({ scope, status: 'success', report: result.data });
-      } catch (requestError) {
-        if (isCurrent()) setRead({ scope, status: 'error', error: requestError instanceof Error && requestError.message ? requestError.message : 'Unable to load stock.' });
-      }
-    })();
+    void readReport(controller.signal).catch(requestError => {
+      if (!controller.signal.aborted && activeScope.current === scope) setRead({ scope, status: 'error', error: requestError instanceof Error && requestError.message ? requestError.message : 'Unable to load stock.' });
+    });
     return () => controller.abort();
-  }, [scope]);
+  }, [scope, readReport]);
+  // Keep the current report and planning drafts mounted during reconciliation.
+  useMasterSync(outlet.id, token, 'products', !!report && !loading && !error, readReport);
 
   // Filtering is done in the browser because the full product list is already loaded.
   const rows = useMemo(() => {
     const search = appliedFilters.search.trim().toLowerCase();
+    const matches = createSearchMatcher(appliedFilters.search);
     const filtered = (report?.products ?? []).filter(product =>
       (!appliedFilters.categoryId || product.categoryId === appliedFilters.categoryId)
       && (!appliedFilters.status || product.status === appliedFilters.status)
-      && (!search
+      && (mobileSearch ? matches({ primary: [product.name], text: [product.name, product.category], identifiers: [product.code] }) : !search
         || product.name.toLowerCase().includes(search)
         || product.code.toLowerCase().includes(search)
         || product.category.toLowerCase().includes(search)));
-    return filtered.sort((left, right) => {
+    const sorted = filtered.sort((left, right) => {
       if (!left.code || !right.code) return left.code ? -1 : right.code ? 1 : 0;
       return left.code.localeCompare(right.code, undefined, { numeric: true });
     });
-  }, [report, appliedFilters]);
+    return sorted;
+  }, [report, appliedFilters, mobileSearch]);
+
+  const displayedProducts = useMemo(() => mobileSearch ? rankSearchResults(rows, appliedFilters.search, product => ({ primary: [product.name], text: [product.name, product.category], identifiers: [product.code] })) : rows, [rows, appliedFilters.search, mobileSearch]);
 
   const summary = useMemo(() => rows.reduce((totals, product) => {
     if (product.tracked) {
@@ -170,12 +180,12 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
   const exportExcel = async () => {
     if (!canOutput) return;
     const csvRows: (string | number | Date)[][] = [
-      ['Product Code', 'Product', 'Category', 'Stock Tracked', 'Current Stock', 'Reorder Level', 'Status', 'Price', 'Stock Value'],
+      ['Product', 'Category', 'Stock Tracked', 'Current Stock', 'Reorder Level', 'Status', 'Price', 'Stock Value'],
       ...rows.map(product => [
-        product.code, product.name, product.category, product.tracked ? 'Yes' : 'No', product.currentStock,
+        product.name, product.category, product.tracked ? 'Yes' : 'No', product.currentStock,
         product.reorderLevel, product.status, product.price, product.stockValue,
       ]),
-      ['', 'Total', '', summary.tracked, summary.totalStock, '', '', '', summary.stockValue],
+      ['Total', '', summary.tracked, summary.totalStock, '', '', '', summary.stockValue],
     ];
     await downloadReportExcel({
       name: reportName, outlet, startDate: todayId(), endDate: todayId(),
@@ -215,7 +225,7 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
         {!loading && !error && report && rows.length === 0 && <div className="bill-report-state"><PackageSearch /><strong>No products found.</strong><p>{report.products.length ? 'Clear some filters to see more products.' : 'This outlet has no stockable products.'}</p>{report.products.length > 0 && <button type="button" onClick={resetFilters}>Clear filters</button>}</div>}
         {!loading && !error && report && rows.length > 0 && (
           <>
-            <div className="bill-table-scroll"><table><thead><tr><th>Code</th><th>Product</th><th>Category</th><th className="amount">Stock Count</th><th className="amount">Reorder Level</th><th>Status</th><th className="amount">Price</th><th className="amount">Stock Value</th></tr></thead><tbody>{rows.map((product, index) => <tr key={product.productId} className={index < (currentPage - 1) * PAGE_SIZE || index >= currentPage * PAGE_SIZE ? 'stock-print-only-row' : undefined}><td className="product-code-cell"><span className="product-code">{product.code || '—'}</span></td><td><strong>{product.name}</strong></td><td>{product.category}</td><td className="amount"><strong className={product.tracked ? (product.currentStock <= 0 ? 'stock-count negative' : 'stock-count') : 'stock-count muted'}>{quantity(product.currentStock)}</strong></td><td className="amount">{product.reorderLevel ? quantity(product.reorderLevel) : '—'}</td><td><span className={`stock-status ${STATUS_CLASS[product.status]}`}>{product.status}</span></td><td className="amount">{money(product.price)}</td><td className="amount">{product.tracked ? money(product.stockValue) : '—'}</td></tr>)}</tbody><tfoot><tr><td /><td><strong>Total</strong></td><td>{rows.length} products</td><td className="amount">{quantity(summary.totalStock)}</td><td /><td /><td /><td className="amount"><strong>{money(summary.stockValue)}</strong></td></tr></tfoot></table></div>
+            <div className="bill-table-scroll"><table className="mobile-report-table"><thead><tr><th>Product</th><th>Category</th><th className="amount">Stock Count</th><th className="amount">Reorder Level</th><th>Status</th><th className="amount">Price</th><th className="amount">Stock Value</th></tr></thead><tbody>{displayedProducts.map((product, index) => <tr key={product.productId} className={index < (currentPage - 1) * PAGE_SIZE || index >= currentPage * PAGE_SIZE ? 'stock-print-only-row' : undefined}><td data-label="Product" data-mobile-primary="true"><strong>{product.name}</strong></td><td data-label="Category">{product.category}</td><td data-label="Stock Count" className="amount"><strong className={product.tracked ? (product.currentStock <= 0 ? 'stock-count negative' : 'stock-count') : 'stock-count muted'}>{quantity(product.currentStock)}</strong></td><td data-label="Reorder Level" className="amount">{product.reorderLevel ? quantity(product.reorderLevel) : '—'}</td><td data-label="Status"><span className={`stock-status ${STATUS_CLASS[product.status]}`}>{product.status}</span></td><td data-label="Price" className="amount">{money(product.price)}</td><td data-label="Stock Value" className="amount">{product.tracked ? money(product.stockValue) : '—'}</td></tr>)}</tbody><tfoot><tr><td data-mobile-primary="true"><strong>Total</strong></td><td data-label="Category">{rows.length} products</td><td data-label="Stock Count" className="amount">{quantity(summary.totalStock)}</td><td data-label="Reorder Level" /><td data-label="Status" /><td data-label="Price" /><td data-label="Stock Value" className="amount"><strong>{money(summary.stockValue)}</strong></td></tr></tfoot></table></div>
             <div className="bill-pagination"><span>Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, rows.length)} of {rows.length}</span><div><button type="button" aria-label="Previous stock report page" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft /></button><strong aria-live="polite">Page {currentPage} of {totalPages}</strong><button type="button" aria-label="Next stock report page" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight /></button></div></div>
           </>
         )}

@@ -168,7 +168,7 @@ test('bill export includes all pages, existing payments, actual taxes and numeri
   assert.equal(sheet.getCell('B34').value, '0010');
 });
 
-test('product Sale export preserves exact amounts, quantities, codes and selected ordering', async () => {
+test('product Sale export preserves exact amounts, quantities and selected ordering without product codes', async () => {
   const products = [
     { code: '0003', name: '=literal', category: 'Food', billCount: 1, quantity: 2.125, averageRate: 47.0588, amount: 100.123456, share: 75, taxRate: '5%' },
     { code: '0001', name: 'Other', category: 'Food', billCount: 2, quantity: 1, averageRate: 99, amount: -2.45, share: 25, taxRate: '5%, 12%' },
@@ -177,19 +177,18 @@ test('product Sale export preserves exact amounts, quantities, codes and selecte
   const before = structuredClone(products);
   const options = await pageExport('ProductWise', { reportName: 'Product Wise', report: { summary }, sortedProducts: products });
   const sheet = await roundTrip(options);
-  assert.deepEqual(options.rows[0], ['Search Code', 'Product Name', 'Category', 'Tax Rate', 'Qty Sold', 'Sale', 'Tax Amount', 'Discount']);
-  assert.equal(sheet.getRow(32).actualCellCount, 8);
-  assert.equal(sheet.getCell('A33').value, '0003');
-  assert.equal(sheet.getCell('B33').value, '=literal', 'text stays text, never an Excel formula');
-  assert.equal(sheet.getCell('D33').value, '5%');
-  assert.equal(sheet.getCell('D34').value, 0);
-  assert.equal(sheet.getCell('F33').value, products[0].amount);
-  assert.equal(sheet.getCell('F34').value, products[1].amount);
-  assert.equal(sheet.getCell('F35').value, summary.totalAmount);
+  assert.deepEqual(options.rows[0], ['Product Name', 'Category', 'Tax Rate', 'Qty Sold', 'Sale', 'Tax Amount', 'Discount']);
+  assert.equal(sheet.getRow(32).actualCellCount, 7);
+  assert.equal(sheet.getCell('A33').value, '=literal', 'text stays text, never an Excel formula');
+  assert.equal(sheet.getCell('C33').value, '5%');
+  assert.equal(sheet.getCell('C34').value, 0);
+  assert.equal(sheet.getCell('E33').value, products[0].amount);
+  assert.equal(sheet.getCell('E34').value, products[1].amount);
+  assert.equal(sheet.getCell('E35').value, summary.totalAmount);
   assert.equal(sheet.getCell('B7').value, summary.totalAmount);
-  assert.equal(sheet.getCell('E35').value, summary.totalQuantity);
-  assert.equal(sheet.getCell('F33').numFmt, '#,##0.00;[Red]-#,##0.00');
-  assert.equal(sheet.getCell('G33').value, 0);
+  assert.equal(sheet.getCell('D35').value, summary.totalQuantity);
+  assert.equal(sheet.getCell('E33').numFmt, '#,##0.00;[Red]-#,##0.00');
+  assert.equal(sheet.getCell('F33').value, 0);
   assert.equal(sheet.getCell('B8').value, 0, 'unsupported tax summary remains at the existing default');
   assert.equal(options.startDate, appliedFilters.startDate);
   assert.equal(options.endDate, appliedFilters.endDate);
@@ -209,37 +208,36 @@ test('category Sale export retains subtotals and labelled product breakdowns wit
   const before = structuredClone(categories);
   const options = await pageExport('CategoryWise', { reportName: 'Category Wise', report: { summary, categories } });
   const sheet = await roundTrip(options);
-  assert.deepEqual(options.rows[0], ['Category No', 'Category Name', 'Tax Rate', 'Total Products', 'Items Sold', 'Sale', 'Tax Amount', 'Discount']);
-  assert.equal(sheet.getCell('A33').value, 13);
-  assert.equal(sheet.getCell('B33').value, 'Food');
-  assert.equal(sheet.getCell('C33').value, 0);
-  assert.equal(sheet.getCell('D33').value, 2);
-  assert.equal(sheet.getCell('D33').numFmt, '#,##0.###', 'product counts do not use money formatting');
-  assert.equal(sheet.getCell('B34').value, 'Meal');
-  assert.equal(sheet.getCell('C34').value, '5%');
-  assert.equal(sheet.getCell('F33').value, categories[0].amount);
-  assert.equal(sheet.getCell('F34').value, categories[0].products[0].amount);
-  assert.equal(sheet.getCell('F35').value, categories[0].products[1].amount);
-  assert.equal(sheet.getCell('F36').value, summary.totalAmount, 'grand total uses the existing API summary, never subtotal plus children');
+  assert.deepEqual(options.rows[0], ['Category Name', 'Tax Rate', 'Total Products', 'Items Sold', 'Sale', 'Tax Amount', 'Discount']);
+  assert.equal(sheet.getCell('A33').value, 'Food');
+  assert.equal(sheet.getCell('B33').value, 0);
+  assert.equal(sheet.getCell('C33').value, 2);
+  assert.equal(sheet.getCell('C33').numFmt, '#,##0.###', 'product counts do not use money formatting');
+  assert.equal(sheet.getCell('A34').value, 'Meal');
+  assert.equal(sheet.getCell('B34').value, '5%');
+  assert.equal(sheet.getCell('E33').value, categories[0].amount);
+  assert.equal(sheet.getCell('E34').value, categories[0].products[0].amount);
+  assert.equal(sheet.getCell('E35').value, categories[0].products[1].amount);
+  assert.equal(sheet.getCell('E36').value, summary.totalAmount, 'grand total uses the existing API summary, never subtotal plus children');
   assert.equal(sheet.getCell('B7').value, summary.totalAmount);
-  assert.equal(sheet.getCell('E36').value, summary.totalQuantity);
-  assert.equal(sheet.getCell('G33').value, 0);
+  assert.equal(sheet.getCell('D36').value, summary.totalQuantity);
+  assert.equal(sheet.getCell('F33').value, 0);
   assert.deepEqual(categories, before);
 });
 
-test('category and product exports use zero for unavailable rate, discount and category number', async () => {
+test('category and product exports use zero for unavailable rate and discount without category numbers', async () => {
   const product = { code: '0003', name: 'Item', category: 'Food', quantity: 1, amount: 25 };
   const summary = { totalBills: 1, totalQuantity: 1, totalAmount: 25 };
   const options = await pageExport('ProductWise', { reportName: 'Product Wise', report: { summary }, sortedProducts: [product] });
   const productSheet = await roundTrip(options);
-  assert.equal(productSheet.getCell('D33').value, 0);
-  assert.equal(productSheet.getCell('G33').value, 0);
+  assert.equal(productSheet.getCell('C33').value, 0);
+  assert.equal(productSheet.getCell('F33').value, 0);
   const categoryOptions = await pageExport('CategoryWise', { reportName: 'Category Wise', report: { summary, categories: [{ name: 'Food', productCount: 1, quantity: 1, amount: 25, products: [product] }] } });
   const categorySheet = await roundTrip(categoryOptions);
-  assert.equal(categorySheet.getCell('A33').value, 0);
-  assert.equal(categorySheet.getCell('C33').value, 0);
-  assert.equal(categorySheet.getCell('C34').value, 0);
-  assert.equal(categorySheet.getCell('G34').value, 0);
+  assert.equal(categorySheet.getCell('A33').value, 'Food');
+  assert.equal(categorySheet.getCell('B33').value, 0);
+  assert.equal(categorySheet.getCell('B34').value, 0);
+  assert.equal(categorySheet.getCell('F34').value, 0);
 });
 
 test('empty GST and bill exports retain headers, summaries and three blank rows', async () => {
@@ -258,11 +256,20 @@ test('stock and inventory exports keep quantities/values without inventing sales
   assert.equal((await roundTrip(stock)).getCell('B7').value, 0);
   for (const [page, key] of [['StockTransfer', 'transfers'], ['StockInOut', 'movements']]) {
     const options = await pageExport(page, { reportName: page, isIn: true, directionLabel: 'Stock-In', report: {
-      [key]: [{ transferNo: 'T01', transactionNo: 'M01', dayId: '2026-08-15', createdDate: 1786755600000, type: 'Transfer', direction: 'in', supplier: 'Supplier', finalTotal: 50, remark: '', references: [], items: [] }],
+      [key]: [{ transferNo: 'T01', transactionNo: 'M01', dayId: '2026-08-15', createdDate: 1786755600000, type: 'Transfer', direction: 'in', supplier: 'Supplier', finalTotal: 50, remark: '', references: [],
+        items: [{ productId: 'internal-product-009', name: 'Stock Item', quantity: 2, price: 25, cost: 0, total: 50, remark: 'Item note' }] }],
       summary: { totalQuantity: 2, netQuantity: 2, stockInQuantity: 2, stockOutQuantity: 0, totalTransactions: 1, totalAmount: 50 },
     } });
     const sheet = await roundTrip(options);
-    assert.equal(sheet.getRow(32).actualCellCount, 14);
+    assert.equal(sheet.getRow(32).actualCellCount, 13);
+    assert.equal(sheet.getCell('A33').value, page === 'StockTransfer' ? 'T01' : 'M01');
+    assert.ok(options.rows[0].every(header => header !== 'Product ID'));
+    assert.ok(options.rows.flat().includes('Stock Item'));
+    assert.ok(!options.rows.flat().includes('internal-product-009'));
+    const quantityColumn = options.rows[0].indexOf('Quantity');
+    const totalColumn = options.rows[0].indexOf(page === 'StockTransfer' ? 'Transfer Total' : 'Transaction Total');
+    assert.equal(options.rows.at(-1)[quantityColumn], 2);
+    assert.equal(options.rows.at(-1)[totalColumn], 50);
     assert.equal(sheet.getCell('B7').value, 0);
   }
 });
@@ -463,24 +470,24 @@ test('product export splits untaxed and 5% sales into single-rate rows with actu
   const before = structuredClone(f);
   const options = await pageExport('ProductWise', { reportName: 'Product Wise', report: { summary: f.summary }, sortedProducts: f.products });
   const sheet = await roundTrip(options);
-  assert.equal(sheet.getRow(32).actualCellCount, 8);
-  assert.equal(sheet.getCell('G32').value, 'Tax Amount');
-  assert.equal(sheet.getCell('D33').value, '0%');
-  assert.equal(sheet.getCell('F33').value, 145);
-  assert.equal(sheet.getCell('G33').value, 0);
-  assert.equal(sheet.getCell('D34').value, '5%');
-  assert.equal(sheet.getCell('F34').value, 200);
-  assert.equal(sheet.getCell('G34').value, f.tax);
-  assert.equal(sheet.getCell('G34').numFmt, '#,##0.00;[Red]-#,##0.00');
-  assert.equal(sheet.getCell('E38').value, 8);
-  assert.equal(sheet.getCell('F38').value, 575);
-  assert.equal(sheet.getCell('G38').value, f.tax);
+  assert.equal(sheet.getRow(32).actualCellCount, 7);
+  assert.equal(sheet.getCell('F32').value, 'Tax Amount');
+  assert.equal(sheet.getCell('C33').value, '0%');
+  assert.equal(sheet.getCell('E33').value, 145);
+  assert.equal(sheet.getCell('F33').value, 0);
+  assert.equal(sheet.getCell('C34').value, '5%');
+  assert.equal(sheet.getCell('E34').value, 200);
+  assert.equal(sheet.getCell('F34').value, f.tax);
+  assert.equal(sheet.getCell('F34').numFmt, '#,##0.00;[Red]-#,##0.00');
+  assert.equal(sheet.getCell('D38').value, 8);
+  assert.equal(sheet.getCell('E38').value, 575);
+  assert.equal(sheet.getCell('F38').value, f.tax);
   assert.equal(sheet.getCell('B7').value, 575);
   assert.equal(sheet.getCell('B8').value, f.tax);
   assert.equal(sheet.getCell('B19').value, 200 - f.tax);
   assert.equal(sheet.getCell('B20').value, f.tax);
-  assert.ok(options.rows.slice(1).every(row => !String(row[3]).includes(',')));
-  assert.equal(options.rows.slice(1, -1).reduce((sum, row) => sum + row[5], 0), f.summary.totalAmount);
+  assert.ok(options.rows.slice(1).every(row => !String(row[2]).includes(',')));
+  assert.equal(options.rows.slice(1, -1).reduce((sum, row) => sum + row[4], 0), f.summary.totalAmount);
   assert.deepEqual(f, before);
 });
 
@@ -490,21 +497,21 @@ test('category export splits category and product amounts by rate without doubli
   const options = await pageExport('CategoryWise', { reportName: 'Category Wise', report: { summary: f.summary, categories: f.categories } });
   const sheet = await roundTrip(options);
   const details = options.rows.slice(1, -1);
-  const categoryRows = details.filter(row => row[0] !== '');
-  const productRows = details.filter(row => row[0] === '');
-  assert.deepEqual(categoryRows.map(row => [row[1], row[2], row[4], row[5], row[6]]), [
+  const categoryRows = details.filter(row => row[2] !== '');
+  const productRows = details.filter(row => row[2] === '');
+  assert.deepEqual(categoryRows.map(row => [row[0], row[1], row[3], row[4], row[5]]), [
     ['VEG ROLLS', '0%', 4, 305, 0], ['VEG ROLLS', '5%', 3, 200, f.tax], ['EGG ROLLS', '0%', 1, 70, 0],
   ]);
-  assert.deepEqual(productRows.filter(row => row[1] === 'Veg Roll').map(row => [row[2], row[4], row[5], row[6]]), [['0%', 2, 145, 0], ['5%', 3, 200, f.tax]]);
+  assert.deepEqual(productRows.filter(row => row[0] === 'Veg Roll').map(row => [row[1], row[3], row[4], row[5]]), [['0%', 2, 145, 0], ['5%', 3, 200, f.tax]]);
   for (const rows of [categoryRows, productRows]) {
-    assert.equal(rows.reduce((sum, row) => sum + row[5], 0), 575);
-    assert.equal(rows.reduce((sum, row) => sum + row[6], 0), f.tax);
+    assert.equal(rows.reduce((sum, row) => sum + row[4], 0), 575);
+    assert.equal(rows.reduce((sum, row) => sum + row[5], 0), f.tax);
   }
-  assert.deepEqual(options.rows.at(-1), ['Total', '', '', '', 8, 575, f.tax, 0]);
+  assert.deepEqual(options.rows.at(-1), ['Total', '', '', 8, 575, f.tax, 0]);
   assert.equal(sheet.getCell('B8').value, f.tax);
   assert.equal(sheet.getCell('B20').value, f.tax, 'summary uses category groups once, not their child rows again');
-  assert.ok(details.every(row => !String(row[2]).includes(',')));
-  assert.ok(details.every(row => !String(row[1]).includes('↳')));
+  assert.ok(details.every(row => !String(row[1]).includes(',')));
+  assert.ok(details.every(row => !String(row[0]).includes('↳')));
   assert.deepEqual(f, before);
 });
 

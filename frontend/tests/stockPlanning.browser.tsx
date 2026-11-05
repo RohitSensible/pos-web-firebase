@@ -69,8 +69,8 @@ void (async () => {
   const { default: ExcelJS } = await import('exceljs');
   const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(await exported!.arrayBuffer());
   let checkedExport = false;
-  workbook.worksheets[0]!.eachRow(row => { if (row.getCell(3).value === 'Rice') {
-    assert(row.getCell(1).value === supplier.name && row.getCell(7).value === 8, 'Excel retains supplier grouping and planned quantity'); checkedExport = true;
+  workbook.worksheets[0]!.eachRow(row => { if (row.getCell(2).value === 'Rice') {
+    assert(row.getCell(1).value === supplier.name && row.getCell(6).value === 8, 'Excel retains supplier grouping and planned quantity'); checkedExport = true;
   } });
   assert(checkedExport, 'Export includes selected product');
   passed.push('Replenishment Excel export contains the selected supplier group and numeric quantities');

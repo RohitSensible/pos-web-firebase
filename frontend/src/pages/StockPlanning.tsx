@@ -40,28 +40,33 @@ export function StockPlanning({ products, outlet, token, onSessionExpired, onPre
     return () => { current = false; controller.abort(); clearTimeout(timeout); };
   }, [tool, outlet.id, token, supplierReload]);
   const product = tracked.find(entry => entry.productId === productId);
+  // Live stock changes can introduce new suggestions. Preserve edited rows and
+  // supply defaults for newly suggested products without resetting the plan.
+  const planRow = (entry: (typeof suggestions)[number]) => plan.get(entry.productId)
+    ?? { included: true, quantity: String(entry.suggested), supplierId: '' };
   const variance = product ? stockVariance(product.currentStock, counted) : null;
-  const selected = suggestions.filter(entry => plan.get(entry.productId)?.included);
+  const selected = suggestions.filter(entry => planRow(entry).included);
   const validPlan = selected.length > 0 && selected.every(entry => {
-    const row = plan.get(entry.productId)!;
+    const row = planRow(entry);
     return /^\d+(?:\.\d{1,3})?$/.test(row.quantity) && Number(row.quantity) > 0 && Number(row.quantity) <= 1e9
       && (!row.supplierId || suppliers.some(supplier => supplier.id === row.supplierId));
   });
-  const groups = [...new Set(selected.map(entry => plan.get(entry.productId)!.supplierId))].map(supplierId => ({ supplierId,
+  const groups = [...new Set(selected.map(entry => planRow(entry).supplierId))].map(supplierId => ({ supplierId,
     name: suppliers.find(supplier => supplier.id === supplierId)?.name ?? 'No supplier selected',
-    items: selected.filter(entry => plan.get(entry.productId)!.supplierId === supplierId).map(entry => ({ productId: entry.productId, quantity: Number(plan.get(entry.productId)!.quantity) })),
+    items: selected.filter(entry => planRow(entry).supplierId === supplierId).map(entry => ({ productId: entry.productId, quantity: Number(planRow(entry).quantity) })),
   }));
   const update = (id: string, patch: Partial<{ included: boolean; quantity: string; supplierId: string }>) => {
-    setPlan(current => new Map(current).set(id, { ...current.get(id)!, ...patch })); setExportError('');
+    const entry = suggestions.find(product => product.productId === id);
+    if (entry) setPlan(current => new Map(current).set(id, { ...(current.get(id) ?? planRow(entry)), ...patch })); setExportError('');
   };
   const exportPlan = async () => {
     if (!validPlan || exportRequest.current) return;
     const controller = new AbortController(); exportRequest.current = controller; setExporting(true); setExportError('');
     try {
       await downloadReportExcel({ signal: controller.signal, name: 'Suggested Replenishment', outlet, summary: {}, rows: [
-        ['Supplier', 'Code', 'Product', 'Recorded stock', 'Reorder level', 'Suggested quantity', 'Planned quantity'],
+        ['Supplier', 'Product', 'Recorded stock', 'Reorder level', 'Suggested quantity', 'Planned quantity'],
         ...groups.flatMap(group => group.items.map(item => { const entry = suggestions.find(row => row.productId === item.productId)!;
-          return [group.name, entry.code, entry.name, entry.currentStock, entry.reorderLevel, entry.suggested, item.quantity]; })),
+          return [group.name, entry.name, entry.currentStock, entry.reorderLevel, entry.suggested, item.quantity]; })),
       ] });
     } catch (reason) { if (!controller.signal.aborted) setExportError(reason instanceof Error ? reason.message : 'Export failed.'); }
     finally { if (!controller.signal.aborted) setExporting(false); exportRequest.current = null; }
@@ -71,7 +76,7 @@ export function StockPlanning({ products, outlet, token, onSessionExpired, onPre
     <div className="stock-planning-tabs"><button type="button" className="btn-secondary" aria-pressed={tool === 'count'} onClick={() => setTool(tool === 'count' ? null : 'count')}>Compare stock count</button>
       <button type="button" className="btn-secondary" aria-pressed={tool === 'reorder'} onClick={() => setTool(tool === 'reorder' ? null : 'reorder')}>Plan replenishment ({suggestions.length})</button></div>
     {tool === 'count' && <div><p className="stock-planning-help">Enter a physical count to compare with recorded stock. Review differences and supporting records before making a separate stock adjustment.</p>
-      <div className="stock-planning-filters"><label>Counted product<select value={productId} onChange={event => { setProductId(event.target.value); setCounted(''); }}>{tracked.map(entry => <option key={entry.productId} value={entry.productId}>{entry.code} · {entry.name}</option>)}</select></label>
+      <div className="stock-planning-filters"><label>Counted product<select value={productId} onChange={event => { setProductId(event.target.value); setCounted(''); }}>{tracked.map(entry => <option key={entry.productId} value={entry.productId}>{entry.name}</option>)}</select></label>
       <label>Physical count<input type="number" min="0" max="1000000000" step="0.001" value={counted} onChange={event => setCounted(event.target.value)} /></label></div>
       {product && <p>Recorded stock: <strong>{product.currentStock}</strong></p>}
       {counted && variance === null && <p role="alert">Enter a nonnegative count with up to three decimal places.</p>}
@@ -84,8 +89,8 @@ export function StockPlanning({ products, outlet, token, onSessionExpired, onPre
       {supplierError && <p role="alert">{supplierError} <button type="button" onClick={() => setSupplierReload(value => value + 1)}>Retry suppliers</button></p>}
       {!suggestions.length ? <p>No replenishment suggested. Products need a positive reorder level to appear here.</p> : <>
       <div className="stock-planning-scroll"><table aria-label="Replenishment plan"><thead><tr><th>Include</th><th>Product</th><th>Recorded / target</th><th>Planned qty</th><th>Supplier</th></tr></thead><tbody>{suggestions.map(entry => {
-        const row = plan.get(entry.productId)!;
-        return <tr key={entry.productId}><td><input type="checkbox" aria-label={`Replenish ${entry.name}`} checked={row.included} onChange={event => update(entry.productId, { included: event.target.checked })} /></td><td>{entry.name}<small>{entry.code}</small></td><td>{entry.currentStock} / {entry.reorderLevel}</td><td><input type="number" aria-label={`Order quantity for ${entry.name}`} min="0.001" max="1000000000" step="0.001" value={row.quantity} onChange={event => update(entry.productId, { quantity: event.target.value })} /></td><td><select aria-label={`Supplier for ${entry.name}`} value={row.supplierId} disabled={suppliersLoading || !!supplierError} onChange={event => update(entry.productId, { supplierId: event.target.value })}><option value="">No supplier selected</option>{suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></td></tr>;
+        const row = planRow(entry);
+        return <tr key={entry.productId}><td><input type="checkbox" aria-label={`Replenish ${entry.name}`} checked={row.included} onChange={event => update(entry.productId, { included: event.target.checked })} /></td><td>{entry.name}</td><td>{entry.currentStock} / {entry.reorderLevel}</td><td><input type="number" aria-label={`Order quantity for ${entry.name}`} min="0.001" max="1000000000" step="0.001" value={row.quantity} onChange={event => update(entry.productId, { quantity: event.target.value })} /></td><td><select aria-label={`Supplier for ${entry.name}`} value={row.supplierId} disabled={suppliersLoading || !!supplierError} onChange={event => update(entry.productId, { supplierId: event.target.value })}><option value="">No supplier selected</option>{suppliers.map(supplier => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></td></tr>;
       })}</tbody></table></div>
       {!validPlan && <p role="status">Include products and enter positive quantities with up to three decimal places.</p>}
       <div className="stock-planning-actions"><button type="button" className="btn-secondary" disabled={!validPlan || exporting} onClick={() => void exportPlan()}>{exporting ? 'Exporting plan…' : 'Export replenishment plan'}</button></div>

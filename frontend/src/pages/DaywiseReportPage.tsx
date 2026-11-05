@@ -222,38 +222,38 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
         {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading daywise report…</strong></div>}
         {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}
         {!loading && !error && !report && <div className="bill-report-state"><CalendarDays /><strong>No shift data found for this date.</strong><p>Choose another date or refresh to load recorded sales.</p></div>}
-        {!loading && !error && report && <div className="bill-table-scroll"><table>
+        {!loading && !error && report && <div className="bill-table-scroll"><table className="mobile-report-table">
           <thead><tr><th>Day ID</th><th>Bills</th><th className="amount">Cash</th><th className="amount">Digital</th><th className="amount">Credit</th><th className="amount">Expenses</th><th className="amount">Total Sale</th></tr></thead>
-          <tbody><tr onClick={() => setDetailsOpen(true)} tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') setDetailsOpen(true); }}><td><strong>{report.dayId}</strong><small>All shifts</small></td><td>{report.billCount}</td><td className="amount">{money(report.cashSale)}</td><td className="amount">{money(report.digitalSale)}</td><td className="amount">{money(report.creditSale)}</td><td className="amount">{money(report.expensesAmtTotal)}</td><td className="amount"><strong>{money(report.totalSale)}</strong></td></tr></tbody>
-          <tfoot><tr><td><strong>Total</strong></td><td>{report.billCount}</td><td className="amount">{money(report.cashSale)}</td><td className="amount">{money(report.digitalSale)}</td><td className="amount">{money(report.creditSale)}</td><td className="amount">{money(report.expensesAmtTotal)}</td><td className="amount"><strong>{money(report.totalSale)}</strong></td></tr></tfoot>
+          <tbody><tr onClick={() => setDetailsOpen(true)} tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') setDetailsOpen(true); }}><td data-label="Day ID" data-mobile-primary="true"><strong>{report.dayId}</strong><small>All shifts</small></td><td data-label="Bills">{report.billCount}</td><td data-label="Cash" className="amount">{money(report.cashSale)}</td><td data-label="Digital" className="amount">{money(report.digitalSale)}</td><td data-label="Credit" className="amount">{money(report.creditSale)}</td><td data-label="Expenses" className="amount">{money(report.expensesAmtTotal)}</td><td data-label="Total Sale" className="amount"><strong>{money(report.totalSale)}</strong></td></tr></tbody>
+          <tfoot><tr><td data-mobile-primary="true"><strong>Total</strong></td><td data-label="Bills">{report.billCount}</td><td data-label="Cash" className="amount">{money(report.cashSale)}</td><td data-label="Digital" className="amount">{money(report.digitalSale)}</td><td data-label="Credit" className="amount">{money(report.creditSale)}</td><td data-label="Expenses" className="amount">{money(report.expensesAmtTotal)}</td><td data-label="Total Sale" className="amount"><strong>{money(report.totalSale)}</strong></td></tr></tfoot>
         </table></div>}
       </div>
 
       {!loading && !error && <div className="bill-table-card daywise-bills-card">
         <h2>Bills &amp; Products <small>{bills.length} bills</small></h2>
-        {!bills.length ? <div className="bill-report-state"><ReceiptText /><strong>No bills found for this date.</strong><p>Choose another date or refresh to load recorded bills.</p></div> : <div className="bill-table-scroll"><table>
+        {!bills.length ? <div className="bill-report-state"><ReceiptText /><strong>No bills found for this date.</strong><p>Choose another date or refresh to load recorded bills.</p></div> : <div className="bill-table-scroll"><table className="mobile-report-table">
           <thead><tr><th>Bill No.</th><th>Date / Time</th><th>Payment</th><th>Product</th><th className="amount">Qty</th><th className="amount">Rate</th><th className="amount">Product Total</th><th className="amount">Bill Total</th></tr></thead>
           <tbody>{bills.flatMap(bill => {
             const items = bill.items.length ? bill.items : [null];
-            return items.map((item, index) => <tr key={`${bill.documentId}-${index}`} onClick={() => setSelectedBill(bill)} tabIndex={0} aria-label={`View bill ${bill.billNo} details`} onKeyDown={event => {
+            return items.map((item, index) => <tr data-report-context={index > 0 ? `Bill ${bill.billNo}` : undefined} key={`${bill.documentId}-${index}`} onClick={() => setSelectedBill(bill)} tabIndex={0} aria-label={`View bill ${bill.billNo} details`} onKeyDown={event => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 setSelectedBill(bill);
               }
             }}>
               {index === 0 && <>
-                <td rowSpan={items.length}><strong>{bill.billNo}</strong></td>
-                <td rowSpan={items.length}>{dateTime(bill.createdDate)}</td>
-                <td rowSpan={items.length}><div className="payment-tags">{bill.paymentModes.length ? bill.paymentModes.map(mode => <span key={mode}>{paymentLabel(mode)}</span>) : <span>Unspecified</span>}</div></td>
+                <td data-label="Bill No." data-mobile-primary="true" rowSpan={items.length}><strong>{bill.billNo}</strong></td>
+                <td data-label="Date / Time" rowSpan={items.length}>{dateTime(bill.createdDate)}</td>
+                <td data-label="Payment" rowSpan={items.length}><div className="payment-tags">{bill.paymentModes.length ? bill.paymentModes.map(mode => <span key={mode}>{paymentLabel(mode)}</span>) : <span>Unspecified</span>}</div></td>
               </>}
-              <td>{item?.name ?? 'No product details available'}</td>
-              <td className="amount">{item?.quantity ?? '—'}</td>
-              <td className="amount">{item ? money(item.price) : '—'}</td>
-              <td className="amount">{item ? money(item.total) : '—'}</td>
-              {index === 0 && <td className="amount" rowSpan={items.length}><strong>{money(bill.finalTotal)}</strong></td>}
+              <td data-label="Product" data-mobile-primary="true">{item?.name ?? 'No product details available'}</td>
+              <td data-label="Qty" className="amount">{item?.quantity ?? '—'}</td>
+              <td data-label="Rate" className="amount">{item ? money(item.price) : '—'}</td>
+              <td data-label="Product Total" className="amount">{item ? money(item.total) : '—'}</td>
+              {index === 0 && <td data-label="Bill Total" className="amount" rowSpan={items.length}><strong>{money(bill.finalTotal)}</strong></td>}
             </tr>);
           })}</tbody>
-          <tfoot><tr><td colSpan={7}><strong>Total · {bills.length} bills</strong></td><td className="amount"><strong>{money(bills.reduce((total, bill) => total + bill.finalTotal, 0))}</strong></td></tr></tfoot>
+          <tfoot><tr><td data-mobile-primary="true" colSpan={7}><strong>Total · {bills.length} bills</strong></td><td data-label="Bill Total" className="amount"><strong>{money(bills.reduce((total, bill) => total + bill.finalTotal, 0))}</strong></td></tr></tfoot>
         </table></div>}
       </div>}
 
@@ -270,9 +270,9 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
               ].filter(([, value]) => isProvided(value)).map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}
             </div>
             <h3>Products</h3>
-            <div className="bill-items-table"><table>
+            <div className="bill-items-table"><table className="mobile-report-table">
               <thead><tr><th>Product</th><th>Qty</th><th>Rate</th><th>Total</th></tr></thead>
-              <tbody>{selectedBill.items.length ? selectedBill.items.map((item, index) => <tr key={index}><td>{item.name}{isProvided(detailLabel(item.remark)) && <small className="bill-item-remark">{detailLabel(item.remark)}</small>}</td><td>{item.quantity}</td><td>{money(item.price)}</td><td>{money(item.total)}</td></tr>) : <tr><td colSpan={4}>No product details available</td></tr>}</tbody>
+              <tbody>{selectedBill.items.length ? selectedBill.items.map((item, index) => <tr key={index}><td data-label="Product" data-mobile-primary="true">{item.name}{isProvided(detailLabel(item.remark)) && <small className="bill-item-remark">{detailLabel(item.remark)}</small>}</td><td data-label="Qty">{item.quantity}</td><td data-label="Rate">{money(item.price)}</td><td data-label="Total">{money(item.total)}</td></tr>) : <tr><td data-mobile-primary="true" colSpan={4}>No product details available</td></tr>}</tbody>
             </table></div>
             <div className="bill-payment-detail"><h3>Payments</h3>
               {Object.entries(selectedBill.payments).filter(([, amount]) => amount > 0).map(([mode, amount]) => <div key={mode}><span>{paymentLabel(mode)}</span><strong>{money(amount)}</strong></div>)}

@@ -6,3 +6,36 @@
 .product-report-page .product-sales-sort { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .product-report-page .product-sales-sort label { font-size: 12px; font-weight: 700; }
 .product-report-page .product-sales-sort select { max-width: 100%; padding: 8px 10px; border: 1px solid #cdd9e2; border-radius: 6px; background: #fff; color: #153f58; font: inherit; }
+
+@page product-sales { size: A4 portrait; margin: 12mm; }
+
+@media print {
+  html:has(.product-report-page), body:has(.product-report-page) { background: #fff; color-scheme: light; }
+  #root:has(.product-report-page), .retail-dashboard-shell:has(.product-report-page),
+  .dashboard-stage:has(.product-report-page) { display: block; width: 100%; min-width: 0; min-height: 0; height: auto; overflow: visible; }
+  .product-report-page { page: product-sales; width: 100%; min-width: 0; }
+  .product-report-page .product-sales-sort,
+  .product-report-page .bill-table-card .product-report-code,
+  .product-report-page .bill-table-card .product-report-share { display: none; }
+  .product-report-page .bill-report-heading p { display: none; }
+  .product-report-page .bill-summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; break-inside: avoid; }
+  .product-report-page .bill-summary-grid article { min-width: 0; gap: 8px; padding: 10px; }
+  .product-report-page .bill-summary-grid article > span { flex-shrink: 0; width: 26px; height: 26px; }
+  .product-report-page .bill-summary-grid strong { font-size: 14px; overflow-wrap: anywhere; }
+  .product-report-page .bill-table-card { min-height: 0; overflow: visible; border-radius: 0; }
+  .product-report-page .bill-table-scroll { overflow: visible; }
+  .product-report-page .bill-table-card table { width: 100%; min-width: 0; table-layout: fixed; }
+  .product-report-page .bill-table-card th,
+  .product-report-page .bill-table-card td { padding: 8px 5px; font-size: 11px; white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+  .product-report-page .bill-table-card th { font-size: 10px; white-space: nowrap; overflow-wrap: normal; }
+  .product-report-page .bill-table-card .amount strong { font-size: inherit; }
+  .product-report-page .product-report-name { width: 30%; }
+  .product-report-page .product-report-category { width: 21%; }
+  .product-report-page .product-report-bills { width: 8%; }
+  .product-report-page .product-report-quantity { width: 9%; }
+  .product-report-page .product-report-rate { width: 12%; }
+  .product-report-page .product-report-amount { width: 13%; }
+  .product-report-page thead { display: table-header-group; }
+  .product-report-page tfoot { display: table-row-group; }
+  .product-report-page tr { break-inside: avoid; }
+}

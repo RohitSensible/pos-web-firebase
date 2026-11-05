@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { requestUnsavedNavigation, useUnsavedChanges } from '../utils/unsavedChanges.tsx';
 import { markDataLoadingBackground } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
@@ -41,13 +42,14 @@ export function CustomersPage(props: CustomersPageProps) {
 function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPageProps) {
   const [customers, setCustomers] = useState<Customer[] | null>(null);
   const [liveReady, setLiveReady] = useState(false);
+  const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const [searchRevision, setSearchRevision] = useState(0);
   const searchInput = useRef<HTMLInputElement>(null);
   const query = search.trim().toLowerCase();
-  const filteredCustomers = useMemo(() => (customers ?? []).filter(customer => !query ||
+  const filteredCustomers = useMemo(() => mobileSearch ? searchRecords(customers ?? [], search, customer => ({ primary: [customer.name], text: [customer.name, customer.address], identifiers: [customer.contact, customer.altContact, customer.email, customer.gstNo] })) : (customers ?? []).filter(customer => !query ||
     [customer.name, customer.contact, customer.altContact, customer.email, customer.gstNo, customer.address]
-      .some(value => (value ?? '').toLowerCase().includes(query))), [customers, query]);
+      .some(value => (value ?? '').toLowerCase().includes(query))), [customers, query, search, mobileSearch]);
   // A fresh key also resets batching when returning to a previously expanded query.
   const changeSearch = (value: string) => { setSearch(value); setSearchRevision(current => current + 1); };
   const clearSearch = () => { changeSearch(''); searchInput.current?.focus(); };

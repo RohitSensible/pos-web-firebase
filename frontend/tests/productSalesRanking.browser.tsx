@@ -36,7 +36,7 @@ const render = () => flushSync(() => root.render(<ProductWiseReportPage outlet={
 const button = (text: string) => [...document.querySelectorAll('button')].find(item => item.textContent?.trim() === text)!;
 const exportButton = () => document.querySelector<HTMLButtonElement>('.bill-report-actions button')!;
 const printButton = () => document.querySelector<HTMLButtonElement>('.bill-report-actions button:last-child')!;
-const order = () => [...document.querySelectorAll('tbody tr')].map(row => row.children[1].textContent).join(',');
+const order = () => [...document.querySelectorAll('tbody tr')].map(row => row.querySelector('.product-report-name')!.textContent).join(',');
 const totals = () => document.querySelector('.bill-summary-grid')!.textContent;
 const sort = async (value: string) => { const select = document.querySelector<HTMLSelectElement>('#product-sales-sort')!; select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); await pause(); };
 const emptyScope = (message: string) => assert(!document.querySelector('tbody tr') && document.querySelector('.bill-summary-grid strong')?.textContent === '0' && exportButton().disabled && printButton().disabled, message);
@@ -58,6 +58,7 @@ async function startExport() { exportButton().click(); await until(() => finish.
 void (async () => {
   render(); emptyScope('Initial pending report blocks output'); await load();
   assert(order() === 'Zebra,Dates,Apple,Apple,Cherry', 'Default order uses numeric codes and missing codes last');
+  assert(!document.querySelector('[data-label="Code"], .product-report-code'), 'Product codes are excluded from screen and print rows');
   const before = totals(); const count = reads.length;
   for (const [mode, expected, ids] of [
     ['name', 'Apple,Apple,Cherry,Dates,Zebra', ['a', 'b', 'c', 'd', 'z']],
@@ -66,15 +67,16 @@ void (async () => {
     ['code', 'Zebra,Dates,Apple,Apple,Cherry', ['z', 'd', 'a', 'b', 'c']],
   ] as const) {
     await sort(mode); assert(order() === expected, `${mode} order preserves returns and zero rows`);
+    assert([...document.querySelectorAll('tbody .report-serial-number')].map(cell => cell.textContent).join(',') === '1,2,3,4,5', `${mode} PDF serial numbers follow the selected product order`);
     assert(totals() === before && reads.length === count, `${mode} changes no totals or GETs`);
     await startExport();
     const sheet = workbooks.at(-1)!.worksheets[0];
     ids.forEach((id, index) => {
       const expectedProduct = products.find(item => item.productId === id)!;
       const row = sheet.getRow(33 + index);
-      assert(JSON.stringify(row.values) === JSON.stringify([, expectedProduct.code, expectedProduct.name, 'Food', '5%', expectedProduct.quantity, expectedProduct.amount, 0.876, 0]), `${mode} export preserves exact values and deterministic code/ID ties for ${id}`);
+      assert(JSON.stringify(row.values) === JSON.stringify([, expectedProduct.name, 'Food', '5%', expectedProduct.quantity, expectedProduct.amount, 0.876, 0]), `${mode} export preserves exact values and deterministic code/ID ties for ${id}`);
     });
-    assert(sheet.getCell('B7').value === 62.875 && sheet.getCell('B8').value === 4.38 && sheet.getCell('E38').value === 8.5 && sheet.getCell('F38').value === 62.875, `${mode} export preserves exact totals`);
+    assert(sheet.getCell('B7').value === 62.875 && sheet.getCell('B8').value === 4.38 && sheet.getCell('D38').value === 8.5 && sheet.getCell('E38').value === 62.875, `${mode} export preserves exact totals`);
     assert(sheet.getCell('B19').value === 85.61500000000001 && sheet.getCell('B20').value === 4.38, `${mode} export preserves tax breakdown summary`);
     finish.shift()!(); await until(() => !exportButton().disabled, 'Export did not finish');
   }

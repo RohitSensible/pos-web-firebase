@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { requestUnsavedNavigation, useUnsavedChanges } from '../utils/unsavedChanges.tsx';
 import { beginDataLoading, markDataLoadingBackground } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
@@ -36,6 +37,7 @@ export function EmployeesPage(props: EmployeesPageProps) {
 
 function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPageProps) {
   const [data, setData] = useState<EmployeeList | null>(null);
+  const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const searchInput = useRef<HTMLInputElement>(null);
   const clearSearch = () => { setSearch(''); searchInput.current?.focus(); };
@@ -157,7 +159,7 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
   const userNames = new Map(data?.userAccounts.map(user => [user.userId, user.name]));
   const userDisplayName = (employee: Employee) => employee.userId ? userNames.get(employee.userId) || 'Assigned account' : 'Not assigned';
   const query = search.trim().toLowerCase();
-  const visibleEmployees = data?.employees.filter(employee => !query || [employee.name, employee.mobile,
+  const visibleEmployees = mobileSearch ? searchRecords(data?.employees ?? [], search, employee => ({ primary: [employee.name], text: [employee.name, employee.shortName, userDisplayName(employee)], identifiers: [employee.mobile, employee.searchCode] })) : data?.employees.filter(employee => !query || [employee.name, employee.mobile,
     String(employee.searchCode ?? ''), employee.shortName, userDisplayName(employee)]
     .some(value => value.toLowerCase().includes(query))) ?? [];
 

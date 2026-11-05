@@ -17,6 +17,8 @@ Storage.prototype.setItem = () => { storageWrites++; throw new Error('No browser
 window.fetch = async (url, init) => {
   const path = String(url);
   assert(new Headers(init?.headers).get('Authorization') === 'Bearer token', 'Authorization retained');
+  // This fixture tests explicit/focus refresh; live feeds have their own suite.
+  if (path.endsWith('/master-sync?kind=products')) return new Response(null, { status: 404 });
   if (path.endsWith('/products')) return Response.json({ success: true, data: products });
   if (path.endsWith('/categories')) return Response.json({ success: true, data: [{ id: 'groceries', name: 'Groceries' }, { id: 'beverages', name: 'Beverages' }] });
   assert(path === '/api/outlets/outlet/goods-received', 'Only authorized receipt/product reads and receipt writes');
@@ -25,10 +27,14 @@ window.fetch = async (url, init) => {
     return Response.json({ success: true, data: { documentId: saved ? 'N'.repeat(20) : 'R'.repeat(20), supplierDraftId: 'D'.repeat(20), suppliers: [existingSupplier], receipts } });
   }
   const payload = JSON.parse(String(init.body)); posts.push(payload);
-  assert(['R'.repeat(20), 'N'.repeat(20)].includes(payload.documentId) && payload.goodsReceivedNo === payload.documentId, 'Stable auto-ID also supplies the receipt number');
-  if (!receipts.some(receipt => receipt.documentId === payload.documentId)) { saved++; receipts.push({ documentId: payload.documentId, fields: { supplier: payload.supplier, goodsReceivedNo: payload.goodsReceivedNo, createDate: Date.now(), goodsReceivedItemBeanList: [{ name: 'Rice', quantity: payload.items[0].quantity }] } }); }
+  assert(['R'.repeat(20), 'N'.repeat(20)].includes(payload.documentId) && payload.goodsReceivedNo === undefined, 'Stable document ID is retained; the server allocates the bill number');
+  if (!receipts.some(receipt => receipt.documentId === payload.documentId)) {
+    saved++;
+    for (const item of payload.items) products.find(product => product.documentId === item.productId)!.fields.currentStock += item.quantity;
+    receipts.push({ documentId: payload.documentId, fields: { supplier: payload.supplier, goodsReceivedNo: `261105${saved}`, createDate: Date.now(), goodsReceivedItemBeanList: [{ name: 'Rice', quantity: payload.items[0].quantity }] } });
+  }
   if (loseResponse) { loseResponse = false; throw new Error('Response lost after commit'); }
-  return Response.json({ success: true, data: { documentId: payload.documentId, alreadySaved: true } });
+  return Response.json({ success: true, data: { documentId: payload.documentId, goodsReceivedNo: receipts.find(receipt => receipt.documentId === payload.documentId).fields.goodsReceivedNo, alreadySaved: true } });
 };
 const root = createRoot(document.getElementById('root')!);
 root.render(<div className="retail-dashboard-shell"><main className="dashboard-workspace" style={{ width: '100%', minWidth: 0 }}><GoodsReceivedPage outlet={{ id: 'outlet', name: 'Test Outlet' } as OutletSummary} token="token" onSessionExpired={() => { throw new Error('Unexpected expiry'); }} onCancel={() => { cancelled = true; }} /></main></div>);
@@ -96,9 +102,10 @@ void (async () => {
   button('Retry confirmation').click(); button('Retry confirmation').click();
   await until(() => document.body.textContent?.includes('Added successfully.') && !document.body.textContent?.includes('Loading outlet'), 'save and refresh');
   assert(saved === 1 && posts.length === 2 && JSON.stringify(posts[0]) === JSON.stringify(posts[1]), 'Lost-response retry uses identical receipt once');
+  assert(receipts[0].fields.goodsReceivedNo === '2611051' && receipts[0].fields.goodsReceivedNo !== receipts[0].documentId, 'The same actual bill number survives the uncertain response and reload');
   assert(reads === 2 && !document.body.textContent?.includes('Saved receipts'), 'Receipt data refreshes without displaying saved receipts');
   assert(labelled('Supplier (optional)').value === '', 'Draft clears only after confirmed save');
-  assert(products[0].fields.currentStock === 13 && storageWrites === 0, 'Receipt save preserves the latest externally refreshed stock and never changes browser storage');
+  assert(products[0].fields.currentStock === 71 && document.querySelector('[aria-label="Current stock for Rice"]')?.textContent === '71' && storageWrites === 0, 'Confirmed receipt refresh displays persisted stock 13 + 58 = 71 without browser storage');
   button('Done').click(); await pause(); document.querySelector<HTMLButtonElement>('[aria-label="Select product Rice"]')!.click(); await pause();
   button('Save').click(); await until(() => document.querySelector('dialog[open]'), 'review without a supplier');
   assert(document.querySelector('.action-popup-question')?.textContent === 'Are you sure you want to add goods receipt?', 'Receipt uses the standard confirmation question');
@@ -106,6 +113,6 @@ void (async () => {
   await until(() => saved === 2 && !document.body.textContent?.includes('Loading outlet') && !!document.querySelector('.action-success[open]'), 'saved without supplier'); button('Done').click(); await pause();
   assert(posts.at(-1).supplier === null, 'Receipt without supplier sends null instead of fabricating a supplier');
   button('Cancel').click(); assert(cancelled, 'Cancel navigation retained');
-  passed.push('authenticated reads, stockable product selection, existing supplier selection and receipt snapshot, validation, confirmation cancellation, one receipt on retry, refresh without receipt history, no stock/storage writes');
+  passed.push('authenticated reads, stockable product selection, supplier snapshot, validation, confirmation cancellation, one stock increment on retry, persisted stock refresh, and no direct client stock/storage writes');
   document.getElementById('test-results')!.textContent = JSON.stringify({ passed });
 })().catch(error => { document.getElementById('test-results')!.textContent = JSON.stringify({ passed, failed: String(error) }); });

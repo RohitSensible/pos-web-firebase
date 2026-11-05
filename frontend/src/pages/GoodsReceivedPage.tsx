@@ -1,7 +1,10 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { ActionConfirmation } from './ActionPopup.tsx';
 import { SuccessPopup } from './SuccessPopup.tsx';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useMasterSync } from '../utils/useMasterSync.ts';
+import { invalidateMasterSnapshots } from '../utils/masterSnapshots.ts';
 import { Package, ReceiptText, Search } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { loadProductList, ProductListRequestError } from './productListApi.ts';
@@ -44,32 +47,45 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel, i
   const locked = saving || uncertain;
   const [stockError, setStockError] = useState('');
   const stockRequest = useRef<AbortController | null>(null);
-  const refreshStock = useCallback(async () => {
-    if (stockRequest.current) return;
-    const controller = new AbortController(); stockRequest.current = controller;
-    setStockError('');
+  const stockRead = useRef(0);
+  useLayoutEffect(() => {
+    stockRead.current++;
+    stockRequest.current?.abort(); stockRequest.current = null;
+    return () => { stockRead.current++; stockRequest.current?.abort(); stockRequest.current = null; };
+  }, [base, token, reload, locked, confirming]);
+  const readStock = useCallback(async (signal: AbortSignal) => {
+    const revision = ++stockRead.current;
     try {
-      const records = await loadProductList<{ documentId: string; fields: Record<string, unknown> }>(`${base}/products`, token, controller.signal, 'products');
-      if (controller.signal.aborted) return;
+      const records = await loadProductList<{ documentId: string; fields: Record<string, unknown> }>(`${base}/products`, token, signal, 'products');
+      signal.throwIfAborted();
+      if (revision !== stockRead.current) throw new Error('A newer stock read is in progress.');
       const stocks = new Map(records.map(record => [record.documentId, savedStock(record.fields.currentStock)]));
       // Existing stock comes from PRODUCT.currentStock, never from draft quantities
       // or a sum of receipt history (which could count stock adjustments twice).
       setProducts(current => current.map(product => ({ ...product, stock: stocks.get(product.id) ?? null })));
+      setStockError('');
     } catch (failure) {
-      if (controller.signal.aborted) return;
-      if (failure instanceof ProductListRequestError && failure.status === 401) onSessionExpired();
-      setStockError((failure as Error).message);
-    } finally {
-      if (stockRequest.current === controller) { stockRequest.current = null; }
+      if (!signal.aborted && revision === stockRead.current) {
+        if (failure instanceof ProductListRequestError && failure.status === 401) onSessionExpired();
+        setStockError((failure as Error).message);
+      }
+      throw failure;
     }
   }, [base, token, onSessionExpired]);
-  useEffect(() => () => { stockRequest.current?.abort(); }, [base, token]);
+  const refreshStock = useCallback(async () => {
+    if (stockRequest.current) return;
+    const controller = new AbortController(); stockRequest.current = controller;
+    try { await readStock(controller.signal); }
+    catch { /* readStock reports the error; manual refresh has no retry loop. */ }
+    finally { if (stockRequest.current === controller) stockRequest.current = null; }
+  }, [readStock]);
+  useMasterSync(outlet.id, token, 'products', !loading && !loadError && !locked && !confirming, readStock);
   useEffect(() => {
-    if (loading || locked) return;
+    if (loading || locked || confirming) return;
     const refresh = () => { if (document.visibilityState !== 'hidden') void refreshStock(); };
     window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh);
     return () => { window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh); };
-  }, [loading, locked, refreshStock]);
+  }, [loading, locked, confirming, refreshStock]);
   useEffect(() => {
     const controller = new AbortController();
     // Clear loading errors when explicitly refreshing the authorized outlet's data.
@@ -109,13 +125,14 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel, i
     return () => controller.abort();
   }, [base, token, onSessionExpired, reload]);
   const [supplier, setSupplier] = useState('');
+  const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const visibleProducts = products.filter(product => (!category || product.category === category)
+  const visibleProducts = mobileSearch ? searchRecords(products.filter(product => !category || product.category === category), search, product => ({ text: [product.name], identifiers: [product.code, product.barcode] })) : products.filter(product => (!category || product.category === category)
     && [product.name, product.code, product.barcode].some(value => value.toLowerCase().includes(search.trim().toLowerCase())));
   const validAmounts = rows.every(row => validPrice(row.cost) && validPrice(row.price) && Number.isFinite(Number(row.quantity) * Number(row.cost)));
   const toggleProduct = (product: Product) => {
@@ -145,12 +162,16 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel, i
     if (!pending.current) {
       const selectedSupplier = suppliers.find(entry => entry.id === supplier) ?? null;
       if ((supplier && !selectedSupplier) || !identity || !rows.length) return;
-      pending.current = { documentId: identity, goodsReceivedNo: identity, supplier: selectedSupplier,
+      pending.current = { documentId: identity, supplier: selectedSupplier,
         items: rows.map(row => ({ productId: row.productId, quantity: Number(row.quantity), cost: Number(row.cost), price: Number(row.price) })) };
     }
     busy.current = true; setSaving(true); setError('');
     try {
-      await goodsReceiptRequest<{ documentId: string }>(`${base}/goods-received`, token, undefined, pending.current);
+      // The receipt transaction allocates the number once. An uncertain response
+      // retries this same document ID and reads its saved number without reallocating.
+      const saved = await goodsReceiptRequest<{ documentId: string; goodsReceivedNo: string }>(`${base}/goods-received`, token, undefined, pending.current);
+      pending.current.goodsReceivedNo = saved.goodsReceivedNo;
+      invalidateMasterSnapshots(`${base}/products`);
       pending.current = null; setUncertain(false); setConfirming(false); reset();
       setNotice('Goods receipt added successfully.'); setReload(value => value + 1);
     } catch (failure) {

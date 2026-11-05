@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
@@ -31,11 +32,13 @@ export function ProductFlagsBulkUpdate({ products, outletId, token, onClose, onS
 }) {
   const { confirmAction, confirmation } = useActionConfirmation();
   const rows = useMemo(() => [...products].sort((left, right) => codeText(left).localeCompare(codeText(right), 'en', { numeric: true, sensitivity: 'base' })), [products]);
+  const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const visibleRows = useMemo(() => {
     const query = search.trim().toLowerCase();
+    if (mobileSearch) return searchRecords(rows, search, product => ({ text: [productName(product)] }));
     return rows.filter(product => productName(product).toLowerCase().includes(query));
-  }, [rows, search]);
+  }, [rows, search, mobileSearch]);
   // Baseline follows saved values so a retry after partial failure resends only what is still pending.
   const [baseline, setBaseline] = useState(() => new Map(products.map(product => [product.documentId, flagsOf(product)])));
   const [draft, setDraft] = useState(() => new Map(products.map(product => [product.documentId, flagsOf(product)])));

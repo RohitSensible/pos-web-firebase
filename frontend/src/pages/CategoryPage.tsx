@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { beginDataLoading, markDataLoadingBackground } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { readMasterSnapshot, masterSnapshotRevision, rememberMasterSnapshot } from '../utils/masterSnapshots.ts';
@@ -94,6 +95,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
+  const mobileSearch = useMobileSearch();
   const [searchQuery, setSearchQuery] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const { confirmAction, confirmation } = useActionConfirmation(addOpen);
@@ -185,6 +187,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
   // Filtered categories
   const filteredCategories = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    if (mobileSearch) return searchRecords(categories, searchQuery, cat => ({ primary: [cat.name], text: [cat.name, cat.regionalName], identifiers: [cat.code] }));
     return categories.filter((cat) => {
       const matchesSearch =
         cat.name.toLowerCase().includes(query) ||
@@ -192,7 +195,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
         cat.regionalName.toLowerCase().includes(query);
       return matchesSearch;
     });
-  }, [categories, searchQuery]);
+  }, [categories, searchQuery, mobileSearch]);
 
   // Statistics
   const stats = useMemo(() => {
@@ -300,7 +303,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
     }} />;
 
   return (
-    <div className="category-page-shell">
+    <div className="category-page-shell category-master-page">
       {updatedPopup && <CategoryUpdatedPopup onDismiss={() => setUpdatedPopup(false)} />}
       {deleteAllOpen && <DeleteConfirmation kind="category" name="all categories" busy={deleting} error={deleteAllError}
         title="Delete all categories?"

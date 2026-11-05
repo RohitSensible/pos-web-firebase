@@ -15,21 +15,19 @@ export declare function loadGoodsReceived(db: Firestore, outletId: string, profi
     documentId: string;
     supplierDraftId: string;
     suppliers: {
+        id: string;
+        alternateNumber: null;
         name: string;
         mobile: string;
         address: string;
         email: string;
         gstin: string;
-        id: string;
-        alternateNumber: null;
     }[];
-    receipts: {
-        documentId: string;
-        fields: FirebaseFirestore.DocumentData;
-    }[];
+    receipts: never[];
 }>;
 export declare function saveGoodsReceived(run: PremisesTransactionRunner, outletId: string, profileId: string | null, assigned: Assigned, raw: unknown, clock?: () => Date): Promise<{
     documentId: string;
+    goodsReceivedNo: string;
     alreadySaved: boolean;
 }>;
 export {};

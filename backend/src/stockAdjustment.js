@@ -2,6 +2,13 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { ProductCreationError, requireProductOutlet } from './productCreation.js';
 const recordId = z.string().min(1).max(200).refine(id => !id.includes('/') && id !== '.' && id !== '..');
+// Shared by receipts and adjustments; both persist only PRODUCT.currentStock.
+export function stockBalanceAfter(stock, quantity, direction) {
+    const nextStock = Math.round((stock + (direction === 'in' ? quantity : -quantity)) * 1e6) / 1e6;
+    if (!Number.isFinite(nextStock) || Math.abs(nextStock) > 1e9)
+        throw new ProductCreationError(422, 'The resulting stock is outside the supported range.');
+    return nextStock;
+}
 function movementDocumentId(requestId) {
     if (requestId.length === 20)
         return requestId;
@@ -71,9 +78,7 @@ export async function saveStockAdjustment(db, outletId, profileId, assigned, raw
                 throw new ProductCreationError(409, 'Stock changed since you loaded the products. Refresh and review the quantities again.');
             if (input.direction === 'out' && item.quantity > stock)
                 throw new ProductCreationError(422, `Insufficient stock for ${String(product.name ?? item.productId)}.`);
-            const nextStock = Math.round((stock + (input.direction === 'in' ? item.quantity : -item.quantity)) * 1e6) / 1e6;
-            if (!Number.isFinite(nextStock) || Math.abs(nextStock) > 1e9)
-                throw new ProductCreationError(422, 'The resulting stock is outside the supported range.');
+            const nextStock = stockBalanceAfter(stock, item.quantity, input.direction);
             return { item, nextStock, name: typeof product.name === 'string' ? product.name : item.productId };
         });
         const now = new Date();

@@ -1,3 +1,4 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { ActionConfirmation, ActionPopup } from './ActionPopup.tsx';
 import { SuccessPopup } from './SuccessPopup.tsx';
@@ -170,6 +171,7 @@ function OutletPreview({ source, destination, token, grant, busy, onBusy, onFini
   const destinationCategories = usePreviewRead<Category[]>(`${base(destination.id)}/categories`, token, onSessionExpired);
   const sourceProducts = usePreviewRead<Product[]>(`${base(source.id)}/products`, token, onSessionExpired);
   const destinationProducts = usePreviewRead<Product[]>(`${base(destination.id)}/products`, token, onSessionExpired);
+  const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const [rawSelected, setSelected] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
@@ -206,8 +208,9 @@ function OutletPreview({ source, destination, token, grant, busy, onBusy, onFini
   const isPresent = (id: string) => products.some(product => product.documentId === id && presentProduct(product));
   const selected = rawSelected.filter(id => !isPresent(id));
   const mappingFor = (id: string) => presentCategory(categories.find(category => category.id === id))?.id;
-  const rows = products.filter(product => [product.fields.name, product.fields.code, product.fields.barcode, categoryName(product.fields.category)].some(value => normalized(value).includes(query)))
-    .map(product => ({ id: product.documentId, product }));
+  const matchingProducts = mobileSearch ? searchRecords(products, search, product => ({ primary: [product.fields.name], text: [product.fields.name, categoryName(product.fields.category)], identifiers: [product.fields.code, product.fields.barcode] }))
+    : products.filter(product => [product.fields.name, product.fields.code, product.fields.barcode, categoryName(product.fields.category)].some(value => normalized(value).includes(query)));
+  const rows = matchingProducts.map(product => ({ id: product.documentId, product }));
   const toggle = (id: string) => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]);
   const selectableRows = rows.filter(row => !isPresent(row.id));
   const allVisible = selectableRows.length > 0 && selectableRows.every(row => selected.includes(row.id));

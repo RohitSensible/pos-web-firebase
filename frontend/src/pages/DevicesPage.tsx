@@ -1,6 +1,7 @@
+import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
-import { useEffect, useRef, useState } from 'react';
-import { Monitor, RefreshCw } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Monitor, RefreshCw, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import './DevicesPage.css';
 import './MobileRecords.css';
@@ -17,9 +18,11 @@ export function DevicesPage({ outlet, token, onSessionExpired }: {
 function DevicesContent({ outlet, token, onSessionExpired }: {
   outlet: OutletSummary; token: string; onSessionExpired: () => void;
 }) {
+  const mobileSearch = useMobileSearch();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
   const [copyFeedback, setCopyFeedback] = useState<Record<string, 'copying' | 'copied' | 'failed' | 'unavailable'>>({});
+  const [qrDevice, setQrDevice] = useState<Device | null>(null);
   const mounted = useRef(false);
   const copyGeneration = useRef(0);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -32,7 +35,7 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
   useEffect(() => {
     const controller = new AbortController();
     copyGeneration.current++;
-    setLoading(true); setError(''); setData(null); setCopyFeedback({});
+    setLoading(true); setError(''); setData(null); setCopyFeedback({}); setQrDevice(null);
     void (async () => {
       try {
         const response = await fetch(`/api/outlets/${encodeURIComponent(outlet.id)}/devices`, {
@@ -50,7 +53,7 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
   }, [outlet.id, token, onSessionExpired, reload]);
 
   const search = query.trim().toLocaleLowerCase();
-  const filtered = (data?.devices || []).filter(device =>
+  const filtered = mobileSearch ? searchRecords((data?.devices ?? []).filter(device => status === 'all' || (status === 'active' ? device.active === true : status === 'inactive' ? device.active === false : device.active !== true && device.active !== false)), query, device => ({ primary: [device.deviceId], text: [device.outletName], identifiers: [device.deviceId] })) : (data?.devices || []).filter(device =>
     (!search || device.deviceId.toLocaleLowerCase().includes(search) || device.outletName.toLocaleLowerCase().includes(search)) &&
     (status === 'all' || (status === 'active' ? device.active === true : status === 'inactive' ? device.active === false : device.active !== true && device.active !== false)));
   function clearFilters() { setQuery(''); setStatus('all'); }
@@ -63,6 +66,14 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
     update('copying');
     try { await navigator.clipboard.writeText(device.deviceId); update('copied'); }
     catch { update('failed'); }
+  }
+  function copyMessage(device: Device) {
+    return copyFeedback[device.documentId] && <div className="devices-copy-feedback" role="status">
+      {copyFeedback[device.documentId] === 'copied' ? 'ID copied.' : copyFeedback[device.documentId] === 'copying' ? 'Copying ID…' : <>
+        <p>{copyFeedback[device.documentId] === 'unavailable' ? 'Clipboard is unavailable. Select the ID below and copy it manually.' : 'Could not copy ID. Retry or select the ID below and copy it manually.'}</p>
+        <input type="text" readOnly value={device.deviceId} aria-label={`Select ID for device ${device.deviceId}`} onFocus={event => event.currentTarget.select()} onClick={event => event.currentTarget.select()} />
+      </>}
+    </div>;
   }
 
   return <section className="devices-page devices-discovery-page">
@@ -83,17 +94,68 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
       {!filtered.length ? <div className="devices-state"><h2>No matching devices</h2><p>Try a different search or clear the filters.</p><button type="button" className="devices-refresh" onClick={clearFilters}>Clear filters</button></div> :
       <div className="devices-table-scroll" role="region" aria-label="Registered devices" tabIndex={0}><table className="mobile-record-table"><thead><tr><th>Outlet Name</th><th>Device ID</th><th>Status</th></tr></thead><tbody>{filtered.map(device => <tr key={device.documentId}>
         <td data-label="Outlet" className="mobile-record-name">{device.outletName || '—'}</td><td data-label="Device ID" className="device-id mobile-record-wide"><span>{device.deviceId}</span>
+          <div className="devices-id-actions">
           <button type="button" className="devices-refresh devices-copy" disabled={copyFeedback[device.documentId] === 'copying'} onClick={() => { void copyId(device); }} aria-label={`Copy ID for device ${device.deviceId}`}>{copyFeedback[device.documentId] === 'copying' ? 'Copying…' : copyFeedback[device.documentId] === 'failed' ? 'Retry copy' : 'Copy ID'}</button>
-          {copyFeedback[device.documentId] && <div className="devices-copy-feedback" role="status">
-            {copyFeedback[device.documentId] === 'copied' ? 'ID copied.' : copyFeedback[device.documentId] === 'copying' ? 'Copying ID…' : <>
-              <p>{copyFeedback[device.documentId] === 'unavailable' ? 'Clipboard is unavailable. Select the ID below and copy it manually.' : 'Could not copy ID. Retry or select the ID below and copy it manually.'}</p>
-              <input type="text" readOnly value={device.deviceId} aria-label={`Select ID for device ${device.deviceId}`} onFocus={event => event.currentTarget.select()} onClick={event => event.currentTarget.select()} />
-            </>}
-          </div>}
+          <button type="button" className="devices-refresh devices-copy" disabled={typeof device.deviceId !== 'string' || !device.deviceId.trim()} onClick={() => setQrDevice(device)} aria-label={`Show QR for device ${device.deviceId}`}>Show QR</button>
+          </div>
+          {copyMessage(device)}
         </td><td data-label="Status"><label className={`device-status ${device.active === true ? 'active' : device.active === false ? 'inactive' : 'unavailable'}`}>
           <input type="checkbox" disabled checked={device.active === true} ref={input => { if (input) input.indeterminate = device.active === null; }} aria-label={`Active status for device ${device.deviceId}`} />
           <span>{device.active === true ? 'Active' : device.active === false ? 'Inactive' : 'Unavailable'}</span>
         </label></td>
       </tr>)}</tbody></table></div>}</>}
+    {!loading && !error && qrDevice && data?.devices.includes(qrDevice) && <DeviceQrDialog key={qrDevice.documentId} deviceId={qrDevice.deviceId}
+      copying={copyFeedback[qrDevice.documentId] === 'copying'} onCopy={() => { void copyId(qrDevice); }} feedback={copyMessage(qrDevice)} onClose={() => setQrDevice(null)} />}
   </section>;
+}
+
+function DeviceQrDialog({ deviceId, copying, onCopy, feedback, onClose }: {
+  deviceId: string; copying: boolean; onCopy: () => void; feedback: ReactNode; onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const code = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const [generating, setGenerating] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const modal = dialog.current!;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modal.showModal();
+    return () => { modal.close(); if (opener?.isConnected) opener.focus(); };
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const { BrowserQRCodeSvgWriter } = await import('@zxing/browser');
+        if (!active) return;
+        // Pass the raw ID unchanged. ZXing includes a four-module quiet zone.
+        const svg = new BrowserQRCodeSvgWriter().write(deviceId, 260, 260);
+        const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        background.setAttribute('width', '100%'); background.setAttribute('height', '100%'); background.setAttribute('fill', '#fff');
+        svg.prepend(background);
+        svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `QR code for device ${deviceId}`);
+        svg.setAttribute('shape-rendering', 'crispEdges');
+        code.current?.replaceChildren(svg);
+      } catch { if (active) setError('Unable to generate this device’s QR code. Please close and try again, or use Copy ID.'); }
+      finally { if (active) setGenerating(false); }
+    })();
+    return () => { active = false; };
+  }, [deviceId]);
+  return <dialog ref={dialog} className="device-qr-dialog" aria-labelledby={titleId}
+    onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }}
+    onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }}
+    onClick={event => {
+      if (event.target !== event.currentTarget) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
+    }}>
+    <header><h2 id={titleId}>Device QR Code</h2><button type="button" className="devices-refresh" aria-label="Close device QR code" onClick={onClose}><X size={18} /></button></header>
+    <div className="device-qr-code" ref={code} aria-busy={generating} />
+    {generating && <p role="status">Generating QR code…</p>}
+    {error && <p className="device-qr-error" role="alert">{error}</p>}
+    <div className="device-qr-id"><span>Device ID</span><strong>{deviceId}</strong></div>
+    {feedback}
+    <footer><button type="button" className="devices-refresh" disabled={copying} onClick={onCopy}>{copying ? 'Copying…' : 'Copy ID'}</button><button type="button" className="devices-refresh" onClick={onClose}>Close</button></footer>
+  </dialog>;
 }
