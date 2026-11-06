@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { downloadDashboardExcel, type ShiftDashboardData } from './utils/dashboardExcel.ts';
 import { dashboardShiftStatus } from '../../shared/shiftStatus.ts';
+import { createDeviceQrSvg } from './utils/deviceQr.ts';
 import './App.css';
 import './Theme.css';
 
@@ -102,6 +103,22 @@ function MetricRow({ icon, label, value }: { icon?: ReactNode; label: string; va
       <strong>{value}</strong>
     </div>
   );
+}
+
+function DashboardDeviceQr({ deviceId }: { deviceId: string }) {
+  const code = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  useEffect(() => {
+    let active = true;
+    void createDeviceQrSvg(deviceId).then(svg => {
+      if (!active) return;
+      code.current?.replaceChildren(svg);
+      setStatus('ready');
+    }, () => { if (active) setStatus('error'); });
+    return () => { active = false; };
+  }, [deviceId]);
+  return <div className="dashboard-device-qr" ref={code} aria-busy={status === 'loading'}
+    role={status === 'error' ? 'img' : undefined} aria-label={status === 'error' ? 'Device QR code unavailable' : undefined} />;
 }
 
 function LogoutConfirmation({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
@@ -519,12 +536,6 @@ function Application() {
             <button className="theme-button" type="button" aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} aria-pressed={darkMode} title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'} onClick={() => setDarkMode(current => !current)}><span aria-hidden="true">☾</span></button>
             <ProfileMenu key={`${session.id}:${selectedOutlet.id}`} session={session} outletId={selectedOutlet.id} onSessionExpired={handleLogout} onChangeOutlet={requestChangeOutlet} />
           </div>
-          {activeNavigation.id === 'Home:Dashboard' && <div className="mobile-dashboard-info" aria-label="Current outlet, branch, date and time">
-            <div className="mobile-dashboard-outlet"><Store aria-hidden="true" /><strong>{selectedOutlet.name}</strong></div>
-            <div><MapPin aria-hidden="true" /><span>{selectedOutlet.branch || 'Branch not specified'}</span></div>
-            <time dateTime={localDayId()}><CalendarDays aria-hidden="true" /><span>{new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span></time>
-            <time dateTime={clock}><Clock aria-hidden="true" /><span>{clock}</span></time>
-          </div>}
         </header>
 
         {reconnecting && usage.dailyLimitApplies === null && usage.message && <div className="outlet-connection-status" data-outlet-connection role="alert">
@@ -601,7 +612,11 @@ function Application() {
           ) : (
             <>
               <section className="page-hero">
-                <div><h1>Retail POS Dashboard</h1><p>{selectedOutlet.name} · {activeNavigation.label} · Daily sales performance</p></div>
+                <div className="dashboard-outlet-heading">
+                  <h1><Store size={20} aria-hidden="true" /><span>{selectedOutlet.name}</span></h1>
+                  <p className="dashboard-branch"><strong>{selectedOutlet.branch || 'Not specified'}</strong></p>
+                  <p className="dashboard-subtitle"><TrendingUp size={14} aria-hidden="true" />Daily sales performance</p>
+                </div>
                 <div className="hero-actions"><div className="shift-selector-bar" role="tablist" aria-label="Shift view selection">
                   {shiftTabs.map((tab, index) => <button key={tab.id} id={`dashboard-shift-tab-${index}`} type="button" role="tab"
                     aria-selected={effectiveShiftId === tab.id} aria-controls="dashboard-shift-panel" tabIndex={selectedTabIndex === index ? 0 : -1}
@@ -614,7 +629,7 @@ function Application() {
                       event.preventDefault(); setSelectedShiftId(shiftTabs[next]!.id);
                       document.getElementById(`dashboard-shift-tab-${next}`)?.focus();
                     }}>{tab.label}</button>)}
-                </div><label className="dashboard-date-picker" htmlFor="dashboard-report-date"><ReportDateInput id="dashboard-report-date" aria-label="Dashboard date" value={dashboardDay} onChange={value => { if (value) { setDashboardDay(value); setSelectedShiftId('all'); } }} /><span>{clock}</span></label><button type="button" title="Export all shifts for the selected date" onClick={() => void exportDashboard()} disabled={!dashboardData || dashboardLoading || !!dashboardError || dashboardExporting || dashboardData.dayId !== dashboardDay}>{dashboardExporting ? <RefreshCw /> : <Download />}{dashboardExporting ? 'Exporting…' : 'Export All Shifts'}</button></div>
+                </div><label className="dashboard-date-picker" htmlFor="dashboard-report-date"><ReportDateInput id="dashboard-report-date" aria-label="Dashboard date" value={dashboardDay} onChange={value => { if (value) { setDashboardDay(value); setSelectedShiftId('all'); } }} /><span className="dashboard-time"><Clock size={14} aria-hidden="true" />{clock}</span></label><button type="button" title="Export all shifts for the selected date" onClick={() => void exportDashboard()} disabled={!dashboardData || dashboardLoading || !!dashboardError || dashboardExporting || dashboardData.dayId !== dashboardDay}>{dashboardExporting ? <RefreshCw /> : <Download />}{dashboardExporting ? 'Exporting…' : 'Export All Shifts'}</button></div>
               </section>
 
               {dashboardLoading && <div className="dashboard-data-notice" data-inline-loading><RefreshCw className="dashboard-data-spinner" /> Loading shift data…</div>}
@@ -681,6 +696,7 @@ function Application() {
                   <div><span>Bill Range</span><strong>{shiftToShow?.startBillNo || '—'} → {shiftToShow?.lastBillNo || '—'}</strong></div>
                   <div><span>Status</span><strong className={shiftToShow?.inActive ? 'status-closed' : 'status-active'}>{shiftToShow ? dashboardShiftStatus(shiftToShow) : 'Not Available'}</strong></div>
                   <div><span>Device ID</span><strong className="shift-device-id">{shiftToShow?.deviceId?.trim() || 'Not Available'}</strong></div>
+                  {shiftToShow?.deviceId?.trim() && <DashboardDeviceQr key={shiftToShow.deviceId} deviceId={shiftToShow.deviceId} />}
                 </article>
                 <button type="button" className="help-card"><CircleHelp /><span><strong>Need help?</strong><small>View POS documentation</small></span></button>
               </aside>

@@ -226,6 +226,19 @@ button { font: inherit; }
 }
 .page-hero h1 { margin: 0; font-size: 28px; line-height: 1.1; }
 .page-hero p { margin: 7px 0 0; color: #d8e7ee; font-size: 13px; }
+.dashboard-outlet-heading {
+  --page-title-line-height: 1.1;
+  --page-title-icon-size: 20px;
+  --page-title-icon-gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dashboard-outlet-heading h1 > span { min-width: 0; }
+:root .page-hero > .dashboard-outlet-heading > .dashboard-branch { margin: 2px 0 0 28px; font-size: 12px; line-height: 1.2; }
+.page-hero .dashboard-outlet-heading > .dashboard-subtitle { display: flex; align-items: center; gap: 6px; margin: 2px 0 0 28px; font-size: 11px; line-height: 1.2; }
+.dashboard-outlet-heading .dashboard-subtitle > svg,
+.dashboard-date-picker .dashboard-time > svg { flex: 0 0 14px; width: 14px; height: 14px; }
+.dashboard-date-picker .dashboard-time { display: inline-flex; align-items: center; gap: 5px; }
 .hero-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; min-width: 0; }
 .hero-actions > span, .hero-actions button {
   padding: 9px 13px;
@@ -508,6 +521,8 @@ button { font: inherit; }
 .shift-card div strong { max-width: 150px; min-width: 0; overflow-wrap: anywhere; color: #263441; text-align: right; }
 .shift-card .shift-card-context { margin: 0 0 8px; color: #89939c; font-size: 10px; line-height: 1.5; }
 .shift-card .shift-device-id { min-width: 0; overflow-wrap: anywhere; }
+.shift-card > .dashboard-device-qr { justify-content: center; min-width: 0; padding: 14px 0 0; }
+.dashboard-device-qr svg { display: block; width: 260px; max-width: 100%; height: auto; aspect-ratio: 1; background: #fff; }
 .shift-card .status-active { padding: 2px 7px; border-radius: 999px; background: #dff7e6; color: #13883d; }
 .help-card, .sidebar-logout { display: flex; align-items: center; gap: 10px; padding: 13px; border: 1px solid #dce2e8; border-radius: 9px; background: #fff; color: #3e4b58; cursor: pointer; text-align: left; }
 .help-card svg { width: 20px; color: #3c64ed; }
@@ -709,18 +724,9 @@ button { font: inherit; }
 }
 
 /* Dashboard phone layout; wider tablet/desktop layouts and print stay intact. */
-.mobile-dashboard-info { display: none; }
 @media screen and (max-width: 600px), screen and (max-width: 1024px) and (max-height: 500px) {
-  .retail-dashboard-shell .retail-header:has(> .mobile-dashboard-info) { flex-wrap: wrap; row-gap: 0; }
-  .retail-header .mobile-dashboard-info { display: grid; flex: 1 0 100%; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 12px; padding: 9px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.4; }
-  .mobile-dashboard-info > :is(div, time) { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
-  .mobile-dashboard-info :is(span, strong) { min-width: 0; overflow-wrap: anywhere; }
-  .mobile-dashboard-info svg { flex: 0 0 14px; width: 14px; height: 14px; margin-top: 1px; }
-  .mobile-dashboard-outlet { color: var(--ink); }
-  .mobile-dashboard-info > time { display: none; }
   .dashboard-workspace > .page-hero { min-height: 0; padding: 12px; gap: 0; }
-  .page-hero > div:first-child { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .page-hero > div:first-child p { display: none; }
+  .page-hero > .dashboard-outlet-heading { width: 100%; margin-bottom: 12px; }
   .page-hero .hero-actions { width: 100%; justify-content: flex-start; gap: 8px; }
   .page-hero .hero-actions > button[title="Export all shifts for the selected date"],
   .page-hero .dashboard-date-picker > span { display: none; }

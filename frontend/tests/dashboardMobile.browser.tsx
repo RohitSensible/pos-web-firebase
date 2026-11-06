@@ -27,7 +27,7 @@ window.fetch = async (input, init) => {
     shifts: [shift('one', 1, 300, 200, 100, 50, 20), shift('two', 2, 600, 350, 250, 30, 10)].map(row => ({ ...row, dayId: lastDay })) } });
 };
 const root = createRoot(document.getElementById('root')!); root.render(<App />);
-const info = () => document.querySelector<HTMLElement>('.mobile-dashboard-info')!;
+const info = () => document.querySelector<HTMLElement>('.dashboard-outlet-heading')!;
 const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('.page-hero [role=tab]')];
 const cards = () => [...document.querySelectorAll<HTMLElement>('.kpi-card')];
 const card = (label: string) => cards().find(item => item.querySelector('.kpi-card-topline > span')?.textContent === label)!;
@@ -85,11 +85,16 @@ void (async () => {
     assert(getComputedStyle(detailGrids[0]!).gridAutoFlow === 'column' && getComputedStyle(detailGrids[1]!).gridTemplateColumns.split(' ').length === 1 && [...operational, ...expenses].every(metric => getComputedStyle(metric).flexDirection === 'row'), 'Desktop/tablet keep their original metric rows and grid arrangement');
   }
   assert(getComputedStyle(exportButton).display === (phone ? 'none' : 'flex'), 'Export All Shifts is hidden only on phones');
-  assert(getComputedStyle(info()).display === (phone ? 'grid' : 'none'), 'New header information is hidden on tablets and desktops');
+  assert(info().querySelector('h1')?.textContent === outlet.name && info().querySelector('p strong')?.textContent === outlet.branch, 'Dashboard heading uses the actual outlet and bold branch name without a Branch label on every screen size');
+  assert(info().querySelector('h1 > .lucide-store') && info().querySelector('.dashboard-subtitle > .lucide-trending-up') && info().querySelector('.dashboard-subtitle')?.textContent === 'Daily sales performance', 'Store and analytics icons accompany the existing outlet data and restored sales subtitle');
+  const time = document.querySelector<HTMLElement>('.dashboard-date-picker > .dashboard-time')!;
+  assert(time.querySelector('.lucide-clock') && !!time.textContent?.trim() && getComputedStyle(time).display === (phone ? 'none' : 'inline-flex'), 'The clock icon follows the existing desktop and phone time visibility');
+  assert(document.querySelectorAll('#dashboard-report-date .lucide-calendar-days').length === 1 && exportButton.querySelectorAll('.lucide-download').length === 1 && !exportButton.disabled, 'Date and export retain their original single icons and available controls');
+  assert(!document.querySelector('.mobile-dashboard-info'), 'The duplicate mobile outlet strip is removed');
   if (phone) {
     assert(info().textContent?.includes(outlet.name) && info().textContent?.includes(outlet.branch), 'Mobile header uses the actual outlet and branch names');
-    assert([...info().querySelectorAll('time')].every(time => getComputedStyle(time).display === 'none'), 'The date/time row is removed from the mobile header');
-    assert(getComputedStyle(document.querySelector('.dashboard-date-picker > span')!).display === 'none' && getComputedStyle(document.querySelector('.page-hero p')!).display === 'none', 'The repeated outlet strip and control clock are hidden on mobile');
+    assert(!info().querySelector('time'), 'The removed mobile date/time strip is not reintroduced');
+    assert(getComputedStyle(document.querySelector('.dashboard-date-picker > span')!).display === 'none' && getComputedStyle(info().querySelector('p')!).display !== 'none', 'Outlet information is visible while the existing phone control clock remains hidden');
     assert([...info().children].filter(child => getComputedStyle(child).display !== 'none').every(fits) && fits(info()) && document.documentElement.scrollWidth <= innerWidth, 'Long outlet and branch names fit narrow phones without horizontal overflow');
     assert(tabs().every(tab => fits(tab) && tab.getBoundingClientRect().height >= 44) && fits(document.querySelector('.dashboard-date-picker')!), 'Shift and date controls fit and remain touch friendly');
     assert(['.mobile-menu', '.header-logo-crop', '.theme-button', '.profile-menu-trigger'].every(selector => document.querySelector(selector)!.getBoundingClientRect().width > 0), 'Hamburger, original logo, theme toggle and profile remain visible');
@@ -100,12 +105,12 @@ void (async () => {
   assert(document.querySelector('.payment-copy strong')!.textContent === money(200), 'Other Sales follows the selected shift');
   assert(operational[1]!.querySelector('strong')!.textContent === money(12.5) && expenses[0]!.querySelector('strong')!.textContent === money(20) && expenses[2]!.querySelector('strong')!.textContent === money(123456789.01), 'Operational and expense values follow the selected shift without extra reads');
   tabs()[0]!.click(); await until(() => value('Total Sale') === money(900), 'all shifts');
-  const headerDate = info().querySelector('time')!.dateTime;
+  const headerOutlet = info().textContent;
   document.querySelector<HTMLButtonElement>('#dashboard-report-date')!.click();
   await until(() => document.querySelector('[data-date]'), 'date calendar');
   const anotherDay = [...document.querySelectorAll<HTMLButtonElement>('[data-date]')].find(button => button.dataset.date !== lastDay && !button.disabled)!;
   anotherDay.click(); await until(() => lastDay === anotherDay.dataset.date && value('Total Sale') === money(900), 'selected date read');
-  assert(requests === count + 1 && info().querySelector('time')!.dateTime === headerDate, 'Date selection reads the selected report day once while the header retains the current date');
+  assert(requests === count + 1 && info().textContent === headerOutlet, 'Date selection reads the selected report day once while retaining the outlet heading');
   document.querySelector<HTMLButtonElement>('.theme-button')!.click(); await pause();
   assert(document.documentElement.dataset.theme === 'dark' && value('Total Sale') === money(900), 'Theme switching preserves current values and selection');
   if (phone) {

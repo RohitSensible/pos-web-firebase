@@ -3,6 +3,7 @@ import { useDataLoading } from '../utils/useDataLoading.ts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Monitor, RefreshCw, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
+import { createDeviceQrSvg } from '../utils/deviceQr.ts';
 import './DevicesPage.css';
 import './MobileRecords.css';
 
@@ -127,15 +128,8 @@ function DeviceQrDialog({ deviceId, copying, onCopy, feedback, onClose }: {
     let active = true;
     void (async () => {
       try {
-        const { BrowserQRCodeSvgWriter } = await import('@zxing/browser');
+        const svg = await createDeviceQrSvg(deviceId);
         if (!active) return;
-        // Pass the raw ID unchanged. ZXing includes a four-module quiet zone.
-        const svg = new BrowserQRCodeSvgWriter().write(deviceId, 260, 260);
-        const background = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        background.setAttribute('width', '100%'); background.setAttribute('height', '100%'); background.setAttribute('fill', '#fff');
-        svg.prepend(background);
-        svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `QR code for device ${deviceId}`);
-        svg.setAttribute('shape-rendering', 'crispEdges');
         code.current?.replaceChildren(svg);
       } catch { if (active) setError('Unable to generate this device’s QR code. Please close and try again, or use Copy ID.'); }
       finally { if (active) setGenerating(false); }

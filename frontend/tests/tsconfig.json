@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "../node_modules/.tmp/tsconfig.dashboard-tests.tsbuildinfo"
+  },
+  "include": [
+    "dashboardShiftHeader.browser.tsx",
+    "dashboardMobile.browser.tsx"
+  ]
+}
