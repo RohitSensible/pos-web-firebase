@@ -3,7 +3,7 @@ name: Web POS regression
 on:
   pull_request:
   push:
-    branches: [main, master]
+    branches: [main, master, Testing]
   workflow_dispatch:
 
 permissions:

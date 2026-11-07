@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -118,8 +119,8 @@ export function ProductFlagsBulkUpdate({ products, outletId, token, onClose, onS
     {confirmation}
     <div className="products-header flags-header">
       <div>
-        <h1>Update Stockable &amp; Weighable</h1>
-        <p>{changes.length ? `${changes.length} ${changes.length === 1 ? 'product has' : 'products have'} unsaved changes.` : 'Select the products to mark as stockable or weighable.'}</p>
+        <PageHeading>Update Stockable &amp; Weighable</PageHeading>
+        <p>Set stock and weight options.{changes.length > 0 && <> {changes.length} unsaved {changes.length === 1 ? 'product' : 'products'}.</>}</p>
       </div>
       <div className="flags-header-actions">
         <button type="button" className="btn-secondary" disabled={saving} onClick={cancel}>Cancel</button>

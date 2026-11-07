@@ -98,6 +98,7 @@ const decoded = (selector: string) => {
   const img = document.querySelector<HTMLImageElement>(selector); return img?.complete && img.naturalWidth > 0;
 };
 const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent === text)!;
+const cropSave = () => document.querySelector<HTMLButtonElement>('.product-crop-actions > .btn-primary-add');
 async function confirmMutation() {
   await waitFor(() => document.querySelector('dialog[open] .action-confirm-button'), 'mutation confirmation');
   document.querySelector<HTMLButtonElement>('dialog[open] .action-confirm-button')!.click();
@@ -236,7 +237,7 @@ void (async () => {
   const newPicker = document.querySelector<HTMLInputElement>('input[type="file"]')!;
   const newSelection = new DataTransfer(); newSelection.items.add(new File([imageBytes], 'new.png', { type: 'image/png' }));
   newPicker.files = newSelection.files; newPicker.dispatchEvent(new Event('change', { bubbles: true }));
-  await waitFor(() => button('Save') && !button('Save').disabled, 'new image crop');
+  await waitFor(() => cropSave() && !cropSave()!.disabled, 'new image crop');
   const retainedCrop = document.querySelector('canvas');
   const retainedForm = document.getElementById('product-name');
   const stopsBeforeIdle = usageStops;
@@ -254,7 +255,7 @@ void (async () => {
   assert(document.querySelector('canvas') === retainedCrop && document.getElementById('product-name') === retainedForm,
     'Fresh authorization resumes the same form and cropper');
   passed.push('Exempt-outlet activity and hidden-tab recovery preserve the image editor');
-  button('Save').click(); await waitFor(() => button('Clear Selection'), 'new processed selection');
+  cropSave()!.click(); await waitFor(() => button('Clear Selection'), 'new processed selection');
   assert(uploads === 4, 'Applying a crop in the form does not upload before save');
   failUpload = true; button('Save Product').click(); await confirmMutation();
   await waitFor(() => document.querySelector('[role="alert"]')?.textContent?.includes('Retry upload'), 'new product image failure');

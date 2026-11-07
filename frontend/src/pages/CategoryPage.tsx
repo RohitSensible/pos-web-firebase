@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { beginDataLoading, markDataLoadingBackground } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
@@ -314,11 +315,11 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
       {/* Header Row */}
       <div className="category-header-row">
         <div className="category-title-group">
-          <h1>
+          <PageHeading>
             <SlidersHorizontal size={22} color="#3567f0" />
             Category Master
-          </h1>
-          <p>Organize, create, update, and manage your product categories</p>
+          </PageHeading>
+          <p>Organize product categories.</p>
         </div>
         <div className="category-header-actions category-master-actions">
           <MobileAddButton label="Add New Category" className="btn-primary-add" disabled={saving} onClick={openAddCategory} />
@@ -476,7 +477,7 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ outlet, token, onSes
       {addOpen && <div className="modal-scrim" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving) setAddOpen(false); }}>
         <section className="category-modal" role="dialog" aria-modal="true" aria-labelledby="add-category-title">
           <form onSubmit={addCategory}>{confirmation}
-            <div className="modal-header"><h3 id="add-category-title">Add New Category</h3><button type="button" className="modal-close-btn" aria-label="Close add category" disabled={saving} onClick={() => setAddOpen(false)}><X size={18} /></button></div>
+            <div className="modal-header"><div className="workspace-heading-copy"><PageHeading as="h3" id="add-category-title">Add New Category</PageHeading><p>Create a product category.</p></div><button type="button" className="modal-close-btn" aria-label="Close add category" disabled={saving} onClick={() => setAddOpen(false)}><X size={18} /></button></div>
             <div className="modal-body">
               <div className="form-field"><label htmlFor="new-category-number">Category Number</label><input id="new-category-number" type="text" readOnly disabled={saving} value={loading ? 'Loading…' : error ? 'Unavailable' : String(nextCategoryNumber)} /></div>
               <div className="form-field"><label htmlFor="new-category-name">Category Name</label><input id="new-category-name" required maxLength={200} autoFocus disabled={saving} value={draft.name} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} /></div>

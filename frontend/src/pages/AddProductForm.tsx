@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { requestUnsavedNavigation, useUnsavedChanges } from '../utils/unsavedChanges.tsx';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
@@ -195,7 +196,7 @@ function ScopedProductForm({ outletId, token, initialCategory, initialBarcode, s
       <form noValidate onSubmit={event => void save(event)}>{confirmation}
         {scannerOpen && options && <BarcodeScanner onCancel={() => setScannerOpen(false)} onUse={value => { update('barcode', value); setScannerOpen(false); }} />}
         {barcodeImageOpen && <BarcodeImageUpload onCancel={() => setBarcodeImageOpen(false)} onUse={value => { update('barcode', value); setBarcodeImageOpen(false); }} />}
-        <div className="modal-header"><h3 id="add-product-title">{product ? 'Edit Product' : 'Add New Product'}</h3>
+        <div className="modal-header"><div className="workspace-heading-copy"><PageHeading as="h3" id="add-product-title">{product ? 'Edit Product' : 'Add New Product'}</PageHeading><p>{product ? 'Update product details.' : 'Enter new product details.'}</p></div>
           <button type="submit" className="btn-primary-add product-mobile-save" disabled={saving || !options || !options.categories.length}>{saving ? (product ? 'Updating…' : 'Saving…') : !product && createdForImageRetry.current ? 'Retry Image Save' : product ? 'Update' : 'Save'}</button>
           <button type="button" className="modal-close-btn" aria-label={product ? 'Close edit product' : 'Close add product'} disabled={saving} onClick={cancel}><X size={18} /></button></div>
         <div className="modal-body">

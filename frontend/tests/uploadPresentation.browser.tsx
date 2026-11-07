@@ -28,12 +28,38 @@ root.render(<div className="retail-dashboard-shell"><aside className="dashboard-
 const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === label)!;
 const option = (label: string) => [...document.querySelectorAll<HTMLButtonElement>('.upload-excel-option')].find(node => node.querySelector('strong')?.textContent === label)!;
 const dialog = () => document.querySelector<HTMLDialogElement>('.upload-excel-dialog')!;
+function checkDialogPosition(label: string) {
+  const node = dialog(), bounds = node.getBoundingClientRect();
+  const mobile = matchMedia('(max-width: 820px), (max-width: 1024px) and (max-height: 600px)').matches;
+  const phone = matchMedia('(max-width: 600px), (max-width: 1024px) and (max-height: 600px)').matches;
+  const sidebar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'));
+  const left = mobile ? 0 : sidebar;
+  const backdrop = getComputedStyle(node, '::backdrop');
+  assert(parseFloat(backdrop.left) === left && parseFloat(backdrop.top) === (phone ? 62 : 68), `${label}: backdrop follows the active sidebar and header layout`);
+  assert(bounds.left >= left && bounds.right <= innerWidth && bounds.top >= 0 && bounds.bottom <= innerHeight, `${label}: dialog stays inside the available viewport`);
+  const viewportWidth = document.documentElement.clientWidth;
+  assert(Math.abs(bounds.left + bounds.width / 2 - (left + viewportWidth) / 2) < 1, `${label}: dialog is horizontally centered in the content area`);
+  assert(getComputedStyle(node).overflowY === 'auto', `${label}: short-screen dialog retains vertical scrolling`);
+  const close = node.querySelector<HTMLButtonElement>('.upload-excel-close-icon')!;
+  const closeBounds = close.getBoundingClientRect();
+  assert(!close.disabled && closeBounds.top >= bounds.top && closeBounds.bottom <= bounds.bottom, `${label}: close control remains inside the visible dialog`);
+  const previousScroll = node.scrollTop;
+  node.scrollTop = node.scrollHeight;
+  const footer = node.querySelector<HTMLButtonElement>('.upload-excel-dialog-actions button, .csv-upload-import-note button');
+  if (footer) {
+    const button = footer.getBoundingClientRect();
+    assert(button.top >= bounds.top && button.bottom <= bounds.bottom, `${label}: footer actions remain reachable after scrolling`);
+  }
+  if (node.scrollHeight > node.clientHeight) assert(node.scrollTop > 0, `${label}: overflowing content can scroll on short screens`);
+  node.scrollTop = previousScroll;
+}
 void (async () => {
   await until(() => option('Upload Excel'), 'Upload page did not render');
   for (const theme of ['light', 'dark']) {
     document.documentElement.dataset.theme = theme;
     option('Excel Sheet Instructions').click();
     await until(() => document.querySelector('.sheet-required-columns'), 'Instructions did not open');
+    checkDialogPosition(`${theme}: instructions`);
     assert(parseFloat(getComputedStyle(document.querySelector('#upload-excel-dialog-title')!).fontSize) >= 24, `${theme}: instruction title is prominent`);
     assert(document.querySelector('.sheet-template-card summary strong')?.textContent === 'Template Downloads' && document.querySelectorAll('.sheet-template-card button svg').length === 2, `${theme}: template card contains both download actions with icons`);
     const columns = [...document.querySelectorAll('.sheet-required-columns li')];
@@ -43,6 +69,7 @@ void (async () => {
     button('Close').click(); await until(() => !dialog().open, 'Instructions Close failed'); await pause();
     option('Upload Excel').click();
     await until(() => document.querySelector('input[type=file]'), 'File input did not appear');
+    checkDialogPosition(`${theme}: upload`);
     assert(document.querySelector('.csv-upload-drop-zone')?.textContent?.includes('Drag & drop') && document.querySelectorAll('.csv-upload-format-pills li').length === 4, `${theme}: upload zone presents the existing file requirements`);
     const banner = document.querySelector('.csv-upload-quota')!;
     assert(banner.textContent?.includes('2') && getComputedStyle(banner).color === 'rgb(244, 247, 252)', `${theme}: quota notice has readable high-contrast text`);
@@ -53,6 +80,7 @@ void (async () => {
     const input = document.querySelector<HTMLInputElement>('input[type=file]')!;
     input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
     await until(() => document.querySelector('.csv-upload-table-scroll tbody tr'), 'Local preview did not appear');
+    checkDialogPosition(`${theme}: populated preview`);
     assert(document.querySelector('.csv-upload-filename strong')?.textContent === file.name && !button('Upload File').disabled && !button('Upload').disabled, `${theme}: selected file shows its name and enabled existing upload actions`);
     const footer = document.querySelector('.csv-upload-import-note')!;
     assert(footer.contains(button('Upload')) && footer.contains(button('Close')), `${theme}: footer keeps Upload and Close together`);

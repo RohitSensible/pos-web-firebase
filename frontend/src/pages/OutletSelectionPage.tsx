@@ -125,7 +125,7 @@ export const OutletSelectionPage = ({ session, onSelect, onLogout }: OutletSelec
         <div className="outlet-selection-title">
           <span>POS WORKSPACE</span>
           <h1><span className="outlet-desktop-copy">Select an outlet</span><span className="outlet-mobile-copy">Your Outlets</span></h1>
-          <p><span className="outlet-desktop-copy">Choose the business location you want to manage for this session.</span><span className="outlet-mobile-copy">Manage and open your outlets</span></p>
+          <p><span className="outlet-desktop-copy">Choose an outlet to manage.</span><span className="outlet-mobile-copy">Manage and open your outlets</span></p>
         </div>
 
         {!loading && !error && outlets.length > 0 && (

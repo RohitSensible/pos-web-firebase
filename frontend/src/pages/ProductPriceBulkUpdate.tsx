@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
@@ -172,8 +173,8 @@ export function ProductPriceBulkUpdate({ products, outletId, token, onClose, onS
     {confirmation}
     <div className="products-header flags-header">
       <div>
-        <h1>Update Bulk Price</h1>
-        <p>{changes.length ? `${changes.length} ${changes.length === 1 ? 'product has' : 'products have'} unsaved price changes.` : 'Edit default and premises prices, then click Update.'}</p>
+        <PageHeading>Update Bulk Price</PageHeading>
+        <p>Set product and premises prices.{changes.length > 0 && <> {changes.length} unsaved {changes.length === 1 ? 'product' : 'products'}.</>}</p>
       </div>
       <div className="flags-header-actions">
         <button type="button" className="btn-secondary" disabled={saving} onClick={cancel}>Cancel</button>

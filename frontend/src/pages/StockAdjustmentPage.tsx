@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { markDataLoadingBackground } from '../utils/dataLoading.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { useMasterSync } from '../utils/useMasterSync.ts';
@@ -145,7 +146,7 @@ export function StockAdjustmentPage({ outlet, token, onSessionExpired }: { outle
   const refresh = () => { if (!locked) { setReload(value => value + 1); setError(''); } };
 
   return <section className="devices-page stock-adjustment-page stock-movement-page">
-    <header className="devices-heading"><div><span>MASTERS</span><h1>{mode === 'in' ? <ArrowDownToLine /> : mode === 'out' ? <ArrowUpFromLine /> : <Package />}{mode ? mode === 'in' ? 'Stock In' : 'Stock Out' : 'Stock In and Out'}</h1><p>{outlet.name} · {mode ? 'Select stockable products and quantities, then review before saving.' : 'Receive stock or record stock leaving your outlet.'}</p></div>
+    <header className="devices-heading"><div><span>MASTERS</span><PageHeading backDisabled={locked}>{mode === 'in' ? <ArrowDownToLine /> : mode === 'out' ? <ArrowUpFromLine /> : <Package />}{mode ? mode === 'in' ? 'Stock In' : 'Stock Out' : 'Stock In and Out'}</PageHeading><p>{mode === 'in' ? 'Record incoming stock.' : mode === 'out' ? 'Record outgoing stock.' : 'Receive or issue stock.'}</p></div>
       {mode && <button type="button" className="devices-refresh stock-mode-back" disabled={locked} onClick={() => { setMode(null); setError(''); }}><ArrowLeft /> Back</button>}
     </header>
     {!mode ? <div className="stock-choice-grid">{(['in', 'out'] as const).map(direction => <article className="stock-choice-card" key={direction}>

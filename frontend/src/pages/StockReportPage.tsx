@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, createSearchMatcher, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
@@ -9,7 +10,6 @@ import {
   PackageX, Printer, RefreshCw, Search, X,
 } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
-import { StockPlanning } from './StockPlanning.tsx';
 import type { ReplenishmentDraft } from './stockPlanning.ts';
 import './BillWiseReportPage.css';
 import './ProductWiseReportPage.css';
@@ -73,7 +73,7 @@ function todayId(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 'Stock Report', onPrepareReceipt }: StockReportPageProps) => {
+export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 'Stock Report' }: StockReportPageProps) => {
   const initialFilters = useMemo<StockFilters>(() => ({ categoryId: '', status: '', search: '' }), []);
   const [filters, setFilters] = useState(initialFilters);
   const [appliedFilters, setAppliedFilters] = useState(initialFilters);
@@ -126,7 +126,7 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
     });
     return () => controller.abort();
   }, [scope, readReport]);
-  // Keep the current report and planning drafts mounted during reconciliation.
+  // Keep the current report mounted during reconciliation.
   useMasterSync(outlet.id, token, 'products', !!report && !loading && !error, readReport);
 
   // Filtering is done in the browser because the full product list is already loaded.
@@ -196,7 +196,7 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
   return (
     <section className="bill-report-page product-report-page stock-report-page">
       <div className="bill-report-heading">
-        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Stock Report</h1><p>{outlet.name} · Current stock count for stockable products.</p></div>
+        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><PageHeading>Stock Report</PageHeading><p>View current stock levels.</p></div>
         <div className="bill-report-actions">
           <button type="button" onClick={() => setReloadKey(value => value + 1)} disabled={loading}><RefreshCw /> Refresh</button>
           <button type="button" onClick={exportExcel} disabled={!canOutput}><Download /> Export Excel</button>
@@ -218,7 +218,6 @@ export const StockReportPage = ({ outlet, token, onSessionExpired, reportName = 
         <article><span><PackageX /></span><div><small>Out of Stock</small><strong>{summary.out}</strong></div></article>
       </div>
 
-      {report && !loading && !error && <StockPlanning key={`${outlet.id}:${token}:${reloadKey}`} products={report.products} outlet={outlet} token={token} onSessionExpired={onSessionExpired} onPrepareReceipt={onPrepareReceipt} />}
       <div className="bill-table-card" aria-busy={loading}>
         {loading && <div className="bill-report-state" data-inline-loading><RefreshCw className="bill-report-spinner" /><strong>Loading stock…</strong></div>}
         {!loading && error && <div className="bill-report-state error" role="alert"><strong>{error}</strong><button type="button" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Retry</button></div>}

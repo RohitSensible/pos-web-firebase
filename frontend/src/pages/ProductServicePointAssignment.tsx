@@ -1,4 +1,5 @@
 import { beginDataLoading } from '../utils/dataLoading.ts';
+import { PageHeading } from '../components/PageHeading.tsx';
 import { ActionConfirmation } from './ActionPopup.tsx';
 import { useEffect, useRef, useState } from 'react';
 import './CategoryPage.css';
@@ -54,7 +55,8 @@ export function ProductServicePointAssignment({ outletId, token, categories, onC
   const category = categories.find(row => row.id === categoryId), point = points?.find(row => row.documentId === servicePointId);
   return <><dialog ref={dialog} className="category-modal service-point-assignment" aria-labelledby="assign-service-point-title"
     onCancel={event => { event.preventDefault(); if (!pending.current) onCancel(); }} aria-busy={saving}>
-    <div className="modal-header"><h3 id="assign-service-point-title">Assign Service Point</h3></div>
+    <div className="modal-header"><div className="workspace-heading-copy"><PageHeading as="h3" id="assign-service-point-title" backDisabled={saving}
+      onBack={() => { if (categoryId) { setCategoryId(''); setServicePointId(''); setError(''); } else onCancel(); }}>Assign Service Point</PageHeading><p>Set service points for products.</p></div></div>
     <div className="modal-body">
       {!categoryId ? <><p>Choose a category</p>{categories.length ? <div className="assignment-choice-list" aria-label="Categories">{categories.map(row => <button type="button" className="btn-secondary" key={row.id}
           onClick={() => { setError(''); setPoints(null); setServicePointId(''); setCategoryId(row.id); }}>{row.name}</button>)}</div> : <p>No categories found for this outlet.</p>}</>
@@ -67,7 +69,7 @@ export function ProductServicePointAssignment({ outletId, token, categories, onC
     </div>
     <div className="modal-footer">
       <button type="button" className="btn-secondary" disabled={saving} onClick={onCancel}>Cancel</button>
-      {categoryId && <><button type="button" className="btn-secondary" onClick={() => { setCategoryId(''); setServicePointId(''); setError(''); }}>Back</button><button type="button" className="btn-primary-add" disabled={!servicePointId} onClick={() => setConfirm(true)}>Assign</button></>}
+      {categoryId && <button type="button" className="btn-primary-add" disabled={!servicePointId} onClick={() => setConfirm(true)}>Assign</button>}
     </div>
   </dialog>
     {confirm && <ActionConfirmation action="assign" item={`${point?.name || 'service point'} to products in ${category?.name || 'category'}`} busy={saving} error={error}

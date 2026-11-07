@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { searchRecords } from '../utils/useMobileSearch.ts';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
@@ -161,7 +162,7 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
       <form onSubmit={save}>{confirmation}
         <div className="modal-header master-form-header">
           <div className="master-form-title"><span className="master-form-icon"><Store size={24} /></span>
-            <div><h3 id="premise-title">{editing ? 'Edit Premises' : 'Premise Details'}</h3><p>{editing ? 'Edit' : 'Create'} premises for {outlet.name}.</p></div></div>
+            <div><PageHeading as="h3" id="premise-title">{editing ? 'Edit Premises' : 'Premise Details'}</PageHeading><p>{editing ? 'Edit' : 'Create'} premises.</p></div></div>
           <button type="button" className="modal-close-btn" aria-label="Close premises form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button>
         </div>
         <fieldset className="premises-fields" disabled={saving}>
@@ -201,9 +202,9 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
         title="Delete all premises?"
         onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllPremises()} />}
       {deleteAllDone && <SuccessPopup message="Premises deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
-      <div className="category-header-row"><div className="category-title-group"><h1><Store size={22} color="#3567f0" />Premises</h1><p>Manage tables, rooms and bill premises.</p></div>
+      <div className="category-header-row"><div className="category-title-group"><PageHeading><Store size={22} color="#3567f0" />Premises</PageHeading><p>Manage tables, rooms and bills.</p></div>
         <div className="category-header-actions">{onClose
-          ? <button type="button" className="btn-secondary" onClick={onClose}><ArrowLeft size={16} />Back to Products</button>
+          ? <button type="button" className="btn-secondary premises-back-to-products" onClick={onClose}><ArrowLeft size={16} />Back to Products</button>
           : <MobileAddButton label="Add New Premises" className="btn-primary-add" onClick={openAdd} />}
           <div className="category-more-actions">
             {phoneHeader && totalPremises}

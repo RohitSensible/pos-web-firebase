@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useEffect, useRef } from 'react';
 import { ArrowRight, BookOpen, Building2, FileSpreadsheet, Upload, X } from 'lucide-react';
 import './UploadExcelPage.css';
@@ -55,8 +56,8 @@ export function UploadExcelPage({ outletId, token, onSessionExpired }: { outletI
   return (
     <section className="upload-excel-page" aria-labelledby="upload-excel-title">
       <header className="upload-excel-heading">
-        <h1 id="upload-excel-title"><Upload size={22} aria-hidden="true" />Upload Excel</h1>
-        <p>Choose an inventory upload option or view Excel sheet instructions.</p>
+        <PageHeading id="upload-excel-title"><Upload size={22} aria-hidden="true" />Upload Excel</PageHeading>
+        <p>Import products and images.</p>
       </header>
 
       <div className="upload-excel-options">

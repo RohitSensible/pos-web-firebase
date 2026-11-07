@@ -23,8 +23,5 @@
 .products-combo-link > small { padding: 3px 6px; border-radius: 5px; background: color-mix(in srgb, var(--blue) 7%, var(--card)); font-size: 10px; font-weight: 500; }
 .products-combo-link:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 3px; }
 
-.combo-details-table input { box-sizing: border-box; width: 110px; max-width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); font: inherit; }
-.combo-details-table input:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .combo-details-modal .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
-.combo-details-error { color: var(--dialog-action-danger); font-size: 13px; }
 

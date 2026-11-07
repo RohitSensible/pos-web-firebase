@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useEffect, useRef, useState } from 'react';
 import { Pencil, UsersRound, X } from 'lucide-react';
@@ -55,7 +56,7 @@ function SuppliersContent({ outlet, token, onSessionExpired }: SuppliersPageProp
   const { rows, hasMore, sentinelRef } = useRowBatches(filtered, query);
 
   return <section className="devices-page devices-discovery-page suppliers-page">
-    <header className="devices-heading"><div><span>MASTERS</span><h1><UsersRound />Suppliers</h1><p>{outlet.name} · Supplier contact details</p></div>
+    <header className="devices-heading"><div><span>MASTERS</span><PageHeading><UsersRound />Suppliers</PageHeading><p>Manage supplier details.</p></div>
       <MobileAddButton label="Add Supplier" className="devices-refresh" disabled={loading || !!error || !documentId} onClick={() => { setNotice(''); setAdding(true); }} />
     </header>
     {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
@@ -125,7 +126,7 @@ function SupplierForm({ base, token, documentId, supplier, onSessionExpired, onC
   useEffect(() => { dialog.current?.showModal(); }, []);
   const field = (key: keyof SupplierDetails, label: string, required = false, type = 'text') => <label>{label}{required && ' *'}<input autoFocus={key === 'name'} required={required} disabled={locked} type={type} pattern={type === 'tel' ? '\\+?[0-9 \\(\\)\\-]+' : undefined} maxLength={key === 'address' ? 500 : key === 'email' ? 320 : 200} value={details[key]} onChange={event => setDetails(current => ({ ...current, [key]: event.target.value }))} /></label>;
   return <dialog ref={dialog} className="stock-confirm-dialog goods-supplier-dialog" aria-labelledby="goods-supplier-title" onCancel={event => { if (locked) event.preventDefault(); else onClose(); }}>
-    {confirmation}<header className="devices-heading"><div><span>MASTERS</span><h2 id="goods-supplier-title">{supplier ? 'Edit Supplier' : 'Add Supplier'}</h2></div><button type="button" className="devices-refresh" aria-label={supplier ? 'Close Edit Supplier' : 'Close Add Supplier'} disabled={locked} onClick={onClose}><X /></button></header>
+    {confirmation}<header className="devices-heading"><div><span>MASTERS</span><h2 id="goods-supplier-title">{supplier ? 'Edit Supplier' : 'Add Supplier'}</h2><p>Enter supplier contact details.</p></div><button type="button" className="devices-refresh" aria-label={supplier ? 'Close Edit Supplier' : 'Close Add Supplier'} disabled={locked} onClick={onClose}><X /></button></header>
     <p>Save this supplier for the selected outlet. Company Name, Extra and Balance are unavailable in the existing supplier format.</p>
     <form onSubmit={event => {
       event.preventDefault();

@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
@@ -166,7 +167,7 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
 
   return <section className="bill-report-page stock-transfer-report-page">
     <div className="bill-report-heading">
-      <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Stock Transfer Report</h1><p>{outlet.name} · Saved database records and local session previews.</p></div>
+      <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><PageHeading>Stock Transfer Report</PageHeading><p>Review transfers and previews.</p></div>
       <div className="bill-report-actions">
         <button type="button" onClick={() => setReloadKey(value => value + 1)} disabled={loading}><RefreshCw /> Refresh</button>
         <button type="button" onClick={exportExcel} disabled={!hasData || loading || !!error}><Download /> Export Excel</button>
@@ -183,7 +184,7 @@ export const StockTransferReportPage = ({ outlet, token, onSessionExpired, repor
     <p className="stock-transfer-filter-help">Dates apply when you choose Apply; search updates automatically. Both sections use the applied filters.</p>
     <StockTransferSessionPreviews previews={previews} startDate={appliedFilters.startDate} endDate={appliedFilters.endDate} search={appliedFilters.search} />
     <section className="stock-transfer-saved-records" aria-labelledby="saved-transfers-title">
-    <header className="stock-transfer-saved-heading"><div><h2 id="saved-transfers-title">Saved Stock Transfers <span className="saved-transfer-label">Database records</span></h2><p>{outlet.name} only · {appliedFilters.startDate} to {appliedFilters.endDate}{appliedFilters.search ? ` · Search: “${appliedFilters.search}”` : ' · No search filter'}</p><p>Totals, Excel and Print / PDF include only filtered saved records. Print includes every page. Session previews are excluded.</p></div></header>
+    <header className="stock-transfer-saved-heading"><div><h2 id="saved-transfers-title">Saved Stock Transfers <span className="saved-transfer-label">Database records</span></h2><p>{appliedFilters.startDate} to {appliedFilters.endDate}{appliedFilters.search ? ` · Search: “${appliedFilters.search}”` : ' · No search filter'}</p><p>Totals, Excel and Print / PDF include only filtered saved records. Print includes every page. Session previews are excluded.</p></div></header>
     <div className="bill-summary-grid">
       <article><span><FileText /></span><div><small>Saved Transfers</small><strong>{report ? report.summary.totalTransfers : '—'}</strong></div></article>
       <article><span><Package /></span><div><small>Transferred Products</small><strong>{report ? report.summary.totalProducts : '—'}</strong></div></article>

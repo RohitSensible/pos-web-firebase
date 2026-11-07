@@ -1,5 +1,6 @@
 .product-discount-settings .tax-settings-actions { align-items: center; }
 .product-discount-settings .tax-settings-actions button { display: inline-flex; align-items: center; justify-content: center; }
+.discount-category-filter { display: none; }
 .discount-value-field { display: grid; gap: 8px; }
 .discount-value-field label { color: var(--ink); font-size: 13px; font-weight: 600; }
 .discount-value-field input { width: 100%; min-height: 48px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; }
@@ -13,4 +14,15 @@
   .product-discount-settings .tax-settings-table :is(th, td):first-child { width: 52px; }
   .product-discount-settings .tax-settings-table :is(th, td):nth-child(2) { width: 36%; }
   .product-discount-settings .tax-settings-actions { margin-left: 0; }
+}
+
+@media screen and (max-width: 600px), screen and (max-width: 1024px) and (max-height: 500px) {
+  .product-discount-settings > .products-header.tax-settings-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .product-discount-settings .tax-settings-header > div:first-child { min-width: 0; }
+  .product-discount-settings .tax-settings-actions { width: auto; flex-wrap: nowrap; }
+  .product-discount-settings .tax-settings-actions > button { min-height: 44px; }
+  .product-discount-settings .tax-settings-actions > .discount-settings-cancel,
+  .product-discount-settings > .tax-category-tabs { display: none; }
+  .product-discount-settings > .discount-category-filter { display: grid; gap: 5px; min-width: 0; color: var(--ink); font-size: 12px; }
+  .discount-category-filter select { width: 100%; min-width: 0; min-height: 44px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); color: var(--ink); font: inherit; font-size: 16px; }
 }

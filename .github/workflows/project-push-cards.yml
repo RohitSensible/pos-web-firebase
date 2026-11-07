@@ -224,7 +224,7 @@ jobs:
           }
           const branch = push.ref.slice('refs/heads/'.length);
           const subject = head.commit.message.split(/\r?\n/)[0].replace(/[\x00-\x1f\x7f]/g, ' ').trim();
-          const title = Array.from(`Code Push — ${branch} — ${subject}`).slice(0, 256).join('');
+          const title = Array.from(subject).slice(0, 256).join('');
           // Escape commit text as Markdown data (never shell code or hidden HTML).
           const md = value => String(value).replace(/([\\`*_{}\[\]()<>#+.!|~-])/g, '\\$1');
           const comparisonUrl = !push.historical && typeof payload.compare === 'string' &&

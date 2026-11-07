@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useScopedReportRead, useScopedReportExport } from '../utils/useScopedReportRead.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
@@ -156,7 +157,7 @@ export const CategoryWiseReportPage = ({ outlet, token, onSessionExpired, report
   return (
     <section className="bill-report-page category-report-page">
       <div className="bill-report-heading">
-        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Category Wise Report</h1><p>{outlet.name} · Billing totals grouped by product category.</p></div>
+        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><PageHeading>Category Wise Report</PageHeading><p>Review sales by category.</p></div>
         <div className="bill-report-actions">
           <button type="button" onClick={exportExcel} disabled={!canOutput || exporting}><Download /> Export Excel</button>
           <button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / PDF</button>

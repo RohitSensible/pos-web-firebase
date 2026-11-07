@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { searchRecords } from '../utils/useMobileSearch.ts';
 import { markDataLoadingBackground } from '../utils/dataLoading.ts';
 import { categoryReferenceMap } from '../../../shared/categoryReferences.ts';
@@ -257,7 +258,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
       ? { ...product, fields: { ...product.fields, image } } : product))} />;
 
   if ((taxOpen || discountOpen || flagsOpen || pricesOpen || assignmentOpen) && (busyLoading || error)) return <section className="products-page-shell" aria-busy={busyLoading}>
-    <div className="products-header"><h1>{taxOpen ? 'Tax Settings' : discountOpen ? 'Update Discount' : flagsOpen ? 'Update Stockable & Weighable' : pricesOpen ? 'Update Bulk Price' : 'Assign Service Point'}</h1>
+    <div className="products-header"><div className="workspace-heading-copy"><PageHeading>{taxOpen ? 'Tax Settings' : discountOpen ? 'Update Discount' : flagsOpen ? 'Update Stockable & Weighable' : pricesOpen ? 'Update Bulk Price' : 'Assign Service Point'}</PageHeading><p>Update product settings.</p></div>
       <button type="button" className="btn-secondary" onClick={() => { setTaxOpen(false); setDiscountOpen(false); setFlagsOpen(false); setPricesOpen(false); setAssignmentOpen(false); }}>Cancel</button></div>
     <div className="products-empty" data-inline-loading={loading || (progress && !error) ? '' : undefined} role={error ? 'alert' : 'status'}>{error || 'Loading products and categories…'}
       {error && <button type="button" className="btn-secondary" onClick={() => setReloadKey(value => value + 1)}>Retry</button>}</div>
@@ -369,8 +370,8 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
         onCancel={() => { if (!deleteBusy.current) setDeleteTarget(null); }} onConfirm={() => void deleteProduct(deleteTarget.id)} />}
       <div className="products-header">
         <div>
-          <h1><Package size={25} />Products</h1>
-          <p>Manage your product inventory and details.</p>
+          <PageHeading><Package size={25} />Products</PageHeading>
+          <p>Manage your products.</p>
         </div>
         <div className="products-header-actions" ref={headerActions}>
           <MobileAddButton label="Add New Product" className="products-add" onClick={() => { setNotice(''); setNewBarcode(undefined); setAddOpen(true); }} />

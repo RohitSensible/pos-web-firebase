@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useScopedReportRead, useScopedReportExport } from '../utils/useScopedReportRead.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
@@ -172,7 +173,7 @@ export const GstReportPage = ({ outlet, token, onSessionExpired, reportName = 'G
   return (
     <section className="bill-report-page product-report-page gst-report-page">
       <div className="bill-report-heading">
-        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>GST Report</h1><p>{outlet.name} · Taxable value, CGST, SGST and GST-inclusive totals.</p></div>
+        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><PageHeading>GST Report</PageHeading><p>Review tax totals by bill.</p></div>
         <div className="bill-report-actions">
           <button type="button" onClick={exportExcel} disabled={!canOutput || exporting}><Download /> Export Excel</button>
           <button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / PDF</button>

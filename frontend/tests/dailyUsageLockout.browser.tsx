@@ -33,7 +33,18 @@ void (async () => {
   await lock();
   const bounds = overlay()!.getBoundingClientRect(), card = document.querySelector('.outlet-lockout-card')!.getBoundingClientRect();
   assert(bounds.left === 0 && bounds.top === 0 && bounds.width >= document.documentElement.clientWidth && bounds.height >= innerHeight, 'Lockout covers the entire viewport');
-  assert(Math.abs(card.left + card.width / 2 - bounds.width / 2) < 3 && Math.abs(card.top + card.height / 2 - bounds.height / 2) < 3, 'Pause card is centered');
+  const lockout = overlay()!, style = getComputedStyle(lockout);
+  assert(Math.abs(card.left + card.width / 2 - lockout.clientWidth / 2) < 3, 'Pause card is horizontally centered, excluding its scrollbar');
+  if (card.height <= lockout.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) {
+    assert(Math.abs(card.top + card.height / 2 - bounds.height / 2) < 3, 'Pause card is vertically centered when it fits');
+  } else {
+    lockout.scrollTop = 0;
+    assert(document.querySelector('.outlet-lockout-card')!.getBoundingClientRect().top >= bounds.top && style.overflowY === 'auto', 'Short-screen pause card keeps its heading reachable with vertical scrolling');
+    lockout.scrollTop = lockout.scrollHeight;
+    const signOut = lockout.querySelector('.outlet-lockout-signout')!.getBoundingClientRect();
+    assert(lockout.scrollTop > 0 && signOut.top >= bounds.top && signOut.bottom <= bounds.bottom, 'Short-screen pause actions remain reachable by scrolling');
+    lockout.scrollTop = 0;
+  }
   assert(workspace.inert && workspace.getAttribute('aria-hidden') === 'true' && getComputedStyle(workspace).visibility === 'hidden', 'POS workspace is hidden, inert and removed from accessibility navigation');
   assert(document.body.style.overflow === 'hidden' && document.documentElement.style.overflow === 'hidden', 'Underlying workspace scrollbars and scrolling are locked');
   assert(getComputedStyle(editor).visibility === 'hidden', 'An already open POS dialog is also obscured');

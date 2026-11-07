@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { MobileAddButton } from './MobileAddButton.tsx';
@@ -117,7 +118,7 @@ export function StockTransferPage({ outlet, token, onSessionExpired, onPreviewCo
   const currentTransfer: DemoTransfer = { id: 'Demonstration preview', date, source, destinations, note, status: 'Pending', rows };
 
   return <section className="devices-page stock-transfer-page">
-    <header className="devices-heading"><div><span>INVENTORY</span><h1><ArrowRightLeft aria-hidden="true" />Stock Transfer</h1><p>Preview product quantities between your outlets using current stock reads.</p></div>
+    <header className="devices-heading"><div><span>INVENTORY</span><PageHeading><ArrowRightLeft aria-hidden="true" />Stock Transfer</PageHeading><p>Preview stock transfers.</p></div>
       <MobileAddButton label="New Stock Transfer" className="st-button st-primary" onClick={() => { if (rows.length || destinations.length || note || source !== outlet.id || date !== todayInIndia()) setDialog('reset'); else reset(); }} />
     </header>
     <div className="st-demo-notice"><FlaskConical size={16} aria-hidden="true" /><p><strong>Preview mode</strong> Live outlet and product data. Allocations stay local; no stock is moved or saved to the server. The form resets when you leave; confirmed previews remain in the report for this login session.</p><span className="st-badge">Local preview</span></div>

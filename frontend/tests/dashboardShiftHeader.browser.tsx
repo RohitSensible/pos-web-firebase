@@ -31,16 +31,33 @@ root.render(<App />);
 const tabs = () => [...document.querySelectorAll<HTMLButtonElement>('.page-hero [role=tab]')];
 const sale = () => [...document.querySelectorAll('.kpi-card')].find(card => card.querySelector('.kpi-card-topline > span')?.textContent === 'Total Sale')?.querySelector('strong')?.textContent;
 const detail = (label: string) => [...document.querySelectorAll('.shift-card > div')].find(row => row.querySelector('span')?.textContent === label)?.querySelector('strong')?.textContent;
+const phone = matchMedia('screen and (max-width: 600px), screen and (max-width: 1024px) and (max-height: 500px)').matches;
+const drawer = matchMedia('(max-width: 820px), (max-width: 1024px) and (max-height: 600px)').matches;
+async function showQr() {
+  if (phone) {
+    await until(() => document.querySelector('.dashboard-mobile-device-qr button'), 'mobile QR action');
+    document.querySelector<HTMLButtonElement>('.dashboard-mobile-device-qr button')!.click();
+  }
+  await until(() => document.querySelector(phone ? '.dashboard-qr-image svg' : '.dashboard-device-qr svg'), 'QR image');
+  return document.querySelector<SVGSVGElement>(phone ? '.dashboard-qr-image svg' : '.dashboard-device-qr svg')!;
+}
+async function closeQr() {
+  if (phone) {
+    document.querySelector<HTMLButtonElement>('.dashboard-qr-dialog .modal-close-btn')!.click();
+    await until(() => !document.querySelector('.dashboard-qr-dialog'), 'QR dialog closed');
+  }
+}
 async function qrValue(deviceId: string) {
-  await until(() => document.querySelector('.dashboard-device-qr svg')?.getAttribute('aria-label') === `QR code for device ${deviceId}`, 'selected device QR');
-  const svg = document.querySelector<SVGSVGElement>('.dashboard-device-qr svg')!;
+  await until(() => document.querySelector('.shift-device-id')?.textContent === deviceId.trim(), 'selected device');
+  const svg = await showQr();
+  await until(() => svg.getAttribute('aria-label') === `QR code for device ${deviceId}`, 'selected device QR');
   const url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
   try {
     const image = new Image(); image.src = url; await image.decode();
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 260;
     canvas.getContext('2d')!.drawImage(image, 0, 0, 260, 260);
     return new BrowserQRCodeReader().decodeFromCanvas(canvas).getText();
-  } finally { URL.revokeObjectURL(url); }
+  } finally { URL.revokeObjectURL(url); await closeQr(); }
 }
 void (async () => {
   await until(() => tabs().length === 3 && sale()?.includes('300'), 'header shifts');
@@ -54,8 +71,12 @@ void (async () => {
   assert(time.querySelector('.lucide-clock') && !!time.textContent?.trim(), 'A small clock icon accompanies the existing live time display');
   assert(document.querySelectorAll('#dashboard-report-date .lucide-calendar-days').length === 1 && document.querySelectorAll('[title="Export all shifts for the selected date"] .lucide-download').length === 1, 'The existing date and export controls keep one original icon each');
   assert(await qrValue('private-device-id-2') === 'private-device-id-2', 'All Shifts QR decodes to the active shift device without another API');
-  const qr = document.querySelector<HTMLElement>('.dashboard-device-qr')!;
-  assert(qr.textContent === '' && qr.previousElementSibling?.querySelector('.shift-device-id'), 'Only the QR image appears below the existing Shift Details information');
+  if (phone) {
+    assert(!document.querySelector('.dashboard-device-qr') && document.querySelector('.dashboard-mobile-device-qr')?.textContent === 'Device QRView your device QR codeView QR Code', 'Only phone layouts replace the inline image with the compact Device QR action');
+  } else {
+    const qr = document.querySelector<HTMLElement>('.dashboard-device-qr')!;
+    assert(qr.textContent === '' && qr.previousElementSibling?.querySelector('.shift-device-id') && !document.querySelector('.dashboard-mobile-device-qr, .dashboard-qr-dialog, .shift-card button'), 'Desktop/tablet keep only the original inline QR below Shift Details without new buttons or dialogs');
+  }
   assert(JSON.stringify([...document.querySelectorAll('.shift-card > div > span')].map(node => node.textContent)) === JSON.stringify(['Outlet', 'Branch', 'Terminal', 'Shift No.', 'Created By', 'Created At', 'Ended At', 'Bill Range', 'Status', 'Device ID']), 'Shift Details shows exactly the required fields in order');
   assert(detail('Created By') === 'Shift Owner 2' && detail('Created At') === new Date(shift(2, 200).startTime).toLocaleString(), 'All Shifts identity and time come from the active shift, not aggregate or session');
   assert(detail('Ended At') === 'In progress' && detail('Status') === 'Active', 'Active shift with zero end time stays in progress');
@@ -65,7 +86,11 @@ void (async () => {
     const style = getComputedStyle(hero);
     const result = document.getElementById('test-results')!;
     result.style.whiteSpace = 'pre-wrap'; result.style.overflowWrap = 'anywhere';
-    result.textContent = JSON.stringify({ passed: ['Dashboard layout'], header: {
+    const qrImage = document.querySelector<SVGSVGElement>('.dashboard-device-qr svg');
+    result.textContent = JSON.stringify({ passed: ['Dashboard layout'], qr: qrImage ? {
+      bounds: qrImage.getBoundingClientRect().toJSON(), wrapper: qrImage.parentElement!.getBoundingClientRect().toJSON(),
+      background: getComputedStyle(qrImage).backgroundColor, modules: qrImage.childElementCount,
+    } : null, header: {
       width: hero.getBoundingClientRect().width, height: hero.getBoundingClientRect().height,
       background: style.backgroundImage, color: style.color, border: style.border,
       radius: style.borderRadius, shadow: style.boxShadow, font: style.fontFamily, padding: style.padding,
@@ -76,9 +101,9 @@ void (async () => {
   assert(!document.querySelector('.shift-table-section') && !document.body.textContent?.includes('Shift-wise Summary'), 'Shift-wise Summary comparison table is removed');
   assert(!document.body.textContent?.includes('private-shift-id') && document.querySelector('.shift-device-id')?.textContent === 'private-device-id-2', 'Shift document IDs stay hidden; the active shift displays its own stored Device ID');
   assert(!document.body.textContent?.includes('Quick Actions'), 'Quick Actions widget is removed');
-  assert(!document.querySelector('.dashboard-insights .sidebar-logout, .shift-card button'), 'Right sidebar has no logout or outlet-switch buttons');
+  assert(!document.querySelector('.dashboard-insights .sidebar-logout, .shift-card .business-outlet-switch'), 'Right sidebar has no logout or outlet-switch buttons');
   const logout = document.querySelector<HTMLButtonElement>('.dashboard-sidebar .sidebar-footer .sidebar-logout')!;
-  if (innerWidth <= 820) { document.querySelector<HTMLButtonElement>('.mobile-menu')!.click(); await pause(); }
+  if (drawer) { document.querySelector<HTMLButtonElement>('.mobile-menu')!.click(); await pause(); }
   assert(logout && getComputedStyle(logout).display !== 'none', 'Logout remains visible below the sidebar plan card');
   const logoutBounds = logout.getBoundingClientRect();
   assert(logoutBounds.bottom <= innerHeight + 1 && logoutBounds.top >= 0, 'Sidebar logout stays pinned within the viewport');
@@ -87,7 +112,7 @@ void (async () => {
   assert(localStorage.getItem('pos_user_session') && document.querySelector('dialog.action-confirmation h3')?.textContent === 'Log out?', 'Logout asks for confirmation before clearing the session');
   document.querySelector<HTMLButtonElement>('dialog.action-confirmation .delete-confirmation-cancel')!.click(); await pause();
   assert(!document.querySelector('dialog.action-confirmation') && localStorage.getItem('pos_user_session'), 'Cancelling logout keeps the session');
-  if (innerWidth <= 820) { document.querySelector<HTMLButtonElement>('.sidebar-close')!.click(); await pause(); }
+  if (drawer) { document.querySelector<HTMLButtonElement>('.sidebar-close')!.click(); await pause(); }
   assert([...document.querySelectorAll('.nav-group-items button')].some(node => node.textContent === 'Product Transfer'), 'Left navigation offers one Product Transfer entry');
   const count = requests;
   tabs()[1]!.click(); await pause();
@@ -111,7 +136,7 @@ void (async () => {
   shifts = [{ ...shift(2, 200), deviceId: '', creatorName: '', inActive: true, startTime: 0, startBillNo: '', lastBillNo: '' }]; window.dispatchEvent(new Event('focus'));
   await until(() => document.querySelector('.shift-device-id')?.textContent === 'Not Available', 'legacy shift without device');
   assert(document.querySelector('.shift-device-id')?.textContent === 'Not Available', 'Older shift records without deviceId show Not Available');
-  assert(!document.querySelector('.dashboard-device-qr'), 'Missing device IDs remove the previous QR without inventing an identifier');
+  assert(!document.querySelector('.dashboard-device-qr, .dashboard-mobile-device-qr, .dashboard-qr-dialog'), 'Missing device IDs remove the previous QR without inventing an identifier');
   assert(detail('Created By') === 'Not Available' && detail('Created At') === 'Not Available' && detail('Ended At') === 'Not Available', 'Missing creator and closed shift times never fall back to session or aggregate data');
   assert(detail('Bill Range') === '— → —' && detail('Status') === 'Closed', 'Missing bills have no inferred range and closed shift stays closed');
   const longDeviceId = 'device-' + '0123456789abcdef'.repeat(6);
@@ -122,14 +147,15 @@ void (async () => {
   const rawDeviceId = ' Device/Case?value=店 ';
   shifts = [{ ...shift(2, 200), deviceId: rawDeviceId }]; window.dispatchEvent(new Event('focus'));
   assert(await qrValue(rawDeviceId) === rawDeviceId, 'Dashboard QR preserves the raw ID, including case, punctuation, whitespace and Unicode');
-  const qrBounds = document.querySelector('.dashboard-device-qr svg')!.getBoundingClientRect();
+  const qrBounds = (await showQr()).getBoundingClientRect();
   assert(Math.abs(qrBounds.width - qrBounds.height) < 1 && qrBounds.left >= 0 && qrBounds.right <= innerWidth, 'The QR remains square and inside the viewport in dark mode');
+  await closeQr();
   document.querySelector<HTMLButtonElement>('[aria-label="Account details"]')!.click();
   await until(() => document.querySelector('.profile-menu-actions button'), 'profile outlet action');
   const changeOutlet = document.querySelector<HTMLButtonElement>('.profile-menu-actions button')!;
   assert(changeOutlet.textContent?.trim() === 'Change Outlet', 'Profile dropdown offers Change Outlet');
   document.querySelector<HTMLButtonElement>('[aria-label="Close account details"]')!.click(); await pause();
-  if (innerWidth <= 820) { document.querySelector<HTMLButtonElement>('.mobile-menu')!.click(); await pause(); }
+  if (drawer) { document.querySelector<HTMLButtonElement>('.mobile-menu')!.click(); await pause(); }
   const outletSwitch = document.querySelector<HTMLButtonElement>('.business-profile .business-outlet-switch')!;
   assert(outletSwitch && outletSwitch.getAttribute('aria-label') === 'Change Outlet', 'Selected outlet card includes an accessible switch icon');
   outletSwitch.click();

@@ -1,7 +1,8 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { Monitor, RefreshCw, X } from 'lucide-react';
+import { Copy, Monitor, QrCode, RefreshCw, Search, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { createDeviceQrSvg } from '../utils/deviceQr.ts';
 import './DevicesPage.css';
@@ -78,14 +79,14 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
   }
 
   return <section className="devices-page devices-discovery-page">
-    <div className="devices-heading"><div><span>OPERATIONS</span><h1><Monitor size={24} /> Devices</h1><p>{data?.outletName || outlet.name} · Devices registered to this outlet.</p></div>
+    <div className="devices-heading"><div><span>OPERATIONS</span><PageHeading><Monitor size={24} /> Devices</PageHeading><p>View registered devices.</p></div>
       <button type="button" className="devices-refresh" disabled={loading} onClick={() => setReload(value => value + 1)}><RefreshCw size={16} />{loading ? 'Loading…' : 'Refresh'}</button></div>
     {loading ? <div data-inline-loading className="devices-state" role="status"><RefreshCw size={24} /><p>Loading devices…</p></div> : error ?
       <div className="devices-state"><p role="alert">{error}</p><button type="button" className="devices-refresh" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : data && !data.devices.length ?
       <div className="devices-state"><Monitor size={32} /><h2>No registered devices</h2><span className="devices-result-count">0 devices</span><p>No devices are registered to this outlet.</p></div> : data &&
       <>
       <div className="devices-filters">
-        <label>Search devices<input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Device ID or outlet name" /></label>
+        <label>Search devices<span className="devices-search-input"><Search size={18} aria-hidden="true" /><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Device ID or outlet name" /></span></label>
         <label>Status<select value={status} onChange={event => setStatus(event.target.value)}>
           <option value="all">All</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="unavailable">Unavailable</option>
         </select></label>
@@ -96,8 +97,8 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
       <div className="devices-table-scroll" role="region" aria-label="Registered devices" tabIndex={0}><table className="mobile-record-table"><thead><tr><th>Outlet Name</th><th>Device ID</th><th>Status</th></tr></thead><tbody>{filtered.map(device => <tr key={device.documentId}>
         <td data-label="Outlet" className="mobile-record-name">{device.outletName || '—'}</td><td data-label="Device ID" className="device-id mobile-record-wide"><span>{device.deviceId}</span>
           <div className="devices-id-actions">
-          <button type="button" className="devices-refresh devices-copy" disabled={copyFeedback[device.documentId] === 'copying'} onClick={() => { void copyId(device); }} aria-label={`Copy ID for device ${device.deviceId}`}>{copyFeedback[device.documentId] === 'copying' ? 'Copying…' : copyFeedback[device.documentId] === 'failed' ? 'Retry copy' : 'Copy ID'}</button>
-          <button type="button" className="devices-refresh devices-copy" disabled={typeof device.deviceId !== 'string' || !device.deviceId.trim()} onClick={() => setQrDevice(device)} aria-label={`Show QR for device ${device.deviceId}`}>Show QR</button>
+          <button type="button" className="devices-refresh devices-copy" disabled={copyFeedback[device.documentId] === 'copying'} onClick={() => { void copyId(device); }} aria-label={`Copy ID for device ${device.deviceId}`}><Copy size={15} aria-hidden="true" />{copyFeedback[device.documentId] === 'copying' ? 'Copying…' : copyFeedback[device.documentId] === 'failed' ? 'Retry copy' : 'Copy ID'}</button>
+          <button type="button" className="devices-refresh devices-copy devices-qr-action" disabled={typeof device.deviceId !== 'string' || !device.deviceId.trim()} onClick={() => setQrDevice(device)} aria-label={`Show QR for device ${device.deviceId}`}><QrCode size={15} aria-hidden="true" />Show QR</button>
           </div>
           {copyMessage(device)}
         </td><td data-label="Status"><label className={`device-status ${device.active === true ? 'active' : device.active === false ? 'inactive' : 'unavailable'}`}>
@@ -150,6 +151,6 @@ function DeviceQrDialog({ deviceId, copying, onCopy, feedback, onClose }: {
     {error && <p className="device-qr-error" role="alert">{error}</p>}
     <div className="device-qr-id"><span>Device ID</span><strong>{deviceId}</strong></div>
     {feedback}
-    <footer><button type="button" className="devices-refresh" disabled={copying} onClick={onCopy}>{copying ? 'Copying…' : 'Copy ID'}</button><button type="button" className="devices-refresh" onClick={onClose}>Close</button></footer>
+    <footer><button type="button" className="devices-refresh" disabled={copying} onClick={onCopy}><Copy size={15} aria-hidden="true" />{copying ? 'Copying…' : 'Copy ID'}</button><button type="button" className="devices-refresh" onClick={onClose}>Close</button></footer>
   </dialog>;
 }

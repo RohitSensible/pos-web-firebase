@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StockReportPage } from '../src/pages/StockReportPage.tsx';
+import { StockPlanning } from '../src/pages/StockPlanning.tsx';
 import { GoodsReceivedPage } from '../src/pages/GoodsReceivedPage.tsx';
 import type { ReplenishmentDraft } from '../src/pages/stockPlanning.ts';
 import type { OutletSummary } from '../src/pages/OutletSelectionPage.tsx';
@@ -40,12 +41,18 @@ window.fetch = async (url, init) => {
 function Fixture() {
   const [draft, setDraft] = useState<ReplenishmentDraft | null>(null);
   return draft ? <GoodsReceivedPage outlet={outlet} token="token" initialDraft={draft} onSessionExpired={() => { throw new Error('Unexpected expiry'); }} onCancel={() => setDraft(null)} />
-    : <StockReportPage outlet={outlet} token="token" onSessionExpired={() => { throw new Error('Unexpected expiry'); }} onPrepareReceipt={next => { prepared = next; setDraft(next); }} />;
+    : <StockPlanning products={products} outlet={outlet} token="token" onSessionExpired={() => { throw new Error('Unexpected expiry'); }} onPrepareReceipt={next => { prepared = next; setDraft(next); }} />;
 }
 const root = createRoot(document.getElementById('root')!);
-root.render(<div className="retail-dashboard-shell"><main className="dashboard-workspace"><Fixture /></main></div>);
+root.render(<StockReportPage outlet={outlet} token="token" onSessionExpired={() => { throw new Error('Unexpected expiry'); }} />);
 void (async () => {
-  await until(() => button('Compare stock count'), 'stock report');
+  await until(() => document.querySelector('.stock-count'), 'stock report');
+  assert(!document.querySelector('.stock-planning') && !button('Compare stock count') && !button('Plan replenishment (2)'), 'Stock Report no longer displays stock planning tools');
+  assert(optionsReads === 0 && writes === 0, 'Stock Report loads without planning supplier reads or writes');
+  passed.push('Stock Report retains stock rows without the removed planning section');
+  // Exercise the retained planning component independently of the Stock Report.
+  root.render(<div className="retail-dashboard-shell"><main className="dashboard-workspace"><Fixture /></main></div>);
+  await until(() => button('Compare stock count'), 'standalone planning fixture');
   assert(optionsReads === 0, 'Planning does not load suppliers or history until requested');
   button('Compare stock count').click(); await pause();
   await setValue(input('Physical count'), '0');

@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
@@ -41,7 +42,7 @@ export function EditCategoryForm({ category, outletId, token, onCancel, onUpdate
   };
   return <section className="category-modal category-edit-page" aria-labelledby="edit-category-title">
     <form onSubmit={event => void update(event)} noValidate>{confirmation}
-      <div className="modal-header"><h3 id="edit-category-title">Edit Category</h3>
+      <div className="modal-header"><div className="workspace-heading-copy"><PageHeading as="h3" id="edit-category-title">Edit Category</PageHeading><p>Update category details.</p></div>
         <button type="button" className="modal-close-btn" aria-label="Close edit category" disabled={saving} onClick={onCancel}><X size={18} /></button></div>
       <div className="modal-body">
         <div className="form-field"><label htmlFor="edit-category-name">Category Name</label><input id="edit-category-name" autoFocus maxLength={200} disabled={saving} value={name} onChange={event => setName(event.target.value)} /></div>

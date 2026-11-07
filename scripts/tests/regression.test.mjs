@@ -36,6 +36,34 @@ test('invalid options fail and concurrency cannot exceed two', () => {
   assert.equal(parseArgs(['--list', '--timeout-ms', '50', '--concurrency', '1']).timeout, 50);
 });
 
+test('each browser fixture covers desktop, phone portrait, phone landscape and tablet without duplicate jobs', () => {
+  const browsers = createPlan({ browserOnly: true });
+  const viewports = new Set(['1280,900', '390,844', '844,390', '768,1024']);
+  const fixtures = new Map();
+  assert.equal(new Set(browsers.map(check => check.id)).size, browsers.length);
+  for (const check of browsers) {
+    const [runner, fixture, viewport] = check.args;
+    assert.equal(runner, 'frontend/tests/runProductFormBrowser.mjs');
+    assert(viewports.has(viewport), `Unexpected viewport for ${check.id}`);
+    const sizes = fixtures.get(fixture) ?? new Set();
+    assert(!sizes.has(viewport), `${fixture} repeats ${viewport}`);
+    sizes.add(viewport); fixtures.set(fixture, sizes);
+  }
+  for (const [fixture, sizes] of fixtures) assert.deepEqual(sizes, viewports, `${fixture} misses a required viewport`);
+  assert(fixtures.has('phoneLayout.browser.tsx'), 'Real navigation, Edit buttons and loading dialogs must be checked');
+  assert(fixtures.has('uploadPresentation.browser.tsx'), 'Upload dialog positioning and scrolling must be checked');
+});
+
+test('CI runs regressions for Testing pushes while retaining existing triggers and read-only repository permissions', async () => {
+  const workflow = await readFile(join(root, '.github/workflows/regression.yml'), 'utf8');
+  const branches = workflow.match(/^  push:\s*\n    branches: \[([^\]]+)\]/m)?.[1].split(',').map(value => value.trim());
+  assert.deepEqual(branches, ['main', 'master', 'Testing']);
+  assert.match(workflow, /^  pull_request:/m);
+  assert.match(workflow, /^  workflow_dispatch:/m);
+  assert.match(workflow, /^permissions:\s*\n  contents: read/m);
+  assert.match(workflow, /run: npm run test:regression -- --report-dir/);
+});
+
 test('browser planning defaults to real time and retains explicit virtual-time selection', () => {
   const previous = process.env.BROWSER_TEST_REALTIME;
   try {

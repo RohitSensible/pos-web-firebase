@@ -23,8 +23,8 @@
     .outlet-logo-heading > h1,
     .page-hero h1,
     .master-form-page .master-form-title h3,
-    .add-product-modal > form > .modal-header > h3,
-    .category-edit-page > form > .modal-header > h3
+    .add-product-modal > form > .modal-header > .workspace-heading-copy > h3,
+    .category-edit-page > form > .modal-header > .workspace-heading-copy > h3
   ) {
     display: flex;
     align-items: flex-start;
@@ -51,8 +51,8 @@
     .outlet-logo-heading > h1,
     .page-hero h1,
     .master-form-page .master-form-title h3,
-    .add-product-modal > form > .modal-header > h3,
-    .category-edit-page > form > .modal-header > h3
+    .add-product-modal > form > .modal-header > .workspace-heading-copy > h3,
+    .category-edit-page > form > .modal-header > .workspace-heading-copy > h3
   ) > svg {
     flex: 0 0 auto;
     width: var(--page-title-icon-size);
@@ -73,8 +73,8 @@
     .outlet-logo-heading > h1,
     .page-hero h1,
     .master-form-page .master-form-title h3,
-    .add-product-modal > form > .modal-header > h3,
-    .category-edit-page > form > .modal-header > h3
+    .add-product-modal > form > .modal-header > .workspace-heading-copy > h3,
+    .category-edit-page > form > .modal-header > .workspace-heading-copy > h3
   ) + p {
     margin: var(--page-title-description-gap) 0 0;
     font-size: 13px;

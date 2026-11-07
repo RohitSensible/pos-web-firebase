@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useScopedReportRead, useScopedReportExport } from '../utils/useScopedReportRead.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { gstDetailRows, loadGstExportBills, gstBillSummary } from '../utils/gstExcel.ts';
@@ -197,7 +198,7 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
   return (
     <section className="bill-report-page daywise-report-page">
       <div className="bill-report-heading">
-        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Daywise Report</h1><p>{outlet.name} · Sales totals across all shifts for the selected date.</p></div>
+        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><PageHeading>Daywise Report</PageHeading><p>Review daily sales totals.</p></div>
         <div className="bill-report-actions">
           <button type="button" onClick={exportExcel} disabled={!canOutput || exporting}><Download /> Export Excel</button>
           <button type="button" disabled={!canOutput} onClick={() => { if (canOutput) window.print(); }}><Printer /> Print / PDF</button>
@@ -290,7 +291,7 @@ export const DaywiseReportPage = ({ outlet, token, onSessionExpired, reportName 
 
       {detailsOpen && report && <div className="bill-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setDetailsOpen(false); }}>
         <article className="bill-detail-modal" role="dialog" aria-modal="true" aria-label={`Daywise report for ${report.dayId}`}>
-          <header><div><span>DAYWISE SUMMARY</span><h2>{report.dayId}</h2><p>{outlet.name} · All shifts</p></div><button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close daywise details"><X /></button></header>
+          <header><div><span>DAYWISE SUMMARY</span><h2>{report.dayId}</h2><p>All shifts</p></div><button type="button" onClick={() => setDetailsOpen(false)} aria-label="Close daywise details"><X /></button></header>
           <div className="bill-detail-body">
             <div className="bill-detail-meta"><div><span>Bills</span><strong>{report.billCount}</strong></div><div><span>Deleted Bills</span><strong>{report.billDeletesNumber}</strong></div></div>
             <div className="bill-payment-detail"><h3>Payments</h3>{Object.entries(report.payments).filter(([, amount]) => amount > 0).map(([mode, amount]) => <div key={mode}><span>{paymentLabel(mode)}</span><strong>{money(amount)}</strong></div>)}{!Object.values(report.payments).some(amount => amount > 0) && <div><span>No payments recorded</span><strong>{money(0)}</strong></div>}</div>

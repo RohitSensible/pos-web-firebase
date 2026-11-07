@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { downloadReportExcel } from '../utils/reportExcel.ts';
@@ -169,7 +170,7 @@ export const StockInOutReportPage = ({ outlet, token, onSessionExpired, reportNa
 
   return <section className="bill-report-page stock-in-out-report-page">
     <div className="bill-report-heading">
-      <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Stock In-Out Report</h1><p>{outlet.name} · {isIn ? 'Stock received' : 'Stock issued'} and product details.</p><strong className="stock-print-direction">{directionLabel}</strong></div>
+      <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><PageHeading>Stock In-Out Report</PageHeading><p>{isIn ? 'Stock received' : 'Stock issued'} and product details.</p><strong className="stock-print-direction">{directionLabel}</strong></div>
       <div className="bill-report-actions">
         <button type="button" onClick={() => setReloadKey(value => value + 1)} disabled={loading}><RefreshCw /> Refresh</button>
         <button type="button" onClick={exportExcel} disabled={!hasData || loading || !!error}><Download /> Export Excel</button>

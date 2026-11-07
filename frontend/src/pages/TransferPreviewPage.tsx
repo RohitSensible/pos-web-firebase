@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { ActionConfirmation, ActionPopup } from './ActionPopup.tsx';
@@ -72,8 +73,8 @@ export function TransferPreviewPage({ outlet, token, onSessionExpired }: {
   const destination = destinations.find(item => item.id === destinationId);
   const pendingDestination = destinations.find(item => item.id === pendingDestinationId);
   return <section className="devices-page transfer-preview" aria-label="Product transfer">
-    <div className="devices-heading"><div><span>MASTERS</span><h1><Database size={24} /> Product Transfer</h1>
-      <p>Copy selected products and their assigned categories to another outlet.</p></div></div>
+    <div className="devices-heading"><div><span>MASTERS</span><PageHeading onBack={destination ? () => { if (!busy) setDestinationId(''); } : undefined} backDisabled={busy}><Database size={24} /> Product Transfer</PageHeading>
+      <p>Copy products between outlets.</p></div></div>
     <div className="transfer-route">
       <article className="transfer-route-card transfer-source-card" aria-label="Source outlet">
         <span className="transfer-route-label">Source Outlet</span>

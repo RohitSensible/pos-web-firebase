@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import App from '../src/App.tsx';
 import { LoginPage } from '../src/pages/LoginPage.tsx';
 import { OutletSelectionPage } from '../src/pages/OutletSelectionPage.tsx';
+import { beginDataLoading } from '../src/utils/dataLoading.ts';
 import '../src/index.css';
 
 const checks: string[] = [];
@@ -61,6 +62,29 @@ function mobileRecords(selector: string, label: string) {
     assert(bounds.width > 0 && bounds.height >= 44 && bounds.right <= document.documentElement.clientWidth + 1, `${label} actions are visible and easy to tap`);
   }
 }
+async function editMobileRecord(selector: string, form: string, closeLabel: string, field: string, expected: string) {
+  const button = document.querySelector<HTMLButtonElement>(`${selector} .mobile-record-edit`)!;
+  assert(!!button, 'Existing record retains its Edit action');
+  if (!phoneViewport) {
+    assert(getComputedStyle(button).display === 'none', 'Desktop retains its existing row/name editing controls');
+    return;
+  }
+  button.scrollIntoView({ block: 'center' }); button.focus(); await pause();
+  const bounds = button.getBoundingClientRect();
+  const target = document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2);
+  assert(!button.disabled && bounds.height >= 44 && bounds.width >= 44 && bounds.top >= 0 && bounds.bottom <= innerHeight && !!target && button.contains(target), 'Mobile Edit is focusable, unobstructed and reachable by touch');
+  assert(document.activeElement === button, 'Mobile Edit accepts keyboard focus');
+  button.click(); await until(() => document.querySelector(form), 'Edit opens the existing form');
+  fits(form, 'Record editor');
+  const formTitle = document.querySelector<HTMLElement>(`${form} .workspace-page-heading`)!;
+  assert(formTitle.nextElementSibling?.tagName === 'P' && !!formTitle.nextElementSibling.textContent?.trim(), 'Record editor displays a short description below its title');
+  const formIcon = document.querySelector<HTMLElement>(`${form} .master-form-icon`);
+  if (formIcon) assert(getComputedStyle(formIcon).display !== 'none' && formIcon.getBoundingClientRect().width > 0, 'Record editor retains its existing page icon');
+  assert(document.querySelector<HTMLInputElement>(field)?.value === expected, 'Edit opens the selected record with its existing value');
+  document.querySelector<HTMLButtonElement>(`[aria-label="${closeLabel}"]`)!.click();
+  await until(() => !document.querySelector(form), 'Unchanged editor closes without saving');
+  window.scrollTo(0, 0);
+}
 async function navigate(group: string, page: string, ready: string) {
   const toggle = document.querySelector<HTMLButtonElement>('.mobile-menu')!;
   if (getComputedStyle(toggle).display !== 'none' && !document.querySelector('.dashboard-sidebar.open')) { toggle.click(); await pause(); }
@@ -73,6 +97,26 @@ async function navigate(group: string, page: string, ready: string) {
   [...section.querySelectorAll<HTMLButtonElement>('.nav-group-items button')].find(node => node.textContent?.trim() === page)!.click();
   await until(() => document.querySelector(ready), page);
   fits('.dashboard-workspace', page);
+  const heading = document.querySelector<HTMLElement>('.dashboard-workspace h1')!;
+  assert(heading.nextElementSibling?.tagName === 'P' && !!heading.nextElementSibling.textContent?.trim(), `${page} has a short description below its title`);
+  const back = heading.querySelector<HTMLButtonElement>('.workspace-back');
+  assert(!!back && !document.querySelector('.dashboard-workspace > .workspace-back') && !back.textContent?.trim(), `${page} uses a compact inline back arrow instead of a separate Back row`);
+  const arrowBounds = back!.getBoundingClientRect(), titleBounds = heading.getBoundingClientRect();
+  assert(arrowBounds.width > 0 && arrowBounds.left >= titleBounds.left - 1 && arrowBounds.right <= document.documentElement.clientWidth + 1, `${page} back arrow stays visible beside the title`);
+  const icon = heading.querySelector<SVGSVGElement>(':scope > svg');
+  if (icon) assert(getComputedStyle(icon).display !== 'none' && icon.getBoundingClientRect().width > 0, `${page} retains its existing page icon`);
+  const options = document.querySelector<HTMLButtonElement>('.dashboard-workspace :is(.category-menu-toggle, .products-menu-toggle)');
+  if (options) {
+    const header = options.closest<HTMLElement>('.category-header-row, .products-header')!;
+    const headerBounds = header.getBoundingClientRect(), menuBounds = options.getBoundingClientRect();
+    assert(Math.abs(menuBounds.right - headerBounds.right) <= 1 && Math.abs(menuBounds.top - titleBounds.top) <= 10
+      && titleBounds.right <= menuBounds.left + 1, `${page} three-dot menu stays at the top right without overlapping its heading`);
+    const menuId = options.getAttribute('aria-controls')!;
+    options.click(); await until(() => document.getElementById(menuId), `${page} options open`);
+    const popoverBounds = document.getElementById(menuId)!.getBoundingClientRect();
+    assert(options.getAttribute('aria-expanded') === 'true' && popoverBounds.left >= 0 && popoverBounds.right <= document.documentElement.clientWidth + 1, `${page} options still open within the viewport`);
+    options.click(); await until(() => !document.getElementById(menuId), `${page} options close`);
+  }
   assert(!document.querySelector('.dashboard-sidebar.open'), 'Navigation closes the phone drawer');
   const add = document.querySelector<HTMLElement>('.mobile-add-trigger');
   if (phoneViewport && add) {
@@ -101,11 +145,11 @@ void (async () => {
   fits('.crm-login-shell', 'Sign-in');
   const form = document.querySelector<HTMLElement>('.crm-login-form-panel')!.getBoundingClientRect();
   const promo = document.querySelector<HTMLElement>('.crm-login-promo')!.getBoundingClientRect();
-  if (phoneViewport) {
+  if (matchMedia('(max-width: 600px), (max-width: 1024px) and (max-height: 600px)').matches) {
     assert(form.top < promo.top, 'Phone sign-in appears before the large illustration');
     assert(getComputedStyle(document.querySelector('#crm-email')!).fontSize === '16px', 'Phone sign-in inputs avoid automatic focus zoom');
     assert(document.querySelector<HTMLElement>('.crm-sign-in-button')!.getBoundingClientRect().height >= 44, 'Sign-in is easy to tap');
-  }
+  } else if (innerWidth <= 900) assert(promo.top < form.top, 'Tablet retains its existing illustration-first sign-in layout');
   assert(requests.length === 0, 'Displaying sign-in performs no API requests');
   await until(() => document.querySelector<HTMLImageElement>('.crm-brand-crop img')?.naturalWidth, 'existing Sensible logo');
   assert(document.querySelector<HTMLImageElement>('.crm-brand-crop img')!.naturalWidth === 717, 'Existing Sensible brand artwork is retained');
@@ -114,6 +158,19 @@ void (async () => {
   localStorage.setItem('pos_user_session', JSON.stringify(session)); localStorage.setItem('pos_selected_outlet', JSON.stringify(outlet));
   root.render(<App />); await until(() => document.querySelector('.page-hero'), 'dashboard');
   fits('.retail-header', 'Header'); fits('.dashboard-workspace', 'Dashboard');
+  const finishLoading = beginDataLoading('products');
+  try {
+    await until(() => document.querySelector('.data-loading-overlay'), 'Loading overlay');
+    const overlay = document.querySelector<HTMLElement>('.data-loading-overlay')!;
+    const bounds = overlay.getBoundingClientRect();
+    const panel = document.querySelector('.data-loading-modal')!.getBoundingClientRect();
+    const sidebarWidth = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width'));
+    assert(Math.abs(bounds.left - (phoneViewport ? 0 : sidebarWidth)) < 1 && bounds.top === (phoneViewport ? 62 : 68), 'Loading overlay uses the active layout instead of a hidden sidebar offset');
+    assert(Math.abs(panel.left + panel.width / 2 - (bounds.left + bounds.width / 2)) < 1 && panel.top >= bounds.top && panel.bottom <= innerHeight, 'Loading dialog is centered in the available viewport without clipping');
+    fits('.data-loading-overlay', 'Loading overlay');
+    document.querySelector<HTMLButtonElement>('.data-loading-dismiss')!.click();
+    await until(() => !document.querySelector('.data-loading-overlay'), 'Loading dialog dismissal');
+  } finally { finishLoading(); }
   if (phoneViewport) assert(getComputedStyle(document.querySelector('.mobile-menu')!).display !== 'none', 'Phone navigation drawer is available in this orientation');
   await navigate('Masters', 'Products', '.products-table-card');
   mobileRecords('.products-table', 'Products');
@@ -155,7 +212,9 @@ void (async () => {
   await navigate('Masters', 'Suppliers', '[aria-label="Suppliers"]');
   mobileRecords('[aria-label="Suppliers"] table', 'Suppliers');
   await navigate('Masters', 'Service Point', '.service-points-table'); mobileRecords('.service-points-table table', 'Service points');
+  await editMobileRecord('.service-points-table', '.service-point-form-page', 'Close service point form', '#service-point-name', 'Kitchen and counter with a longer name');
   await navigate('Masters', 'Employees/Salesman', '.employees-table-scroll'); mobileRecords('.employees-table-scroll table', 'Employees');
+  await editMobileRecord('.employees-table-scroll', '.employee-form-page', 'Close employee form', '#employee-name', 'Employee with a long name');
   await navigate('Masters', 'Premises', '.premises-list'); fits('.master-row', 'Premise card'); fits('.master-row-actions', 'Premise actions');
   await navigate('Operations', 'Device', '.devices-table-scroll'); mobileRecords('.devices-table-scroll table', 'Devices');
   await navigate('Masters', 'Goods Received', '.goods-products-table');

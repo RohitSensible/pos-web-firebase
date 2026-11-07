@@ -27,4 +27,8 @@
   .premises-page .category-more-actions { min-width: 0; }
   .premises-page .premises-total { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 8px; font-size: 11px; white-space: nowrap; }
   .premises-page .premises-total strong { margin-left: 0; }
+  .premises-page .premises-back-to-products { display: none; }
+  .dashboard-workspace:has(> .premises-page) { position: relative; }
+  .dashboard-workspace > .premises-page > .category-header-row { align-items: flex-start; flex-wrap: wrap; }
+  .dashboard-workspace > .premises-page .category-header-actions { position: static; margin: 0 0 0 auto; }
 }

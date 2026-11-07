@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { BrowserQRCodeReader } from '@zxing/browser';
 import App from '../src/App.tsx';
 import '../src/index.css';
 
@@ -35,6 +36,13 @@ const value = (label: string) => card(label).querySelector('strong')?.textConten
 const money = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
 const visualOrder = () => cards().sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top || a.getBoundingClientRect().left - b.getBoundingClientRect().left).map(item => item.querySelector('.kpi-card-topline > span')?.textContent).join(',');
 const fits = (element: Element) => { const box = element.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth + 1 && element.scrollWidth <= element.clientWidth + 1; };
+async function decodeQrImage(url: string) {
+  const image = new Image(); image.src = url; await image.decode();
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = image.naturalWidth;
+  const context = canvas.getContext('2d')!; context.drawImage(image, 0, 0);
+  assert(image.naturalWidth === 1040 && image.naturalHeight === 1040 && context.getImageData(0, 0, 1, 1).data.every(value => value === 255), 'Exported QR is a square high-resolution image with a white quiet zone');
+  return new BrowserQRCodeReader().decodeFromCanvas(canvas).getText();
+}
 
 void (async () => {
   await until(() => tabs().length === 3 && value('Total Sale') === money(900), 'dashboard ready');
@@ -88,7 +96,7 @@ void (async () => {
   assert(info().querySelector('h1')?.textContent === outlet.name && info().querySelector('p strong')?.textContent === outlet.branch, 'Dashboard heading uses the actual outlet and bold branch name without a Branch label on every screen size');
   assert(info().querySelector('h1 > .lucide-store') && info().querySelector('.dashboard-subtitle > .lucide-trending-up') && info().querySelector('.dashboard-subtitle')?.textContent === 'Daily sales performance', 'Store and analytics icons accompany the existing outlet data and restored sales subtitle');
   const time = document.querySelector<HTMLElement>('.dashboard-date-picker > .dashboard-time')!;
-  assert(time.querySelector('.lucide-clock') && !!time.textContent?.trim() && getComputedStyle(time).display === (phone ? 'none' : 'inline-flex'), 'The clock icon follows the existing desktop and phone time visibility');
+  assert(time.querySelector('.lucide-clock') && !!time.textContent?.trim() && (phone ? getComputedStyle(time).display === 'none' : ['flex', 'inline-flex'].includes(getComputedStyle(time).display)), 'The clock icon follows the existing desktop and phone time visibility');
   assert(document.querySelectorAll('#dashboard-report-date .lucide-calendar-days').length === 1 && exportButton.querySelectorAll('.lucide-download').length === 1 && !exportButton.disabled, 'Date and export retain their original single icons and available controls');
   assert(!document.querySelector('.mobile-dashboard-info'), 'The duplicate mobile outlet strip is removed');
   if (phone) {
@@ -118,9 +126,73 @@ void (async () => {
     assert(document.querySelector('.dashboard-sidebar')!.classList.contains('open'), 'Mobile navigation still opens');
     document.querySelector<HTMLButtonElement>('.sidebar-close')!.click();
   }
+  if (phone) {
+    const beforeQr = requests;
+    const trigger = document.querySelector<HTMLButtonElement>('.dashboard-mobile-device-qr button')!;
+    assert(trigger?.textContent === 'View QR Code' && !document.querySelector('.dashboard-device-qr'), 'Phones show the compact Device QR action instead of the inline QR');
+    trigger.click();
+    const dialog = () => document.querySelector<HTMLDialogElement>('.dashboard-qr-dialog');
+    const save = () => document.querySelector<HTMLButtonElement>('.dashboard-qr-dialog .modal-footer button:first-child')!;
+    const share = () => document.querySelector<HTMLButtonElement>('.dashboard-qr-dialog .modal-footer button:last-child')!;
+    await until(() => dialog()?.open && !save().disabled, 'mobile QR image ready');
+    const bounds = dialog()!.getBoundingClientRect();
+    assert(bounds.left === 0 && bounds.top === 0 && bounds.width === innerWidth && bounds.height === innerHeight, 'The QR dialog fills only the phone viewport');
+    assert(dialog()!.querySelector('svg[role="img"]')?.getAttribute('aria-label') === 'QR code for device two' && !dialog()!.textContent?.includes('Device ID'), 'The popup displays only the existing selected-device QR without additional device identification');
+    assert(fits(dialog()!) && dialog()!.scrollWidth === dialog()!.clientWidth && [...dialog()!.querySelectorAll('button, .dashboard-qr-image')].every(fits), 'Portrait and landscape QR content and actions fit without horizontal scrolling');
+    assert([...dialog()!.querySelectorAll('button')].every(button => button.getBoundingClientRect().height >= 44), 'Close, Save QR and Share QR are touch friendly');
+    let download = '';
+    const captureDownload = (event: MouseEvent) => {
+      const link = (event.target as Element).closest<HTMLAnchorElement>('a[download]');
+      if (link) { event.preventDefault(); download = link.href; assert(link.download === 'device-qr.png', 'Save QR requests a PNG image download'); }
+    };
+    document.addEventListener('click', captureDownload, true);
+    save().click(); await until(() => download, 'QR download');
+    assert(await decodeQrImage(download) === 'two', 'The saved PNG decodes to the exact existing device payload');
+    const canShareDescriptor = Object.getOwnPropertyDescriptor(navigator, 'canShare');
+    const shareDescriptor = Object.getOwnPropertyDescriptor(navigator, 'share');
+    let sharedFile: File | undefined;
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: (data: ShareData) => data.files?.[0]?.type === 'image/png' });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async (data: ShareData) => { sharedFile = data.files?.[0]; } });
+    share().click(); await until(() => sharedFile && !share().disabled, 'native image share');
+    const shareUrl = URL.createObjectURL(sharedFile!);
+    try { assert(await decodeQrImage(shareUrl) === 'two' && sharedFile!.name === 'device-qr.png', 'Native image sharing uses the same PNG and exact device payload'); }
+    finally { URL.revokeObjectURL(shareUrl); }
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => false });
+    share().click();
+    await until(() => dialog()!.textContent?.includes('Image sharing is unavailable'), 'unsupported image share fallback');
+    assert(!save().disabled && dialog()!.querySelector<HTMLAnchorElement>('.dashboard-qr-image-link')?.href === download, 'Unsupported image sharing offers the same image for saving without breaking the QR');
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+    share().click(); await pause();
+    assert(!save().disabled && !share().disabled && dialog()!.open, 'Browsers without Web Share keep working Save and Close actions');
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => true });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => { throw new DOMException('Cancelled', 'AbortError'); } });
+    share().click(); await pause(); await until(() => !share().disabled, 'cancelled share');
+    assert(!dialog()!.textContent?.includes('could not be shared'), 'Cancelling native sharing is handled without a failure warning');
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async () => { throw new DOMException('Blocked', 'NotAllowedError'); } });
+    share().click(); await until(() => dialog()!.textContent?.includes('could not be shared'), 'rejected share fallback');
+    assert(!save().disabled && !share().disabled, 'Rejected native sharing preserves Save QR and allows retry');
+    let finishShare: (() => void) | undefined;
+    Object.defineProperty(navigator, 'share', { configurable: true, value: () => new Promise<void>(resolve => { finishShare = resolve; }) });
+    share().click(); await until(() => finishShare && share().disabled, 'pending share');
+    const close = dialog()!.querySelector<HTMLButtonElement>('.modal-close-btn')!;
+    assert(!close.disabled, 'Closing remains available during an unfinished native share');
+    close.click(); await until(() => !dialog() && document.activeElement === trigger, 'closed QR focus restored');
+    finishShare!(); await pause();
+    assert(document.body.style.overflow !== 'hidden' && !dialog() && requests === beforeQr, 'Closing restores scrolling; all QR actions are local with no extra API requests');
+    if (canShareDescriptor) Object.defineProperty(navigator, 'canShare', canShareDescriptor); else Reflect.deleteProperty(navigator, 'canShare');
+    if (shareDescriptor) Object.defineProperty(navigator, 'share', shareDescriptor); else Reflect.deleteProperty(navigator, 'share');
+    document.removeEventListener('click', captureDownload, true);
+    trigger.click(); await until(() => dialog()?.open && !save().disabled, 'reopen QR');
+    dialog()!.dispatchEvent(new Event('cancel', { cancelable: true }));
+    await until(() => !dialog(), 'Escape cancel closes QR');
+    if (location.hash === '#qr') { trigger.click(); await until(() => dialog()?.open && !save().disabled, 'QR screenshot'); }
+  } else {
+    await until(() => document.querySelector('.dashboard-device-qr svg'), 'desktop inline QR');
+    assert(!document.querySelector('.dashboard-mobile-device-qr, .dashboard-qr-dialog, .shift-card button'), 'Desktop and tablet retain the original inline QR with no mobile buttons or dialog');
+  }
   if (location.hash === '#preview') {
     document.querySelector<HTMLButtonElement>('.theme-button')!.click(); await pause();
     window.scrollTo(0, 0);
-  } else root.unmount();
+  } else if (location.hash !== '#qr') root.unmount();
   document.getElementById('test-results')!.textContent = JSON.stringify({ passed: checks.length, checks });
 })().catch(error => { document.getElementById('test-results')!.textContent = JSON.stringify({ failed: String(error), checks }); });

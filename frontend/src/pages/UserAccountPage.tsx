@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useUnsavedChanges } from '../utils/unsavedChanges.tsx';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
@@ -107,7 +108,7 @@ function SessionAccountPage({ token, onSessionExpired, onSaved }: UserAccountPag
   return <section className="user-account-page" onBlur={event => {
     if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setRevealedAccount(null);
   }}>
-    <div className="user-account-heading"><span>MASTERS</span><h1>User Account</h1><p>View and update your account details.</p></div>
+    <div className="user-account-heading"><span>MASTERS</span><PageHeading>User Account</PageHeading><p>Manage your account.</p></div>
     <div className="user-account-card">
       <h2><UserRound size={20} /> Personal details</h2>
       {!account ? error ? <div className="user-account-state"><p role="alert">{error}</p><button type="button" onClick={() => setReload(value => value + 1)}><RefreshCw size={16} /> Retry</button></div> : <p className="user-account-state" role="status" data-inline-loading>Loading account details…</p> :

@@ -204,13 +204,6 @@ button { font: inherit; }
 .admin-chip > svg { width: 14px; color: #737b84; }
 
 .dashboard-workspace { padding: 32px 24px; }
-/* Stays just under the sticky header while the page scrolls. */
-.workspace-back { position: sticky; top: 80px; z-index: 15; display: inline-flex; align-items: center; gap: 6px; margin: -16px 0 14px;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08); padding: 6px 12px 6px 8px; border: 1px solid var(--line);
-  border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.workspace-back svg { width: 16px; height: 16px; }
-.workspace-back:hover { border-color: #c7d2fe; color: #4F46E5; }
-.workspace-back:focus-visible { outline: 2px solid #4F46E5; outline-offset: 2px; }
 
 .page-hero {
   min-height: 104px;
@@ -611,7 +604,6 @@ button { font: inherit; }
 
 @media (max-width: 600px) {
   .retail-header { height: 62px; padding: 0 12px; }
-  .workspace-back { top: 70px; }
   .admin-chip div, .admin-chip > svg { display: none; }
   .page-hero { padding: 20px; }
   .page-hero h1 { font-size: 22px; }
@@ -639,9 +631,6 @@ button { font: inherit; }
 @media screen {
   .dashboard-workspace:has(> :is(.master-form-page, .add-product-modal, .category-edit-page)) {
     display: flex; flex-direction: column; padding: 0; min-height: calc(100dvh - 68px);
-  }
-  .dashboard-workspace:has(> :is(.master-form-page, .add-product-modal, .category-edit-page)) > .workspace-back {
-    align-self: flex-start; flex-shrink: 0; margin: 12px 20px;
   }
   .dashboard-workspace > :is(.master-form-page, .add-product-modal, .category-edit-page) {
     display: flex; flex-direction: column; flex: 1; align-self: stretch; width: 100%; max-width: none;
@@ -692,8 +681,6 @@ button { font: inherit; }
     padding-bottom: max(20px, env(safe-area-inset-bottom));
   }
   .dashboard-workspace > section { min-width: 0; max-width: 100%; }
-  /* The back button must not float over search, list actions or editor controls. */
-  .dashboard-workspace > .workspace-back { position: static; min-height: 44px; margin-top: 0; }
   .dashboard-workspace :is(.devices-table-scroll, .employees-table-scroll, .service-points-table):has(> .mobile-record-table) { overflow: visible; border: 0; background: transparent; }
 }
 
@@ -767,6 +754,22 @@ button { font: inherit; }
   .shift-card > div > .status-active { flex: 0 1 auto; margin-left: auto; }
   .dashboard-insights > .shift-card > div > strong.status-active { color: #13883d; }
   .shift-card .shift-device-id { font-size: 12px; }
+  .dashboard-mobile-device-qr { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 10px; padding-top: 16px; }
+  .dashboard-mobile-device-qr > svg { color: var(--blue); }
+  .dashboard-mobile-device-qr h3 { margin: 0; font-size: 14px; font-weight: 700; }
+  .dashboard-mobile-device-qr p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .dashboard-mobile-device-qr > button { grid-column: 1 / -1; min-height: 44px; width: 100%; }
+  .category-modal.action-popup.dashboard-qr-dialog { display: flex; flex-direction: column; width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; margin: 0; border: 0; border-radius: 0; overflow: hidden; }
+  .dashboard-qr-dialog > .modal-header { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left)); }
+  .dashboard-qr-dialog > .modal-header .modal-close-btn { width: 44px; height: 44px; }
+  .dashboard-qr-dialog > .modal-body { flex: 1 1 auto; min-height: 0; align-items: center; padding: 16px max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left)); overflow-y: auto; }
+  .dashboard-qr-image { flex: 0 0 auto; width: min(100%, 420px, calc(100dvh - 180px)); margin: auto 0; }
+  .dashboard-qr-image svg { display: block; width: 100%; height: auto; aspect-ratio: 1; background: #fff; }
+  .dashboard-qr-message { flex: 0 0 auto; max-width: 420px; margin: 0; text-align: center; font-size: 13px; line-height: 1.5; }
+  .dashboard-qr-message:empty { display: none; }
+  .dashboard-qr-image-link { flex: 0 0 auto; padding: 10px; color: var(--blue); font-size: 13px; }
+  .dashboard-qr-dialog > .modal-footer { flex: 0 0 auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 12px max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .dashboard-qr-dialog > .modal-footer > button { min-width: 0; min-height: 48px; gap: 8px; }
   .dashboard-insights > .help-card { width: 100%; min-width: 0; gap: 12px; padding: 14px 16px; border-radius: 12px; box-shadow: 0 2px 5px rgba(15,23,42,.07); }
   .help-card > svg { flex: 0 0 20px; }
   .help-card > span { min-width: 0; gap: 3px; overflow-wrap: anywhere; }

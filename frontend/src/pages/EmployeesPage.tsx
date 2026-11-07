@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { requestUnsavedNavigation, useUnsavedChanges } from '../utils/unsavedChanges.tsx';
 import { beginDataLoading, markDataLoadingBackground } from '../utils/dataLoading.ts';
@@ -164,7 +165,7 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
     .some(value => value.toLowerCase().includes(query))) ?? [];
 
   if (draft) return <section className="category-modal employee-form-page master-form-page" aria-labelledby="employee-form-title"><form onSubmit={save}>{confirmation}
-        <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UserRoundCog size={24} /></span><div><h3 id="employee-form-title">{draft.documentId ? 'Edit' : 'Add'} {kind}</h3><p>{outlet.name} · Personal and work details</p></div></div><button type="button" className="modal-close-btn" aria-label="Close employee form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div>
+        <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UserRoundCog size={24} /></span><div><PageHeading as="h3" id="employee-form-title">{draft.documentId ? 'Edit' : 'Add'} {kind}</PageHeading><p>Personal and work details</p></div></div><button type="button" className="modal-close-btn" aria-label="Close employee form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div>
         <fieldset className="employees-form-fields" disabled={saving}>
           <div className="master-form-section-heading"><span>01</span><h4>Personal information</h4></div>
           <div className="form-field"><label htmlFor="employee-name">Employee Name*</label><input id="employee-name" placeholder="Full name" value={draft.name} required maxLength={200} autoFocus onChange={event => { const value = event.target.value; setSaveError(''); setDraft(current => current ? { ...current, name: value, shortName: shortNameEdited.current ? current.shortName : Array.from(value.trim())[0] ?? '' } : current); }} /></div>
@@ -187,7 +188,7 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
       title="Delete all employees?"
       onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllEmployees()} />}
     {deleteAllDone && <SuccessPopup message="Employees deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
-    <div className="category-header-row"><div className="category-title-group"><h1><UserRoundCog size={22} /> Employees / Salesman</h1><p>Click a person to edit their details.</p></div>
+    <div className="category-header-row"><div className="category-title-group"><PageHeading><UserRoundCog size={22} /> Employees / Salesman</PageHeading><p>Manage your sales team.</p></div>
       <div className="category-header-actions category-master-actions">
         <MobileAddButton label={`Add ${kind}`} className="btn-primary-add" disabled={!data || !!error} onClick={openAdd} />
         <div className="category-more-actions">

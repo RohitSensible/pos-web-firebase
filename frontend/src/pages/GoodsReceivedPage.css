@@ -67,7 +67,7 @@
 }
 
 .goods-received-page .goods-receipt-total { margin-right: auto; align-self: center; font-size: 15px; font-variant-numeric: tabular-nums; }
-.goods-mobile-category, .goods-include-control > span { display: none; }
+.goods-received-page .goods-mobile-category, .goods-include-control > span { display: none; }
 @media screen and (max-width: 820px), screen and (max-width: 1024px) and (max-height: 600px) {
   .goods-received-page .goods-category-tabs { display: none; }
   .goods-received-page .goods-mobile-category { display: grid; gap: 6px; margin: 0 16px 16px; font-size: 13px; }

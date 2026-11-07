@@ -94,9 +94,8 @@ void (async () => {
   await until(() => query('adjust', 'option[value="rice"]'), 'Stock In ready');
   await setValue(query('adjust', '[aria-label="Select product"]'), 'rice');
   await setValue(query('adjust', '[aria-label="Quantity for Rice"]'), '30');
-  button('web', 'Plan replenishment (1)').click();
-  await until(() => query('web', '[aria-label="Order quantity for Rice"]'), 'planning ready');
-  await setValue(query('web', '[aria-label="Order quantity for Rice"]'), '25');
+  assert(!query('web', '.stock-planning'), 'Stock Report does not display removed planning tools');
+  await setValue(query('web', '.bill-search-filter input'), 'Rice');
   query<HTMLButtonElement>('device', '[aria-label="Select product Rice"]').click(); await pause();
   await setValue(query('device', '[aria-label="Received quantity for Rice"]'), '50');
   await setValue(query('device', '[aria-label="Cost price for Rice"]'), '4');
@@ -109,7 +108,7 @@ void (async () => {
   assert(stock.get('outlet') === 70, '20 + 50 persists as 70 even when the save response is lost');
   assert(query<HTMLInputElement>('device', '[aria-label="Received quantity for Rice"]').value === '50', 'Unconfirmed receipt retains its quantity draft');
   assert(query<HTMLInputElement>('adjust', '[aria-label="Quantity for Rice"]').value === '30', 'Other device stock updates preserve a Stock In draft');
-  assert(query<HTMLInputElement>('web', '[aria-label="Order quantity for Rice"]').value === '25', 'Report reconciliation preserves an edited replenishment plan');
+  assert(query<HTMLInputElement>('web', '.bill-search-filter input').value === 'Rice', 'Report reconciliation preserves the product search');
   button('device', 'Retry confirmation').click();
   await until(() => goodsBalance() === '70' && !query('device', '.action-confirm-button'), 'retry confirmed and goods stock reconciled');
   assert(receipts.size === 1 && stock.get('outlet') === 70 && posts.length === 2, 'Retry acknowledges one receipt without adding stock twice');
@@ -124,11 +123,9 @@ void (async () => {
   assert(reportBalance('other') === '500' && stock.get('other') === 500, 'A different outlet retains its balance');
   const snapshot = readMasterSnapshot<StockTransferProduct[]>('/api/outlets/outlet/products', 'token');
   assert(snapshot?.[0]?.fields.currentStock === 100, 'Product display snapshot is refreshed from persisted stock');
-  // A new remote stock-out makes Rice a replenishment suggestion again. Previously
-  // an empty/new planning row crashed when report data changed without remounting.
+  // A remote stock-out still updates the report after removing the planning tools.
   stock.set('outlet', 95); notify();
-  await until(() => reportBalance('web') === '95' && query('web', '[aria-label="Order quantity for Rice"]'), 'planning suggestion returns');
-  assert(query<HTMLInputElement>('web', '[aria-label="Order quantity for Rice"]').value === '25', 'Planning draft survives a suggestion leaving and returning');
+  await until(() => reportBalance('web') === '95' && reportBalance('phone2') === '95', 'remote stock-out visible in reports');
   // Failed background reads retain visible rows and are retried by the existing feed.
   failReport = true; stock.set('outlet', 96); notify(); await pause(500);
   assert(reportBalance('web') === '95', 'An unsuccessful background read does not fabricate updated stock');
@@ -138,12 +135,10 @@ void (async () => {
   flushSync(() => roots.get('device')!.render(null)); renderGoods();
   await until(() => goodsBalance() === '96', 'reopened Goods Received uses persisted stock');
   assert(posts.length === 3 && receipts.size === 2, 'Refreshing and reopening do not replay stock writes');
-  // A report with no earlier suggestions must accept a newly suggested row.
+  // Newly low stock remains visible without restoring the removed planning section.
   stock.set('other', 5); notify();
   await until(() => reportBalance('other') === '5', 'other outlet stock update');
-  button('other', 'Plan replenishment (1)').click();
-  await until(() => query('other', '[aria-label="Order quantity for Rice"]'), 'new planning row');
-  assert(query<HTMLInputElement>('other', '[aria-label="Order quantity for Rice"]').value === '95', 'New live replenishment suggestions have valid default rows');
+  assert(query('other', '.stock-status').textContent === 'Low stock' && !query('other', '.stock-planning'), 'New low-stock rows display their status without planning tools');
   for (const root of roots.values()) root.unmount(); await pause();
   assert(feeds.size === 0, 'All inventory change feeds close on navigation/unmount');
   document.getElementById('test-results')!.textContent = JSON.stringify({ passed: checks.length, checks });

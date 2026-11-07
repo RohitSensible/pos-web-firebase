@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useEffect, useState } from 'react';
 import { Radio, RefreshCw } from 'lucide-react';
@@ -56,8 +57,8 @@ export function BroadcastPage({ outlet, token, onSessionExpired }: {
   const refresh = () => setReload(value => value + 1);
 
   return <section className="devices-page" aria-label="Broadcast overview">
-    <div className="devices-heading"><div><span>OPERATIONS</span><h1><Radio size={24} /> Broadcast</h1>
-      <p>{outlet.name} · Read-only overview of outlet devices and employees.</p></div>
+    <div className="devices-heading"><div><span>OPERATIONS</span><PageHeading><Radio size={24} /> Broadcast</PageHeading>
+      <p>View devices and employees.</p></div>
       <button type="button" className="devices-refresh" disabled={loading} onClick={refresh}><RefreshCw size={16} />{loading ? 'Loading…' : 'Refresh'}</button>
     </div>
     <section className="devices-page" aria-labelledby="broadcast-devices-heading">

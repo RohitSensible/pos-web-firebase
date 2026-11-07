@@ -109,9 +109,15 @@ async function setValue(input: HTMLInputElement, value: string) {
 void (async () => {
   render(); await until(() => document.querySelector<HTMLSelectElement>('#product-category')?.disabled === false, 'existing form loaded');
   assert(barcode().value === 'OLD-0001' && cameras === 0, 'Saved barcode loads without requesting camera access');
-  const field = barcode().getBoundingClientRect(), icon = document.querySelector<HTMLElement>('[aria-label="Scan barcode"]')!.getBoundingClientRect();
-  assert(icon.right <= field.right && icon.left > field.left && Math.abs(icon.top + icon.height / 2 - field.top - field.height / 2) < 2, 'Scanner icon sits inside the right end of the unchanged input');
+  const mobile = matchMedia('(max-width: 820px), (max-width: 1024px) and (max-height: 600px)').matches;
+  const scanButton = document.querySelector<HTMLElement>('[aria-label="Scan barcode"]')!;
+  const uploadButton = document.querySelector<HTMLElement>('[aria-label="Upload barcode image"]')!;
+  const field = barcode().getBoundingClientRect(), icon = (mobile ? scanButton : uploadButton).getBoundingClientRect();
+  assert(getComputedStyle(mobile ? scanButton : uploadButton).display !== 'none' && getComputedStyle(mobile ? uploadButton : scanButton).display === 'none', 'Product entry retains mobile scanning and desktop image upload');
+  assert(icon.right <= field.right && icon.left > field.left && Math.abs(icon.top + icon.height / 2 - field.top - field.height / 2) < 2, 'Visible barcode action sits inside the right end of the unchanged input');
   assert(field.height === document.querySelector('#product-name')!.getBoundingClientRect().height, 'Barcode input retains the other input dimensions');
+  // Exercise the scanner component through its handler at every viewport,
+  // while checking the distinct user-facing desktop action above.
   await scan(); await until(() => releaseCamera, 'pending permission');
   assert(button('Use Barcode').disabled && barcode().value === 'OLD-0001' && patches.length === 0, 'Opening scanner preserves the draft and cannot save');
   await cancel(); releaseCamera!(); await until(() => streams[0]!.getTracks().every(track => track.readyState === 'ended'), 'late camera cleanup');

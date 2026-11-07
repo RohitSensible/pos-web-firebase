@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
@@ -88,12 +89,15 @@ export function ProductDiscountSettings({ products, categories, outletId, token,
   return <section className="products-page-shell product-tax-settings product-discount-settings" aria-label="Update Discount" aria-busy={saving}>
     {confirmation}
     <div className="products-header tax-settings-header">
-      <div><h1>Update Discount</h1><p>{selected.size} products selected across categories.</p></div>
+      <div><PageHeading>Update Discount</PageHeading><p>Set discounts. {selected.size} selected.</p></div>
       <div className="tax-settings-actions">
-        <button type="button" className="btn-secondary" disabled={saving} onClick={() => onClose(savedIds.current.size)}>Cancel</button>
+        <button type="button" className="btn-secondary discount-settings-cancel" disabled={saving} onClick={() => onClose(savedIds.current.size)}>Cancel</button>
         <button type="button" className="btn-primary-add" disabled={saving || !selected.size || !discount.trim()} onClick={() => void update()}>{saving ? 'Updating…' : 'Update'}</button>
       </div>
     </div>
+    <label className="discount-category-filter" htmlFor="bulk-discount-category">Category<select id="bulk-discount-category" value={category ?? ''} disabled={saving} onChange={event => setCategory(event.target.value || null)}>
+      <option value="">All Categories</option>{categories.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+    </select></label>
     <div className="tax-category-tabs" role="group" aria-label="Product categories">
       <button type="button" aria-pressed={category === null} disabled={saving} onClick={() => setCategory(null)}>All</button>
       {categories.map(item => <button type="button" key={item.id} aria-pressed={category === item.id} disabled={saving} onClick={() => setCategory(item.id)}>{item.name}</button>)}

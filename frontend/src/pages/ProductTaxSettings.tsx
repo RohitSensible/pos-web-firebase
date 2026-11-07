@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useWorkspaceBack } from '../utils/useWorkspaceBack.ts';
@@ -85,15 +86,18 @@ export function ProductTaxSettings({ products, categories, outletId, token, onSa
     setFailures(failed);
     setMessage(`${saved} products updated; ${failed.length} failed. Failed products remain selected. Click Update to retry.`);
   };
-  return <section className="products-page-shell product-tax-settings" aria-label="Tax Settings" aria-busy={saving}>
+  return <section className="products-page-shell product-tax-settings product-tax-update" aria-label="Tax Settings" aria-busy={saving}>
     {confirmation}
     <div className="products-header tax-settings-header">
-      <div><h1>Tax Settings</h1><p>{selected.size} products selected across categories.</p></div>
+      <div><PageHeading>Tax Settings</PageHeading><p>Set tax rates. {selected.size} selected.</p></div>
       <div className="tax-settings-actions">
+        <label className="tax-settings-mobile-category" htmlFor="bulk-tax-category">Category<select id="bulk-tax-category" value={category ?? ''} disabled={saving} onChange={event => setCategory(event.target.value || null)}>
+          <option value="">All Categories</option>{categories.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select></label>
         <label htmlFor="bulk-product-tax">Tax<select id="bulk-product-tax" value={tax} disabled={saving} onChange={event => { setTax(event.target.value); setMessage(''); }}>
           <option value="">Select Tax</option>{ANDROID_TAX_OPTIONS.map(option => <option key={option.index} value={option.index}>{option.name}</option>)}
         </select></label>
-        <button type="button" className="btn-secondary" disabled={saving} onClick={() => onClose()}>Cancel</button>
+        <button type="button" className="btn-secondary tax-settings-cancel" disabled={saving} onClick={() => onClose()}>Cancel</button>
         <button type="button" className="btn-primary-add" disabled={saving || !selected.size || !tax} onClick={() => void update()}>{saving ? 'Updating…' : 'Update'}</button>
       </div>
     </div>

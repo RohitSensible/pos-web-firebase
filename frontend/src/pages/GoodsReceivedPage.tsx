@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { ActionConfirmation } from './ActionPopup.tsx';
@@ -182,11 +183,11 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel, i
       setError((failure as Error).message);
     } finally { busy.current = false; setSaving(false); }
   };
-  if (loading || loadError) return <section className="devices-page"><header className="devices-heading"><div><span>MASTERS</span><h1><ReceiptText />Goods Received</h1></div></header>
+  if (loading || loadError) return <section className="devices-page"><header className="devices-heading"><div><span>MASTERS</span><PageHeading><ReceiptText />Goods Received</PageHeading><p>Record incoming goods.</p></div></header>
     {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}<div className="devices-state" data-inline-loading={loading ? '' : undefined}>{loading ? 'Loading outlet products, suppliers and receipts…' : <><p role="alert">{loadError}</p><button type="button" className="devices-refresh" onClick={() => setReload(value => value + 1)}>Retry loading</button></>}</div></section>;
 
   return <section className="devices-page stock-adjustment-page goods-received-page">
-    <header className="devices-heading"><div><span>MASTERS</span><h1><ReceiptText />Goods Received</h1><p>Record products received from suppliers.</p></div>
+    <header className="devices-heading"><div><span>MASTERS</span><PageHeading><ReceiptText />Goods Received</PageHeading><p>Record incoming goods.</p></div>
       <div className="goods-supplier-select">
         <button type="button" className="devices-refresh" disabled={locked} onClick={() => setHistoryOpen(true)}>Receipt history</button>
         <label>Supplier (optional)<select disabled={locked} value={supplier} onChange={event => { setSupplier(event.target.value); setNotice(''); }}>

@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { dashboardShiftStatus } from '../../../shared/shiftStatus.ts';
 import { downloadReportExcel, sumPayments } from '../utils/reportExcel.ts';
@@ -209,7 +210,7 @@ export const ShiftSummaryReportPage = ({ outlet, token, onSessionExpired, report
   return (
     <section className="bill-report-page shift-report-page">
       <div className="bill-report-heading">
-        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Shift Summary Report</h1><p>{outlet.name} · Shift-wise sales by day ID.</p></div>
+        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><PageHeading>Shift Summary Report</PageHeading><p>Review sales by shift.</p></div>
         <div className="bill-report-actions">
           <button type="button" aria-label="Refresh shifts" onClick={() => setReloadKey(value => value + 1)}><RefreshCw /> Refresh</button>
           <button type="button" onClick={exportExcel} disabled={!canOutput || exporting}><Download /> {exporting ? 'Exporting…' : 'Export Excel'}</button>

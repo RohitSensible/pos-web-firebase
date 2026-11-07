@@ -101,20 +101,25 @@ dialog.bill-detail-backdrop[open] { display: flex; justify-content: flex-end; }
 /* Shared screen refinements, scoped to reports; colors and print styles stay intact. */
 @media screen {
   .bill-report-page { min-width: 0; }
-  .bill-report-page .bill-report-heading { gap: 16px; }
+  section.bill-report-page .bill-report-heading { gap: 16px; }
   .bill-report-page .bill-report-heading > div:first-child { min-width: 0; }
   .bill-report-page .bill-report-heading > div:first-child > span { display: block; font-size: 11px; font-weight: 600; line-height: 1.4; letter-spacing: .1em; }
   .bill-report-page .bill-report-heading h1 { margin: 8px 0 7px; font-size: clamp(24px, 2.5vw, 26px); font-weight: 700; line-height: 1.25; letter-spacing: -.02em; }
   .bill-report-page .bill-report-heading p { margin: 0; font-size: 13px; line-height: 1.5; }
-  .bill-report-page .bill-report-actions { flex-wrap: wrap; }
+  section.bill-report-page .bill-report-actions { min-width: 0; max-width: 100%; align-items: center; flex-wrap: wrap; gap: 8px; }
+  section.bill-report-page .bill-report-actions > button { min-height: 40px; }
   .bill-report-page .bill-report-actions button { font-size: 12px; font-weight: 600; }
 
-  .bill-report-page .bill-report-filters { margin-top: 20px; gap: 16px; align-items: end; box-shadow: 0 2px 8px rgba(29,50,69,.05); }
-  .bill-report-page .bill-report-filters label { gap: 8px; }
+  section.bill-report-page .bill-report-filters { min-width: 0; max-width: 100%; margin-top: 20px; padding: 16px; gap: 16px; align-items: end; box-shadow: 0 2px 8px rgba(29,50,69,.05); }
+  section.bill-report-page .bill-report-filters label { min-width: 0; gap: 8px; }
   .bill-report-page .bill-report-filters label > span { font-size: 11px; font-weight: 600; letter-spacing: .03em; }
   .bill-report-page .bill-report-filters input, .bill-report-page .bill-report-filters select { font-size: 13px; }
-  .bill-report-page .bill-filter-buttons { flex-wrap: wrap; }
-  .bill-report-page .bill-report-filters .bill-filter-buttons button { height: 38px; padding: 0 12px; font-size: 12px; font-weight: 600; gap: 7px; }
+  section.bill-report-page .bill-report-filters :is(input, select),
+  section.bill-report-page .bill-report-filters label > div:not(.report-date-control),
+  section.bill-report-page .bill-report-filters .report-date-trigger { height: 40px; }
+  section.bill-report-page .bill-report-filters .bill-filter-buttons { min-width: 0; flex-wrap: wrap; gap: 8px; }
+  section.bill-report-page .bill-report-filters .bill-filter-buttons button { height: 40px; padding: 0 12px; }
+  .bill-report-page .bill-report-filters .bill-filter-buttons button { font-size: 12px; font-weight: 600; gap: 7px; }
   .bill-report-page .bill-report-filters .bill-filter-buttons button svg { width: 14px; height: 14px; }
 
   .bill-report-page .bill-summary-grid { margin-top: 16px; gap: 14px; }
@@ -148,6 +153,10 @@ dialog.bill-detail-backdrop[open] { display: flex; justify-content: flex-end; }
   .bill-report-page .stock-count { font-size: 12px; }
   .bill-report-page .stock-status, .bill-report-page .shift-status { font-size: 10px; font-weight: 600; }
   .bill-report-page .shift-times small { font-size: 10px; }
+}
+
+@media screen and (min-width: 1101px) {
+  section.bill-report-page .bill-report-heading { align-items: flex-end; }
 }
 
 .bill-print-outlet { display: block; margin-bottom: 8px; font-size: 17px; overflow-wrap: anywhere; }

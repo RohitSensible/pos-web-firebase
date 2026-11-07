@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, rankSearchResults } from '../utils/useMobileSearch.ts';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { printDocument } from '../utils/printDocument.ts';
@@ -289,7 +290,7 @@ export const BillWiseReportPage = ({ outlet, token, onSessionExpired, reportName
   return (
     <section className="bill-report-page bill-sales-report-page">
       <div className="bill-report-heading">
-        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><h1>Bill Wise Sale Report</h1><p>{outlet.name} · Review, filter and export completed bills.</p></div>
+        <div><strong className="report-print-shop-name">{outlet.name}</strong><span>REPORTS</span><PageHeading>Bill Wise Sale Report</PageHeading><p>Review completed sales bills.</p></div>
         <div className="bill-report-actions">
           <button type="button" onClick={exportExcel} disabled={exporting || loading || !report}><Download /> {exporting ? 'Exporting…' : 'Export Excel'}</button>
           <button type="button" disabled={loading || !report} onClick={() => window.print()}><Printer /> Print / PDF</button>

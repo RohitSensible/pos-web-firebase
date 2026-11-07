@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { SuccessPopup } from './SuccessPopup.tsx';
@@ -226,7 +227,7 @@ function LogoEditor({ outletId, outletName, token, variant, disabled, onBusyChan
 function LogoManager(props: Props) {
   const [busyVariant, setBusyVariant] = useState<Variant | null>(null);
   return <section className="outlet-logo-page" aria-label="Outlet logo">
-    <header className="outlet-logo-heading"><span>MASTERS</span><h1><ImageIcon aria-hidden="true" />Outlet Logo</h1><p><strong>{props.outletName}</strong> · Manage your outlet’s header and footer images.</p></header>
+    <header className="outlet-logo-heading"><span>MASTERS</span><PageHeading><ImageIcon aria-hidden="true" />Outlet Logo</PageHeading><p>Manage receipt logos.</p></header>
     <div className="outlet-logo-grid">
       {(['header', 'footer'] as const).map(variant => <LogoEditor key={variant} {...props} variant={variant}
         disabled={busyVariant !== null && busyVariant !== variant} onBusyChange={busy => setBusyVariant(busy ? variant : null)} />)}

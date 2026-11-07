@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { beginDataLoading } from '../utils/dataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
@@ -138,7 +139,7 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
   };
   if (draft) return <section className="category-modal service-point-form-page master-form-page" aria-labelledby="service-point-title">
     <form onSubmit={save}>{confirmation}
-      <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon"><Printer size={24} /></span><div><h3 id="service-point-title">{editing ? 'Edit Service Point' : 'Add Service Point'}</h3><p>{outlet.name} · Service Point details</p></div></div>
+      <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon"><Printer size={24} /></span><div><PageHeading as="h3" id="service-point-title">{editing ? 'Edit Service Point' : 'Add Service Point'}</PageHeading><p>Service Point details</p></div></div>
         <button type="button" className="modal-close-btn" aria-label="Close service point form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button></div>
       <fieldset className="service-point-fields" disabled={saving}>
         <div className="form-field"><label htmlFor="service-point-name">Name</label><input id="service-point-name" autoFocus required maxLength={200} value={draft.name} onChange={event => change('name', event.target.value)} /></div>
@@ -162,7 +163,7 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
       title="Delete all service points?"
       onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllServicePoints()} />}
     {deleteAllDone && <SuccessPopup message="Service points deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
-    <div className="category-header-row"><h1>Service Points</h1>
+    <div className="category-header-row"><div className="category-title-group"><PageHeading>Service Points</PageHeading><p>Manage printers and service points.</p></div>
       <div className="category-header-actions category-master-actions">
         <MobileAddButton label="Add Service Point" className="btn-primary-add" disabled={rows === null || !!error} onClick={openAdd} />
         <div className="category-more-actions">

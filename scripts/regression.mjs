@@ -77,9 +77,10 @@ export function createPlan(options = {}) {
     'billPrinting', 'printDocumentRecovery', 'dailyUsage', 'dailyUsageLogin', 'dailyUsageLockout',
     'goodsReceived', 'suppliers', 'goodsReceiptHistory', 'stockPlanning', 'stockReportSafety',
     'productImages', 'productImageRemoval', 'productImageSingle', 'productImagePin', 'productImageCropper', 'productImageBatch', 'productImageClarity',
-    'barcodeScanner'];
+    'barcodeScanner', 'phoneLayout', 'uploadPresentation'];
   for (const fixture of fixtures) {
-    for (const [size, viewport] of [['desktop', '1280,900'], ['mobile', '390,844']]) {
+    for (const [size, viewport] of [['desktop', '1280,900'], ['mobile', '390,844'],
+      ['mobile-landscape', '844,390'], ['tablet', '768,1024']]) {
       checks.push({ id: `${fixture}-${size}`, group: 'browser', command: process.execPath,
         args: ['frontend/tests/runProductFormBrowser.mjs', `${fixture}.browser.tsx`, viewport], result: 'browser',
         // UI fixtures isolate admission; dailyUsage* always exercises the real hook.

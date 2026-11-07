@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useDataLoading } from '../utils/useDataLoading.ts';
 import { useActionConfirmation } from '../utils/useActionConfirmation.tsx';
 import { SuccessPopup } from './SuccessPopup.tsx';
@@ -160,7 +161,7 @@ export function ProductImageBatch({ mode, products, categories = [], outletId, t
   const chooseAnother = mode === 'bulk' ? 'Choose another ZIP' : 'Choose another image';
   return <section className="products-page-shell product-image-batch" aria-label={mode === 'bulk' ? 'Bulk Upload Images' : 'One Image for Multiple Products'}>
     {actionConfirmation}
-    <div className="products-header batch-header"><h1>Product Images</h1>
+    <div className="products-header batch-header"><div className="workspace-heading-copy"><PageHeading>Product Images</PageHeading><p>{mode === 'bulk' ? 'Upload product images in bulk.' : 'Use one image for multiple products.'}</p></div>
       <div className="batch-header-actions">
         <button type="button" className="btn-primary-add batch-upload" disabled={loading || running || (rows.length > 0 && !canUpload)}
           onClick={upload}>Upload Images</button>

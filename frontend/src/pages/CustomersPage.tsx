@@ -1,3 +1,4 @@
+import { PageHeading } from '../components/PageHeading.tsx';
 import { useMobileSearch, searchRecords } from '../utils/useMobileSearch.ts';
 import { requestUnsavedNavigation, useUnsavedChanges } from '../utils/unsavedChanges.tsx';
 import { markDataLoadingBackground } from '../utils/dataLoading.ts';
@@ -196,7 +197,7 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
 
   const { rows: shownCustomers, hasMore: moreCustomers, sentinelRef: moreCustomersRef } = useRowBatches(filteredCustomers, JSON.stringify([outlet.id, token, query, searchRevision]));
   if (draft) return <section className="category-modal customer-form-page master-form-page" aria-labelledby="customer-form-title"><form onSubmit={save}>{confirmation}
-    <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UsersRound size={24} /></span><div><h3 id="customer-form-title">{editing ? 'Edit Customer' : 'Add Customer'}</h3><p>{outlet.name} · Contact, billing and credit details</p></div></div><button type="button" className="modal-close-btn" aria-label="Close customer form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div>
+    <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UsersRound size={24} /></span><div><PageHeading as="h3" id="customer-form-title">{editing ? 'Edit Customer' : 'Add Customer'}</PageHeading><p>Contact, billing and credit details</p></div></div><button type="button" className="modal-close-btn" aria-label="Close customer form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div>
     <fieldset className="customer-form-fields" disabled={saving}>
       <div className="master-form-section-heading"><span>01</span><h4>Contact information</h4></div>
       <div className="form-field"><label htmlFor="customer-name">Name</label><input id="customer-name" placeholder="Customer or business name" autoFocus autoComplete="name" maxLength={200} value={draft.name} onChange={event => changeText('name', event.target.value)} /></div>
@@ -224,7 +225,7 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
       title="Delete all customers?"
       onCancel={() => { if (!busy.current) setDeleteAllOpen(false); }} onConfirm={() => void deleteAllCustomers()} />}
     {deleteAllDone && <SuccessPopup message="Customers deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
-    <div className="category-header-row"><div className="category-title-group"><h1><UsersRound size={22} /> Customers</h1><p>  Your outlet’s customer list.</p></div>
+    <div className="category-header-row"><div className="category-title-group"><PageHeading><UsersRound size={22} /> Customers</PageHeading><p>Manage customer details.</p></div>
       <div className="category-header-actions category-master-actions">
         <MobileAddButton label="Add Customer" className="btn-primary-add" disabled={!customers || !!error} onClick={openAdd} />
         <div className="category-more-actions">
@@ -240,7 +241,7 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
       <label htmlFor="customer-search">Search customers</label>
       <div className="customers-search-controls">
         <input ref={searchInput} id="customer-search" type="search" value={search} onChange={event => changeSearch(event.target.value)}
-          placeholder="Name, phone, email, GST or address" aria-describedby="customer-search-count" />
+          placeholder="Search Customer " aria-describedby="customer-search-count" />
         {search && <button type="button" className="btn-secondary" onClick={clearSearch}>Clear search</button>}
       </div>
       <p id="customer-search-count" role={customers ? 'status' : undefined} aria-live="polite" aria-atomic="true">{customers

@@ -3,11 +3,14 @@ import { requestUnsavedNavigation, hasUnsavedChanges, UnsavedChangesPrompt } fro
 import type { ReplenishmentDraft } from './pages/stockPlanning.ts';
 import { DataLoadingModal } from './components/DataLoadingModal.tsx';
 import { useDashboardShiftRead } from './utils/useDashboardShiftRead.ts';
-import { ActionConfirmation } from './pages/ActionPopup.tsx';
+import { ActionConfirmation, ActionPopup } from './pages/ActionPopup.tsx';
 import { PrintPageSettings } from './components/PrintPageSettings.tsx';
 import { lazy, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { useMobileSearch } from './utils/useMobileSearch.ts';
 import { useBrowserHistoryState } from './utils/useBrowserHistoryState.ts';
 import { runWorkspaceBack } from './utils/useWorkspaceBack.ts';
+import { WorkspaceBackProvider } from './components/PageHeading.tsx';
 import { useWebUsage } from './utils/useWebUsage.ts';
 import { useSidebarSections } from './utils/useSidebarSections.ts';
 import { OutletAccessPaused, OutletAdmission } from './pages/OutletAccessPaused.tsx';
@@ -17,11 +20,11 @@ import { ReportDateInput } from './pages/ReportDateInput.tsx';
 import { ProfileMenu } from './pages/ProfileMenu.tsx';
 import type { StockTransferPreview } from './pages/stockTransferPreviews.ts';
 import {
-  ArrowLeft, ArrowRightLeft, BadgeIndianRupee, Banknote, Bot, Calculator, Download,
+  ArrowRightLeft, BadgeIndianRupee, Banknote, Bot, Calculator, Download,
   CalendarCheck, CalendarDays, ChevronDown, CircleHelp, ClipboardCheck, Clock,
   ClipboardList, CreditCard, Gauge, Home, Image as ImageIcon,
   LayoutDashboard, LayoutGrid, LogOut, MapPin, Menu, Monitor, Package, PackageCheck, Radio, ReceiptText,
-  PackageSearch, RefreshCw, SlidersHorizontal, Store, TrendingUp, Upload,
+  PackageSearch, QrCode, RefreshCw, Share2, SlidersHorizontal, Store, TrendingUp, Upload,
   ShieldUser, UserRound, Users, UsersRound, WalletCards, X,
 } from 'lucide-react';
 import { downloadDashboardExcel, type ShiftDashboardData } from './utils/dashboardExcel.ts';
@@ -105,7 +108,7 @@ function MetricRow({ icon, label, value }: { icon?: ReactNode; label: string; va
   );
 }
 
-function DashboardDeviceQr({ deviceId }: { deviceId: string }) {
+function InlineDashboardDeviceQr({ deviceId }: { deviceId: string }) {
   const code = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   useEffect(() => {
@@ -119,6 +122,108 @@ function DashboardDeviceQr({ deviceId }: { deviceId: string }) {
   }, [deviceId]);
   return <div className="dashboard-device-qr" ref={code} aria-busy={status === 'loading'}
     role={status === 'error' ? 'img' : undefined} aria-label={status === 'error' ? 'Device QR code unavailable' : undefined} />;
+}
+
+function MobileDeviceQrPopup({ deviceId, onClose }: { deviceId: string; onClose: () => void }) {
+  const code = useRef<HTMLDivElement>(null);
+  const active = useRef(false);
+  const [image, setImage] = useState<{ file: File; url: string } | null>(null);
+  const [message, setMessage] = useState('Preparing QR image…');
+  const [sharing, setSharing] = useState(false);
+  useEffect(() => {
+    active.current = true;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    let cancelled = false;
+    let svgUrl: string | undefined;
+    let pngUrl: string | undefined;
+    void (async () => {
+      try {
+        const svg = await createDeviceQrSvg(deviceId);
+        if (cancelled) return;
+        code.current?.replaceChildren(svg);
+        // Export the rendered QR itself, preserving its payload, modules and quiet zone.
+        svgUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml' }));
+        const source = new Image();
+        source.src = svgUrl;
+        await source.decode();
+        if (cancelled) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1040;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Image export unavailable');
+        context.imageSmoothingEnabled = false;
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(source, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Image export unavailable')), 'image/png'));
+        if (cancelled) return;
+        pngUrl = URL.createObjectURL(blob);
+        setImage({ file: new File([blob], 'device-qr.png', { type: 'image/png' }), url: pngUrl });
+        setMessage('');
+      } catch {
+        if (!cancelled) setMessage(code.current?.querySelector('svg') ? 'The QR is visible, but image saving is unavailable. You can take a screenshot.' : 'Device QR code unavailable. Close and try again.');
+      } finally {
+        if (svgUrl) URL.revokeObjectURL(svgUrl);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      active.current = false;
+      document.body.style.overflow = previousOverflow;
+      if (svgUrl) URL.revokeObjectURL(svgUrl);
+      if (pngUrl) URL.revokeObjectURL(pngUrl);
+    };
+  }, [deviceId]);
+  const save = () => {
+    if (!image) return;
+    const link = document.createElement('a');
+    link.href = image.url;
+    link.download = image.file.name;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setMessage('Download requested. If needed, open the image below, then touch and hold it to save.');
+  };
+  const share = async () => {
+    if (!image || sharing) return;
+    try {
+      // The file is prepared before the tap so native sharing retains user activation.
+      if (!navigator.share || !navigator.canShare?.({ files: [image.file] })) {
+        setMessage('Image sharing is unavailable in this browser. Use Save QR, then share the saved image.');
+        return;
+      }
+      setSharing(true);
+      await navigator.share({ files: [image.file] });
+      if (active.current) setMessage('');
+    } catch (error) {
+      if (active.current && !(error instanceof DOMException && error.name === 'AbortError')) setMessage('The image could not be shared. Use Save QR, then share the saved image.');
+    } finally {
+      if (active.current) setSharing(false);
+    }
+  };
+  return createPortal(<ActionPopup title="Device QR" className="dashboard-qr-dialog" onCancel={onClose}
+    footer={<><button type="button" className="btn-secondary" disabled={!image} onClick={save}><Download size={18} aria-hidden="true" />Save QR</button>
+      <button type="button" className="btn-primary-add" disabled={!image || sharing} onClick={() => { void share(); }}><Share2 size={18} aria-hidden="true" />{sharing ? 'Sharing…' : 'Share QR'}</button></>}>
+    <div className="dashboard-qr-image" ref={code} />
+    <p className="dashboard-qr-message" role="status">{message}</p>
+    {image && message && <a className="dashboard-qr-image-link" href={image.url} target="_blank" rel="noopener noreferrer">Open QR image</a>}
+  </ActionPopup>, document.body);
+}
+
+function DashboardDeviceQr({ deviceId }: { deviceId: string }) {
+  const phone = useMobileSearch();
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => { if (!phone) setOpen(false); }, [phone]);
+  if (!phone) return <InlineDashboardDeviceQr deviceId={deviceId} />;
+  const close = () => { setOpen(false); requestAnimationFrame(() => trigger.current?.focus({ preventScroll: true })); };
+  return <section className="dashboard-mobile-device-qr" aria-label="Device QR">
+    <QrCode size={22} aria-hidden="true" />
+    <header><h3>Device QR</h3><p>View your device QR code</p></header>
+    <button type="button" className="btn-primary-add" ref={trigger} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>View QR Code</button>
+    {open && <MobileDeviceQrPopup deviceId={deviceId} onClose={close} />}
+  </section>;
 }
 
 function LogoutConfirmation({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
@@ -205,6 +310,10 @@ export default function App() {
 
 function Application() {
   const [screenId, navigate, back] = useBrowserHistoryState('pos-screen', 'Home:Dashboard', validScreen, false);
+  const handleWorkspaceBack = useCallback(() => {
+    if (runWorkspaceBack()) return;
+    if (window.history.length > 1) back(); else navigate('Home:Dashboard');
+  }, [back, navigate]);
   const activeNavigation = screens.find(screen => screen.id === screenId)!;
   const setActiveNavigation = (screen: { id: string; label: string }) => navigate(screen.id);
   const { openGroup, toggleGroup } = useSidebarSections(activeNavigation.id);
@@ -545,10 +654,7 @@ function Application() {
         </div>}
         <main className="dashboard-workspace" inert={reconnecting} aria-hidden={reconnecting || undefined}
           style={reconnecting ? { visibility: 'hidden' } : undefined}>
-          {/* Back first leaves an open in-page form or sub-screen; otherwise it returns to the previous
-              screen (as browser Back), or to the Dashboard when the tab has no earlier entry. */}
-          {activeNavigation.id !== 'Home:Dashboard' && <button type="button" className="workspace-back" aria-label="Back to previous screen"
-            onClick={() => { if (runWorkspaceBack()) return; if (window.history.length > 1) back(); else navigate('Home:Dashboard'); }}><ArrowLeft aria-hidden="true" />Back</button>}
+          <WorkspaceBackProvider onBack={activeNavigation.id === 'Home:Dashboard' ? null : handleWorkspaceBack}>
           <RouteLoadBoundary key={activeNavigation.id}>
           {!usage.authorized ? null : activeNavigation.id === 'Masters:Logo' ? (
             <MemoOutletLogoPage outletId={selectedOutlet.id} outletName={selectedOutlet.name} token={session.token} />
@@ -704,6 +810,7 @@ function Application() {
             </>
           )}
           </RouteLoadBoundary>
+          </WorkspaceBackProvider>
         </main>
       </div>
       {logoutConfirmationOpen && <LogoutConfirmation onCancel={() => setLogoutConfirmationOpen(false)} onConfirm={handleLogout} />}

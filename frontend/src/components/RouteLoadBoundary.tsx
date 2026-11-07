@@ -1,4 +1,5 @@
 import { Component, Suspense, type ReactNode } from 'react';
+import { PageHeading } from './PageHeading.tsx';
 import './RouteLoadBoundary.css';
 
 // A rejected lazy import stays cached by React. Reload the document to recover
@@ -13,7 +14,7 @@ export class RouteLoadBoundary extends Component<{ children: ReactNode }, { fail
   render() {
     if (this.state.failed) return (
       <section className="route-load-notice" role="alert" aria-labelledby="route-load-error-title">
-        <h2 id="route-load-error-title">Unable to open this page</h2>
+        <PageHeading as="h2" id="route-load-error-title">Unable to open this page</PageHeading>
         <p>The page could not load or display. You can choose another page or reload to try again. Reloading will lose unsaved edits.</p>
         <button type="button" onClick={() => window.location.reload()}>Reload page</button>
       </section>
