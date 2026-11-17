@@ -29,7 +29,10 @@ export async function updateCategoryNames(db: Firestore, outletId: string, id: s
       throw new CategoryUpdateError(409, 'A category with this name already exists.');
     }
     // Intentionally update only these two existing fields. Number, ID, flags and all other data stay intact.
-    transaction.update(collection.doc(id), { name: parsed.data.name, regionalName: parsed.data.regionalName });
+    const stored = snapshot.docs.find(doc => doc.id === id)!.data();
+    if (stored.name !== parsed.data.name || stored.regionalName !== parsed.data.regionalName) {
+      transaction.update(collection.doc(id), { name: parsed.data.name, regionalName: parsed.data.regionalName });
+    }
     return { id, ...parsed.data };
   });
 }

@@ -18,10 +18,12 @@ function fixture() {
   ]);
   const reads: string[] = [];
   const updates: { path: string; fields: Record<string, unknown> }[] = [];
+  const updateCalls: typeof updates = [];
   let fail = false;
+  let retry: (() => void) | undefined;
   const db = {
     collection: (path: string) => new Ref(path, true),
-    async runTransaction(callback: (transaction: unknown) => Promise<unknown>) {
+    async runTransaction(callback: (transaction: unknown) => Promise<unknown>): Promise<unknown> {
       const pending: typeof updates = [];
       const result = await callback({
         get: async (ref: Ref) => {
@@ -30,8 +32,15 @@ function fixture() {
             .map(([path, fields]) => ({ id: path.split('/').at(-1)!, data: () => fields })) }
             : { data: () => records.get(ref.path) };
         },
-        update: (ref: Ref, fields: Record<string, unknown>) => pending.push({ path: ref.path, fields }),
+        update: (ref: Ref, fields: Record<string, unknown>) => {
+          const update = { path: ref.path, fields };
+          updateCalls.push(update); pending.push(update);
+        },
       });
+      if (retry) {
+        const conflict = retry; retry = undefined; conflict();
+        return this.runTransaction(callback);
+      }
       if (fail) throw new Error('database failure');
       for (const update of pending) {
         assert.ok(records.has(update.path), 'updates cannot create records');
@@ -40,10 +49,57 @@ function fixture() {
       return result;
     },
   };
-  return { db: db as unknown as Firestore, records, reads, updates, fail: () => { fail = true; } };
+  return { db: db as unknown as Firestore, records, reads, updates, updateCalls,
+    fail: () => { fail = true; }, retryBeforeCommit: (conflict: () => void) => { retry = conflict; } };
 }
 const assigned = (profile: Record<string, unknown>) => profile.outlets as string[];
 const names = { name: ' Food Updated ', regionalName: ' Local ' };
+
+for (const input of [{ name: 'Food', regionalName: '' }, { name: ' Food ', regionalName: ' ' }]) {
+  test(`unchanged parsed names skip update calls: ${JSON.stringify(input)}`, async () => {
+    const f = fixture(); const before = structuredClone(f.records);
+    const result = await updateCategoryNames(f.db, 'outlet', 'c1', 'user', assigned, input);
+    assert.deepEqual(result, { id: 'c1', name: 'Food', regionalName: '' });
+    assert.deepEqual(f.reads, ['USER_PROFILE/user', 'OUTLET/outlet/CATEGORY']);
+    assert.deepEqual(f.updateCalls, []); assert.deepEqual(f.records, before);
+  });
+}
+
+for (const input of [
+  { name: 'New Food', regionalName: '' },
+  { name: 'Food', regionalName: 'Local' },
+  { name: 'New Food', regionalName: 'Local' },
+  { name: 'food', regionalName: '' },
+]) {
+  test(`changed names submit exactly one update: ${JSON.stringify(input)}`, async () => {
+    const f = fixture(); const expected = structuredClone(f.records);
+    expected.set('OUTLET/outlet/CATEGORY/c1', { ...expected.get('OUTLET/outlet/CATEGORY/c1'), ...input });
+    assert.deepEqual(await updateCategoryNames(f.db, 'outlet', 'c1', 'user', assigned, input), { id: 'c1', ...input });
+    assert.deepEqual(f.updateCalls, [{ path: 'OUTLET/outlet/CATEGORY/c1', fields: input }]);
+    assert.deepEqual(f.records, expected);
+  });
+}
+
+for (const value of [undefined, null, 0, false]) {
+  test(`stored regionalName ${String(value)} is distinct from an empty string`, async () => {
+    const f = fixture(); const stored = f.records.get('OUTLET/outlet/CATEGORY/c1')!;
+    if (value === undefined) delete stored.regionalName; else stored.regionalName = value;
+    const input = { name: 'Food', regionalName: '' };
+    await updateCategoryNames(f.db, 'outlet', 'c1', 'user', assigned, input);
+    assert.deepEqual(f.updateCalls, [{ path: 'OUTLET/outlet/CATEGORY/c1', fields: input }]);
+    await updateCategoryNames(f.db, 'outlet', 'c1', 'user', assigned, input);
+    assert.equal(f.updateCalls.length, 1);
+  });
+}
+
+test('unchanged names still reject an existing duplicate after the normal reads', async () => {
+  const f = fixture(); f.records.get('OUTLET/outlet/CATEGORY/c2')!.name = ' FOOD ';
+  const before = structuredClone(f.records);
+  await assert.rejects(updateCategoryNames(f.db, 'outlet', 'c1', 'user', assigned,
+    { name: 'Food', regionalName: '' }), { status: 409 });
+  assert.deepEqual(f.reads, ['USER_PROFILE/user', 'OUTLET/outlet/CATEGORY']);
+  assert.deepEqual(f.updateCalls, []); assert.deepEqual(f.records, before);
+});
 
 test('updates only both names on the selected document and preserves all other fields and records', async () => {
   const f = fixture(); const expected = structuredClone(f.records);
@@ -91,5 +147,30 @@ test('failed transaction leaves names intact; retry of the same names does not d
   const good = fixture(); await updateCategoryNames(good.db, 'outlet', 'c1', 'user', assigned, names);
   const saved = structuredClone(good.records);
   await updateCategoryNames(good.db, 'outlet', 'c1', 'user', assigned, names);
-  assert.deepEqual(good.records, saved);
+  assert.deepEqual(good.records, saved); assert.equal(good.updateCalls.length, 1);
+});
+
+test('transaction retry rechecks an initially unchanged category against fresh values', async () => {
+  const f = fixture(); const input = { name: 'Food', regionalName: '' };
+  f.retryBeforeCommit(() => { f.records.get('OUTLET/outlet/CATEGORY/c1')!.name = 'Concurrent'; });
+  assert.deepEqual(await updateCategoryNames(f.db, 'outlet', 'c1', 'user', assigned, input), { id: 'c1', ...input });
+  assert.deepEqual(f.reads, ['USER_PROFILE/user', 'OUTLET/outlet/CATEGORY', 'USER_PROFILE/user', 'OUTLET/outlet/CATEGORY']);
+  assert.deepEqual(f.updateCalls, [{ path: 'OUTLET/outlet/CATEGORY/c1', fields: input }]);
+  assert.equal(f.updates.length, 1);
+});
+
+test('transaction retry skips the update when another writer already saved the requested names', async () => {
+  const f = fixture(); const input = { name: 'New Food', regionalName: 'Local' };
+  f.retryBeforeCommit(() => { Object.assign(f.records.get('OUTLET/outlet/CATEGORY/c1')!, input); });
+  assert.deepEqual(await updateCategoryNames(f.db, 'outlet', 'c1', 'user', assigned, input), { id: 'c1', ...input });
+  assert.equal(f.reads.length, 4); assert.equal(f.updateCalls.length, 1);
+  assert.deepEqual(f.updates, [], 'the abandoned attempt must not commit');
+});
+
+test('transaction retry revalidates authorization before an unchanged return', async () => {
+  const f = fixture(); const input = { name: 'Food', regionalName: '' };
+  f.retryBeforeCommit(() => { f.records.get('USER_PROFILE/user')!.active = false; });
+  await assert.rejects(updateCategoryNames(f.db, 'outlet', 'c1', 'user', assigned, input), { status: 403 });
+  assert.deepEqual(f.reads, ['USER_PROFILE/user', 'OUTLET/outlet/CATEGORY', 'USER_PROFILE/user']);
+  assert.deepEqual(f.updateCalls, []);
 });
