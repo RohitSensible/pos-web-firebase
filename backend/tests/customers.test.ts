@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Firestore } from 'firebase-admin/firestore';
-import { listOutletCustomers, createOutletCustomer } from '../src/customers.js';
+import { listOutletCustomers, createOutletCustomer, updateOutletCustomer } from '../src/customers.js';
 const assigned = (profile: Record<string, unknown>) => [...new Set([
   ...(Array.isArray(profile.outlets) ? profile.outlets : []),
   ...(Array.isArray(profile.outletList) ? profile.outletList : []), profile.outletId,
@@ -45,7 +45,10 @@ function fixture() {
   const db = { collection,
     runTransaction: async (work: (tx: unknown) => unknown) => {
       const pending: { path: string; fields: Record<string, unknown> }[] = [];
-      const result = await work({ get: (ref: any) => ref.get(), create: (ref: any, fields: Record<string, unknown>) => {
+      const result = await work({ get: (ref: any) => ref.get(), update: (ref: any, fields: Record<string, unknown>) => {
+        assert.ok(records.has(ref.path), 'Only update existing customer');
+        pending.push({ path: ref.path, fields: { ...records.get(ref.path), ...fields } });
+      }, create: (ref: any, fields: Record<string, unknown>) => {
         assert.ok(!records.has(ref.path), 'Never overwrite existing customer'); pending.push({ path: ref.path, fields });
       } });
       if (failCommit) throw new Error('DATABASE FAILURE');
@@ -86,13 +89,73 @@ test('save retries return the same record without duplicates or overwrites', asy
   assert.deepEqual(await createOutletCustomer(f.db, 'outlet', 'current', assigned, draft), first); assert.equal(f.writes.length, 1);
   await assert.rejects(createOutletCustomer(f.db, 'outlet', 'current', assigned, { ...draft, balance: 50 }), { status: 409 }); assert.equal(f.writes.length, 1);
 });
-test('duplicate primary mobile is rejected while existing optional contact conventions remain supported', async () => {
+test('duplicate primary mobile is rejected while alternate contact remains optional', async () => {
   const f = fixture();
   await assert.rejects(createOutletCustomer(f.db, 'outlet', 'current', assigned, { ...draft, contact: '98765 43210' }), { status: 409 });
   assert.deepEqual(f.writes, []);
-  const first = await createOutletCustomer(f.db, 'outlet', 'current', assigned, { ...draft, contact: '', altContact: '', allowedCredit: false });
-  const second = await createOutletCustomer(f.db, 'outlet', 'current', assigned, { ...draft, requestId: '22222222-2222-4222-8222-222222222222', contact: '' });
+  const first = await createOutletCustomer(f.db, 'outlet', 'current', assigned, { ...draft, altContact: '', allowedCredit: false });
+  const second = await createOutletCustomer(f.db, 'outlet', 'current', assigned, { ...draft, requestId: '22222222-2222-4222-8222-222222222222', contact: '123' });
   assert.notEqual(first.documentId, second.documentId); assert.equal(first.allowedCredit, false); assert.equal(second.altContact, draft.altContact);
+});
+
+for (const [field, value, message] of [
+  ['name', '', 'Customer name is required'], ['name', ' \t\n ', 'Customer name is required'],
+  ['contact', '', 'Mobile number is required'], ['contact', ' \t\n ', 'Mobile number is required'],
+  ['contact', 'letters', 'Enter a valid mobile number.'], ['contact', '+ ()-', 'Enter a valid mobile number.'],
+] as const) {
+  test(`create and update reject ${field}=${JSON.stringify(value)} before database access`, async () => {
+    for (const operation of ['create', 'update']) {
+      const f = fixture(); const before = structuredClone(f.records);
+      const result = operation === 'create'
+        ? createOutletCustomer(f.db, 'outlet', 'current', assigned, { ...draft, [field]: value })
+        : updateOutletCustomer(f.db, 'outlet', 'existing', 'current', assigned, { [field]: value });
+      await assert.rejects(result, { status: 422, message });
+      assert.deepEqual(f.reads, []); assert.deepEqual(f.writes, []); assert.deepEqual(f.records, before);
+    }
+  });
+}
+
+test('valid trimmed name and mobile allow empty optional fields without new phone restrictions', async () => {
+  const f = fixture();
+  const result = await createOutletCustomer(f.db, 'outlet', 'current', assigned, { ...draft,
+    name: '  Valid Customer  ', contact: '  +1 (2)-3  ', altContact: '', email: '', gstNo: '', address: '',
+    birthdayDate: '', anniversaryDate: '', allowedCredit: false });
+  assert.equal(result.name, 'Valid Customer'); assert.equal(result.contact, '+1 (2)-3');
+  for (const key of ['altContact', 'email', 'gstNo', 'address', 'birthdayDate', 'anniversaryDate'] as const) assert.equal(result[key], '');
+  assert.equal(result.balance, draft.balance); assert.equal(f.writes.length, 1);
+});
+
+test('valid partial edits preserve omitted required fields, numeric values and shared document format', async () => {
+  const f = fixture();
+  const result = await updateOutletCustomer(f.db, 'outlet', 'existing', 'current', assigned, { address: 'Updated address' });
+  assert.equal(result.name, customer.name); assert.equal(result.contact, customer.contact); assert.equal(result.balance, customer.balance);
+  assert.deepEqual(f.records.get('OUTLET/outlet/CUSTOMER/existing'), { ...customer, address: 'Updated address' });
+  assert.equal(f.writes.length, 1);
+  const updated = await updateOutletCustomer(f.db, 'outlet', 'existing', 'current', assigned, { name: ' Updated ', contact: ' +1 (2)-3 ' });
+  assert.equal(updated.name, 'Updated'); assert.equal(updated.contact, '+1 (2)-3'); assert.equal(f.writes.length, 2);
+  await assert.rejects(updateOutletCustomer(f.db, 'outlet', 'existing', 'current', assigned, { contact: '9876543210' , name: '' }), { status: 422 });
+  assert.equal(f.writes.length, 2);
+});
+
+test('legacy customers with invalid required fields cannot bypass validation with a partial update', async () => {
+  for (const invalid of [{ name: '' }, { name: '  ' }, { contact: '' }, { contact: null }, { contact: '+ ()-' }]) {
+    const f = fixture(); f.records.set('OUTLET/outlet/CUSTOMER/existing', { ...customer, ...invalid });
+    const before = structuredClone(f.records);
+    await assert.rejects(updateOutletCustomer(f.db, 'outlet', 'existing', 'current', assigned, { address: 'Updated' }), { status: 422 });
+    assert.deepEqual(f.writes, []); assert.deepEqual(f.records, before);
+    const updated = await updateOutletCustomer(f.db, 'outlet', 'existing', 'current', assigned, { name: 'Corrected', contact: '123' });
+    assert.equal(updated.name, 'Corrected'); assert.equal(updated.contact, '123'); assert.equal(f.writes.length, 1);
+  }
+});
+
+test('update keeps duplicate, authorization and missing customer checks', async () => {
+  const f = fixture();
+  f.records.set('OUTLET/outlet/CUSTOMER/another', { ...customer, contact: '123' });
+  await assert.rejects(updateOutletCustomer(f.db, 'outlet', 'existing', 'current', assigned, { contact: '123' }), { status: 409 });
+  await assert.rejects(updateOutletCustomer(f.db, 'outlet', 'missing', 'current', assigned, { name: 'Valid' }), { status: 404 });
+  await assert.rejects(updateOutletCustomer(f.db, 'outlet', 'existing', 'foreign-user', assigned, { name: 'Valid' }), { status: 403 });
+  await assert.rejects(updateOutletCustomer(f.db, 'outlet', 'existing', null, assigned, { name: 'Valid' }), { status: 401 });
+  assert.deepEqual(f.writes, []);
 });
 test('unauthenticated, inactive, missing and cross-outlet identities cannot list or create', async () => {
   for (const [outlet, user, status] of [['outlet', null, 401], ['foreign', 'current', 403], ['outlet', 'inactive', 403], ['outlet', 'missing', 403], ['bad/path', 'current', 400]] as const) {

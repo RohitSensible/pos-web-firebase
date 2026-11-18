@@ -137,10 +137,10 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
     } catch (failure) { if (!controller.signal.aborted) setSaveError((failure as Error).message); }
     finally { if (!controller.signal.aborted) { busy.current = false; setSaving(false); } }
   };
-  if (draft) return <section className="category-modal service-point-form-page master-form-page" aria-labelledby="service-point-title">
+  if (draft) return <section className="category-modal service-point-form-page master-form-page master-form-top-actions" aria-labelledby="service-point-title">
     <form onSubmit={save}>{confirmation}
       <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon"><Printer size={24} /></span><div><PageHeading as="h3" id="service-point-title">{editing ? 'Edit Service Point' : 'Add Service Point'}</PageHeading><p>Service Point details</p></div></div>
-        <button type="button" className="modal-close-btn" aria-label="Close service point form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button></div>
+        <div className="master-form-header-actions"><button type="button" className="btn-secondary" disabled={saving} onClick={() => setDraft(null)}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}><Save size={16} />{saving ? 'Saving…' : editing ? 'Update' : 'Save'}</button><button type="button" className="modal-close-btn" aria-label="Close service point form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button></div></div>
       <fieldset className="service-point-fields" disabled={saving}>
         <div className="form-field"><label htmlFor="service-point-name">Name</label><input id="service-point-name" autoFocus required maxLength={200} value={draft.name} onChange={event => change('name', event.target.value)} /></div>
         <fieldset className="service-point-options"><legend>Select printer paper size</legend>{[2, 3].map(size => <label key={size}><input type="radio" name="paperSize" value={size} checked={draft.paperSize === size} onChange={() => change('paperSize', size)} />{size} Inch</label>)}</fieldset>
@@ -155,7 +155,6 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
           <textarea id={`service-point-${key}`} rows={2} maxLength={2000} value={draft[key]} onChange={event => change(key, event.target.value)} /></div>)}
       </fieldset>
       {saveError && <p className="service-point-error" role="alert">{saveError}</p>}
-      <div className="modal-footer"><button type="button" className="btn-secondary" disabled={saving} onClick={() => setDraft(null)}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}><Save size={16} />{saving ? 'Saving…' : editing ? 'Update' : 'Save'}</button></div>
     </form>
   </section>;
   return <section className="category-page service-points-page" aria-label="Service Points">
@@ -178,7 +177,7 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
     {error ? <div className="service-point-state" role="alert">{error}<button type="button" className="btn-secondary" onClick={() => { setRows(null); setError(''); setReload(value => value + 1); }}><RefreshCw size={15} />Retry</button></div>
       : rows === null ? <p className="service-point-state" role="status" data-inline-loading>Loading service points…</p>
       : !rows.length ? <p className="service-point-state">No service points yet. Add a service point to get started.</p>
-      : <div className="service-points-table"><table className="mobile-record-table"><thead><tr><th>Name</th><th>Paper Size</th><th>Printer Type</th><th>Header</th><th>Sub Header</th><th>Footer</th><th>Actions</th></tr></thead><tbody>
+      : <div className="service-points-table" role="region" aria-label="Service point records" tabIndex={0}><table className="mobile-record-table"><thead><tr><th scope="col">Name</th><th scope="col">Paper Size</th><th scope="col">Printer Type</th><th scope="col">Header</th><th scope="col">Sub Header</th><th scope="col">Footer</th><th scope="col">Actions</th></tr></thead><tbody>
         {rows.map(row => <tr key={row.documentId} onClick={() => openEdit(row)}><td data-label="Service point" className="mobile-record-name"><button type="button" className="service-point-name-button" aria-label={`Edit service point ${row.name || 'Unnamed service point'}`} onClick={event => { event.stopPropagation(); openEdit(row); }}>{row.name || 'Unnamed service point'}</button></td><td data-label="Paper size">{row.paperSize === 2 || row.paperSize === 3 ? `${row.paperSize} Inch` : '—'}</td><td data-label="Printer type">{row.printerType !== null && printerTypes[row.printerType] || '—'}</td><td data-label="Header">{row.header || '—'}</td><td data-label="Sub header">{row.subHeader || '—'}</td><td data-label="Footer">{row.footer || '—'}</td><td className="mobile-record-actions"><div><button type="button" className="mobile-record-edit" onClick={event => { event.stopPropagation(); openEdit(row); }}><Pencil size={14} />Edit</button><button type="button" className="service-point-delete-button" aria-label={`Delete service point ${row.name || 'Unnamed service point'}`} onClick={event => { event.stopPropagation(); setNotice(''); setDeleteError(''); setDeleting(row); }}><Trash2 size={15} />Delete</button></div></td></tr>)}
       </tbody></table></div>}
     {deleting && <DeleteConfirmation kind="service point" name={deleting.name || 'Unnamed service point'} busy={deleteBusy} error={deleteError}

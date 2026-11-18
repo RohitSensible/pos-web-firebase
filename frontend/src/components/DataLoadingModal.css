@@ -19,3 +19,6 @@ body:has(.data-loading-overlay[data-loading-root]) .bill-table-card:has([data-in
 .data-loading-modal button:focus-visible { outline: 2px solid var(--dialog-action-primary); outline-offset: 3px; }
 body:has(.retail-dashboard-shell[aria-hidden="true"]) .data-loading-overlay[data-loading-root] { display: none; }
 @media print { .data-loading-overlay[data-loading-root] { display: none !important; } }
+@media screen and (max-width: 600px) {
+  .data-loading-dismiss { width: 44px; height: 44px; }
+}

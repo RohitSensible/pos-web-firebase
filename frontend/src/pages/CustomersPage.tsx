@@ -13,7 +13,7 @@ import { DeleteConfirmation } from './DeleteConfirmation.tsx';
 import { DeleteAllError, deleteAllRecords } from './deleteAllApi.ts';
 import { SuccessPopup } from './SuccessPopup.tsx';
 import { useTimedNotice } from '../utils/useTimedNotice.ts';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { MoreVertical, Pencil, Plus, RefreshCw, Save, Trash2, UsersRound, X } from 'lucide-react';
 import type { OutletSummary } from './OutletSelectionPage.tsx';
 import { ReportDateInput } from './ReportDateInput.tsx';
@@ -32,6 +32,14 @@ interface CustomerDraft extends Omit<Customer, 'documentId' | 'creditLimit' | 'd
   requestId: string; creditLimit: string; dayLimit: string; balance: string;
 }
 const money = (value: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value);
+const requiredCustomerError = (id: string, value: string) => {
+  if (id === 'customer-name' && !value.trim()) return 'Customer name is required';
+  if (id === 'customer-contact') {
+    if (!value.trim()) return 'Mobile number is required';
+    if (!/^\+?(?=.*\d)[\d ()-]+$/.test(value.trim())) return 'Enter a valid mobile number.';
+  }
+  return '';
+};
 
 interface CustomersPageProps { outlet: OutletSummary; token: string; onSessionExpired: () => void }
 
@@ -62,6 +70,25 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
   const openDraft = (next: CustomerDraft) => { baseline.current = next; setDraft(next); };
   const { confirmAction, confirmation } = useActionConfirmation(!!draft);
   const [saveError, setSaveError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  const invalidFieldToFocus = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (!draft) return;
+    for (const [id, value] of [['customer-name', draft.name], ['customer-contact', draft.contact]]) {
+      formRef.current?.querySelector<HTMLInputElement>(`#${id}`)?.setCustomValidity(requiredCustomerError(id, value));
+    }
+  }, [draft]);
+  useEffect(() => {
+    if (!invalidFieldToFocus.current) return;
+    formRef.current?.querySelector<HTMLInputElement>(`#${invalidFieldToFocus.current}`)?.focus();
+    invalidFieldToFocus.current = null;
+  }, [fieldErrors]);
+  const fieldErrorProps = (id: string) => ({
+    'aria-invalid': fieldErrors[id] ? true : undefined,
+    'aria-describedby': fieldErrors[id] ? `${id}-error` : undefined,
+  });
+  const fieldError = (id: string) => fieldErrors[id] && <p id={`${id}-error`} className="customer-field-error">{fieldErrors[id]}</p>;
   const [notice, setNotice] = useTimedNotice(false);
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
@@ -126,6 +153,7 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
 
   const openAdd = () => {
     setEditing(null);
+    setFieldErrors({});
     setSaveError(''); setNotice('');
     openDraft({ requestId: createRequestId(), name: '', contact: '', altContact: '', email: '', gstNo: '', address: '',
       creditLimit: '0', dayLimit: '0', balance: '0', birthdayDate: '', anniversaryDate: '', allowedCredit: false });
@@ -133,6 +161,7 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
   const openEdit = (customer: Customer) => {
     if (busy.current) return;
     const { documentId: _documentId, ...fields } = customer;
+    setFieldErrors({});
     setEditing(customer); setSaveError(''); setNotice('');
     openDraft({ ...fields, requestId: '', creditLimit: String(customer.creditLimit), dayLimit: String(customer.dayLimit), balance: String(customer.balance) });
   };
@@ -162,8 +191,22 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
     const controller = request.current;
     if (!controller || controller.signal.aborted) return;
     setSaveError('');
+    const requiredErrors = Object.fromEntries([
+      ['customer-name', requiredCustomerError('customer-name', draft.name)],
+      ['customer-contact', requiredCustomerError('customer-contact', draft.contact)],
+    ].filter(([, message]) => message));
+    if (Object.keys(requiredErrors).length) {
+      invalidFieldToFocus.current = Object.keys(requiredErrors)[0];
+      setFieldErrors(requiredErrors); return;
+    }
     const body = { ...draft, creditLimit: Number(draft.creditLimit), dayLimit: Number(draft.dayLimit), balance: Number(draft.balance) };
     if (![body.creditLimit, body.dayLimit, body.balance].every(Number.isFinite) || !Number.isInteger(body.dayLimit) || body.dayLimit < 0) {
+      const errors: Record<string, string> = {};
+      if (!Number.isFinite(body.creditLimit)) errors['customer-credit-limit'] = 'Enter a finite credit limit.';
+      if (!Number.isFinite(body.dayLimit) || !Number.isInteger(body.dayLimit) || body.dayLimit < 0) errors['customer-day-limit'] = 'Enter a non-negative whole day limit.';
+      if (!Number.isFinite(body.balance)) errors['customer-balance'] = 'Enter a finite old balance.';
+      invalidFieldToFocus.current = Object.keys(errors)[0];
+      setFieldErrors(errors);
       setSaveError('Enter valid amounts and a non-negative whole day limit.'); return;
     }
     if (!await confirmAction(editing ? 'update' : 'add', draft.name.trim())) return;
@@ -196,28 +239,43 @@ function CustomersPageContent({ outlet, token, onSessionExpired }: CustomersPage
   }, [draft]);
 
   const { rows: shownCustomers, hasMore: moreCustomers, sentinelRef: moreCustomersRef } = useRowBatches(filteredCustomers, JSON.stringify([outlet.id, token, query, searchRevision]));
-  if (draft) return <section className="category-modal customer-form-page master-form-page" aria-labelledby="customer-form-title"><form onSubmit={save}>{confirmation}
-    <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UsersRound size={24} /></span><div><PageHeading as="h3" id="customer-form-title">{editing ? 'Edit Customer' : 'Add Customer'}</PageHeading><p>Contact, billing and credit details</p></div></div><button type="button" className="modal-close-btn" aria-label="Close customer form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div>
+  if (draft) return <section className="category-modal customer-form-page master-form-page master-form-top-actions" aria-labelledby="customer-form-title"><form ref={formRef} onSubmit={save}
+    onInvalid={event => {
+      const field = event.target;
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+        setFieldErrors(current => ({ ...current, [field.id]: field.validationMessage }));
+      }
+    }}
+    onInputCapture={event => {
+      const field = event.target;
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+        setFieldErrors(current => {
+          if (!current[field.id]) return current;
+          const next = { ...current }; delete next[field.id]; return next;
+        });
+      }
+    }}>{confirmation}
+    <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UsersRound size={24} /></span><div><PageHeading as="h3" id="customer-form-title">{editing ? 'Edit Customer' : 'Add Customer'}</PageHeading><p>Contact, billing and credit details</p></div></div><div className="master-form-header-actions"><button type="button" className="btn-secondary" disabled={saving} onClick={closeDraft}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}>{saving ? <RefreshCw size={16} /> : <Save size={16} />}{saving ? 'Saving…' : editing ? 'Update Customer' : 'Save Customer'}</button><button type="button" className="modal-close-btn" aria-label="Close customer form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div></div>
     <fieldset className="customer-form-fields" disabled={saving}>
       <div className="master-form-section-heading"><span>01</span><h4>Contact information</h4></div>
-      <div className="form-field"><label htmlFor="customer-name">Name</label><input id="customer-name" placeholder="Customer or business name" autoFocus autoComplete="name" maxLength={200} value={draft.name} onChange={event => changeText('name', event.target.value)} /></div>
-      <div className="form-field"><label htmlFor="customer-contact">Mobile Number</label><input id="customer-contact" placeholder="Enter mobile number" type="tel" autoComplete="tel" maxLength={30} pattern="\+?[0-9 \(\)\-]+" value={draft.contact} onChange={event => changeText('contact', event.target.value)} /></div>
-      <div className="form-field"><label htmlFor="customer-alt-contact">Alternate Mobile Number</label><input id="customer-alt-contact" placeholder="Optional alternate number" type="tel" maxLength={30} pattern="\+?[0-9 \(\)\-]+" value={draft.altContact} onChange={event => changeText('altContact', event.target.value)} /></div>
-      <div className="form-field"><label htmlFor="customer-email">Email ID</label><input id="customer-email" placeholder="name@example.com" type="email" autoComplete="email" maxLength={320} value={draft.email} onChange={event => changeText('email', event.target.value)} /></div>
+      <div className="form-field"><label htmlFor="customer-name">Name</label><input id="customer-name" {...fieldErrorProps('customer-name')} required placeholder="Customer or business name" autoFocus autoComplete="name" maxLength={200} value={draft.name} onChange={event => changeText('name', event.target.value)} />{fieldError('customer-name')}</div>
+      <div className="form-field"><label htmlFor="customer-contact">Mobile Number</label><input id="customer-contact" {...fieldErrorProps('customer-contact')} required placeholder="Enter mobile number" type="tel" autoComplete="tel" maxLength={30} pattern="\+?[0-9 \(\)\-]+" value={draft.contact} onChange={event => changeText('contact', event.target.value)} />{fieldError('customer-contact')}</div>
+      <div className="form-field"><label htmlFor="customer-alt-contact">Alternate Mobile Number</label><input id="customer-alt-contact" {...fieldErrorProps('customer-alt-contact')} placeholder="Optional alternate number" type="tel" maxLength={30} pattern="\+?[0-9 \(\)\-]+" value={draft.altContact} onChange={event => changeText('altContact', event.target.value)} />{fieldError('customer-alt-contact')}</div>
+      <div className="form-field"><label htmlFor="customer-email">Email ID</label><input id="customer-email" {...fieldErrorProps('customer-email')} placeholder="name@example.com" type="email" autoComplete="email" maxLength={320} value={draft.email} onChange={event => changeText('email', event.target.value)} />{fieldError('customer-email')}</div>
       <div className="master-form-section-heading"><span>02</span><h4>Business details</h4></div>
-      <div className="form-field"><label htmlFor="customer-gst">GST Number</label><input id="customer-gst" placeholder="Enter GST number" maxLength={100} value={draft.gstNo} onChange={event => changeText('gstNo', event.target.value)} /></div>
-      <div className="form-field"><label htmlFor="customer-address">Address</label><textarea id="customer-address" placeholder="Street, area, city and PIN code" autoComplete="street-address" maxLength={2000} rows={3} value={draft.address} onChange={event => changeText('address', event.target.value)} /></div>
+      <div className="form-field"><label htmlFor="customer-gst">GST Number</label><input id="customer-gst" {...fieldErrorProps('customer-gst')} placeholder="Enter GST number" maxLength={100} value={draft.gstNo} onChange={event => changeText('gstNo', event.target.value)} />{fieldError('customer-gst')}</div>
+      <div className="form-field"><label htmlFor="customer-address">Address</label><textarea id="customer-address" {...fieldErrorProps('customer-address')} placeholder="Street, area, city and PIN code" autoComplete="street-address" maxLength={2000} rows={3} value={draft.address} onChange={event => changeText('address', event.target.value)} />{fieldError('customer-address')}</div>
       <div className="master-form-section-heading"><span>03</span><h4>Credit & balance</h4></div>
-      <div className="form-field"><label htmlFor="customer-credit-limit">Credit Limit</label><input id="customer-credit-limit" type="number" step="0.01" value={draft.creditLimit} onChange={event => changeText('creditLimit', event.target.value)} /></div>
-      <div className="form-field"><label htmlFor="customer-day-limit">Day Limit</label><input id="customer-day-limit" type="number" step="1" min={0} value={draft.dayLimit} onChange={event => changeText('dayLimit', event.target.value)} /></div>
-      <div className="form-field"><label htmlFor="customer-balance">Old Balance</label><input id="customer-balance" type="number" step="0.01" value={draft.balance} onChange={event => changeText('balance', event.target.value)} /></div>
+      <div className="form-field"><label htmlFor="customer-credit-limit">Credit Limit</label><input id="customer-credit-limit" {...fieldErrorProps('customer-credit-limit')} type="number" step="0.01" value={draft.creditLimit} onChange={event => changeText('creditLimit', event.target.value)} />{fieldError('customer-credit-limit')}</div>
+      <div className="form-field"><label htmlFor="customer-day-limit">Day Limit</label><input id="customer-day-limit" {...fieldErrorProps('customer-day-limit')} type="number" step="1" min={0} value={draft.dayLimit} onChange={event => changeText('dayLimit', event.target.value)} />{fieldError('customer-day-limit')}</div>
+      <div className="form-field"><label htmlFor="customer-balance">Old Balance</label><input id="customer-balance" {...fieldErrorProps('customer-balance')} type="number" step="0.01" value={draft.balance} onChange={event => changeText('balance', event.target.value)} />{fieldError('customer-balance')}</div>
       <div className="master-form-section-heading"><span>04</span><h4>Important dates</h4></div>
       <div className="form-field"><label htmlFor="customer-birth-date">Birth Date</label><ReportDateInput id="customer-birth-date" aria-label="Birth Date" value={draft.birthdayDate} onChange={value => changeText('birthdayDate', value)} disabled={saving} /></div>
       <div className="form-field"><label htmlFor="customer-anniversary-date">Anniversary Date</label><ReportDateInput id="customer-anniversary-date" aria-label="Anniversary Date" value={draft.anniversaryDate} onChange={value => changeText('anniversaryDate', value)} disabled={saving} /></div>
       <div className="form-field customer-credit-option"><label className="customer-credit-checkbox" htmlFor="customer-credit-only"><input id="customer-credit-only" type="checkbox" checked={draft.allowedCredit} onChange={event => { setSaveError(''); setDraft(current => current ? { ...current, allowedCredit: event.target.checked } : current); }} />Credit Only</label><small>Set the customer’s credit preference.</small></div>
     </fieldset>
     {saveError && <p className="customer-save-error" role="alert">{saveError}</p>}
-    <div className="modal-footer">{editing && !saving && <OutletMasterDeleteButton outletId={outlet.id} token={token} collection="customers" documentId={editing.documentId} name={editing.name || 'Unnamed customer'} onSessionExpired={onSessionExpired} onDeleted={() => customerDeleted(editing.documentId)} />}<button type="button" className="btn-secondary" disabled={saving} onClick={closeDraft}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}>{saving ? <RefreshCw size={16} /> : <Save size={16} />}{saving ? 'Saving…' : editing ? 'Update Customer' : 'Save Customer'}</button></div>
+    {editing && !saving && <div className="modal-footer"><OutletMasterDeleteButton outletId={outlet.id} token={token} collection="customers" documentId={editing.documentId} name={editing.name || 'Unnamed customer'} onSessionExpired={onSessionExpired} onDeleted={() => customerDeleted(editing.documentId)} /></div>}
   </form></section>;
 
   return <section className="customers-page category-page-shell">

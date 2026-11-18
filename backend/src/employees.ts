@@ -121,7 +121,10 @@ export async function updateOutletEmployee(db: Firestore, outletId: string, docu
     if (others.some(doc => mobileKey(doc.data().mobile) === mobileKey(data.mobile))) {
       throw new ProductCreationError(409, 'An employee with this mobile number already exists. Select the existing employee.');
     }
-    transaction.update(reference, data);
-    return employeeDetails(documentId, { ...record.data(), ...data });
+    const stored = record.data()!;
+    if (Object.entries(data).some(([key, value]) => value !== stored[key])) {
+      transaction.update(reference, data);
+    }
+    return employeeDetails(documentId, { ...stored, ...data });
   });
 }

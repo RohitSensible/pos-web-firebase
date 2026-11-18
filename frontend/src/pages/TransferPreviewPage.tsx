@@ -75,7 +75,7 @@ export function TransferPreviewPage({ outlet, token, onSessionExpired }: {
   return <section className="devices-page transfer-preview" aria-label="Product transfer">
     <div className="devices-heading"><div><span>MASTERS</span><PageHeading onBack={destination ? () => { if (!busy) setDestinationId(''); } : undefined} backDisabled={busy}><Database size={24} /> Product Transfer</PageHeading>
       <p>Copy products between outlets.</p></div></div>
-    <div className="transfer-route">
+    <div className={`transfer-route${destination ? ' transfer-route-chosen' : ''}`}>
       <article className="transfer-route-card transfer-source-card" aria-label="Source outlet">
         <span className="transfer-route-label">Source Outlet</span>
         <div className="transfer-route-outlet">
@@ -107,6 +107,7 @@ export function TransferPreviewPage({ outlet, token, onSessionExpired }: {
             </select></label>
             <button type="button" className="devices-refresh transfer-back-outlets" disabled={busy} onClick={() => setDestinationId('')}>Back to outlets</button>
           </div>}
+        {destination && <p className="transfer-destination-details">{destination.branch || 'Selected outlet'}<span className={`transfer-status-badge${destination.active === false ? ' inactive' : ''}`}>{destination.active === false ? 'Inactive' : 'Active'}</span></p>}
       </article>
     </div>
     {pendingDestination && <QuickPinDialog key={`${outlet.id}:${pendingDestination.id}:${token}`} sourceId={outlet.id} destination={pendingDestination} token={token} onSessionExpired={onSessionExpired}
@@ -174,6 +175,8 @@ function OutletPreview({ source, destination, token, grant, busy, onBusy, onFini
   const destinationProducts = usePreviewRead<Product[]>(`${base(destination.id)}/products`, token, onSessionExpired);
   const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
+  const [selectedOnly, setSelectedOnly] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [rawSelected, setSelected] = useState<string[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [options, setOptions] = useState<TransferOptions>(defaultOptions);
@@ -191,7 +194,8 @@ function OutletPreview({ source, destination, token, grant, busy, onBusy, onFini
   if (requests.some(request => request.loading || request.error)) return <div className="devices-state">
     {outcome}
     {requests.filter(request => request.loading).map(request => <p key={request.label} role="status" data-inline-loading>Loading {request.label}…</p>)}
-    {requests.filter(request => request.error).map(request => <div key={request.label}><p role="alert">Unable to load {request.label}: {request.error}</p><button type="button" className="devices-refresh" onClick={request.retry}>Retry {request.label}</button></div>)}
+    {requests.some(request => request.error) && <button type="button" className="devices-refresh" disabled={requests.some(request => request.loading)}
+      onClick={() => requests.filter(request => request.error).forEach(request => request.retry())}>Retry</button>}
   </div>;
   const categories = sourceCategories.data ?? [];
   const targets = destinationCategories.data ?? [];
@@ -211,7 +215,9 @@ function OutletPreview({ source, destination, token, grant, busy, onBusy, onFini
   const mappingFor = (id: string) => presentCategory(categories.find(category => category.id === id))?.id;
   const matchingProducts = mobileSearch ? searchRecords(products, search, product => ({ primary: [product.fields.name], text: [product.fields.name, categoryName(product.fields.category)], identifiers: [product.fields.code, product.fields.barcode] }))
     : products.filter(product => [product.fields.name, product.fields.code, product.fields.barcode, categoryName(product.fields.category)].some(value => normalized(value).includes(query)));
-  const rows = matchingProducts.map(product => ({ id: product.documentId, product }));
+  const rows = matchingProducts.filter(product => (!categoryFilter || product.fields.category === categoryFilter)
+    && (!selectedOnly || selected.includes(product.documentId))).map(product => ({ id: product.documentId, product }));
+  const hiddenSelectedCount = selected.filter(id => !rows.some(row => row.id === id)).length;
   const toggle = (id: string) => setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id]);
   const selectableRows = rows.filter(row => !isPresent(row.id));
   const allVisible = selectableRows.length > 0 && selectableRows.every(row => selected.includes(row.id));
@@ -279,19 +285,27 @@ function OutletPreview({ source, destination, token, grant, busy, onBusy, onFini
     {error && <p role="alert">{error}</p>}
     {outcome}
     <fieldset className="transfer-preview-selection" disabled={busy}>
-    <div className="transfer-preview-controls"><h2>Select products</h2>
-      <p><strong>{source.name}</strong> → <strong>{destination.name}</strong></p>
+    <div className="transfer-preview-controls transfer-product-controls">
+      <div className="transfer-selection-heading"><h2>Select products</h2><p><strong>{source.name}</strong> → <strong>{destination.name}</strong></p></div>
       <p className="transfer-category-help">Assigned categories transfer automatically. Products without a category appear under All.</p>
+      <div className="transfer-filter-fields">
       <label className="transfer-search-field">Search products<input type="search" value={search} placeholder="Search by name, code, barcode or category…" onChange={event => setSearch(event.target.value)} /></label>
+      <label>Category<select aria-label="Filter transfer products by category" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)}><option value="">All categories</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+      <label className="transfer-preview-check transfer-selected-only"><input type="checkbox" checked={selectedOnly} onChange={event => setSelectedOnly(event.target.checked)} />Selected only</label>
+      </div>
+      <div className="transfer-selection-actions">
       <label className="transfer-preview-check"><input type="checkbox" checked={allVisible} disabled={!selectableRows.length} ref={input => { if (input) input.indeterminate = !allVisible && selectableRows.some(row => selected.includes(row.id)); }}
         onChange={() => setSelected(current => allVisible ? current.filter(id => !rows.some(row => row.id === id)) : [...new Set([...current, ...selectableRows.map(row => row.id)])])} />Select all visible products</label>
+      <span className="transfer-filter-count" role="status">{rows.length} shown{hiddenSelectedCount > 0 ? ` · ${hiddenSelectedCount} selected hidden by filters` : ''}</span>
+      <button type="button" className="devices-refresh" disabled={!selected.length} onClick={() => setSelected([])}>Clear selection</button>
+      </div>
     </div>
-    {!rows.length ? <div className="devices-state"><p>{query ? 'No matching results.' : 'No source products found.'}</p></div> : <div className="devices-table-scroll"><table>
-      <thead><tr><th>Select</th><th>Source code</th><th>Product</th><th>Image</th><th>Destination code</th><th>Assigned category</th><th>Source stock</th></tr></thead>
+    {!rows.length ? <div className="devices-state transfer-products-empty"><p>{selectedOnly && !selected.length ? 'No products selected. Turn off Selected only to choose products.' : query || categoryFilter || selectedOnly ? 'No products match your filters. Your selections are retained.' : 'No source products found.'}</p></div> : <div className="devices-table-scroll transfer-products-table" role="region" aria-label="Transfer products" tabIndex={0}><table>
+      <thead><tr><th scope="col">Select</th><th scope="col">Source code</th><th scope="col">Product</th><th scope="col">Image</th><th scope="col">Destination code</th><th scope="col">Assigned category</th><th scope="col">Source stock</th></tr></thead>
       <tbody>{rows.map(({ id, product }) => {
         const name = text(product.fields.name);
         const present = isPresent(id);
-        return <tr key={id} className={present ? 'transfer-row-present' : undefined}>
+        return <tr key={id} className={[present ? 'transfer-row-present' : '', selected.includes(id) ? 'transfer-row-selected' : ''].filter(Boolean).join(' ') || undefined}>
           <td><input type="checkbox" aria-label={`Select ${name}`} checked={selected.includes(id)} disabled={present} onChange={() => toggle(id)} /></td>
           <td>{text(product.fields.code)}</td><td><strong>{name}</strong>{present && <span className="transfer-present-badge">Already present</span>}</td>
           <td><AuthenticatedImagePreview alt={`${name} image`} imagePath={productImageReference(product.fields)} endpoint={masterImageUrl(source.id, 'products', id)} token={token} onSessionExpired={onSessionExpired} /></td>
@@ -301,7 +315,7 @@ function OutletPreview({ source, destination, token, grant, busy, onBusy, onFini
       })}</tbody></table></div>}
     {allocationErrors.map(proposal => <p key={proposal.id} role="alert">{proposal.error}</p>)}
     <div className="transfer-action-bar">
-      <div><strong>{`${selected.length} products · ${chosenCategories.length} assigned categories`}</strong><p>{busy ? 'Transferring…' : 'Source records stay unchanged'}</p></div>
+      <div role="status" aria-atomic="true"><strong>{`${selected.length} products · ${chosenCategories.length} assigned categories`}</strong><p>{busy ? 'Transferring…' : selected.length ? 'Source records stay unchanged' : 'No products selected. Choose products to review.'}</p></div>
       <button type="button" className="transfer-action-button" disabled={busy || !selected.length || !!allocationErrors.length} onClick={() => { if (!grant) onAuthExpired(); else setConfirming(true); }}>{busy ? 'Transferring…' : 'Review & transfer'}<ArrowRight size={18} aria-hidden="true" /></button>
     </div>
     </fieldset>

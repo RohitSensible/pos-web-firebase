@@ -14,7 +14,7 @@ function fixture(method, failure) {
   assert.ok(route);
   const js = ts.transpileModule(`${reader.getText(tree)}\nconst handler = ${route.expression.arguments[1].getText(tree)};`,
     { compilerOptions: { target: ts.ScriptTarget.ES2023, module: ts.ModuleKind.None } }).outputText;
-  const deps = { jwt, JWT_SECRET: 'isolated-customers-test-key', ProductCreationError, assignedOutletIds: () => [],
+  const deps = { jwt, JWT_SECRET: 'isolated-customers-test-key', ProductCreationError, assignedOutletIds: () => [], wantsListStream: () => false,
     getFirestoreDb: () => { calls.push('db'); return {}; },
     listOutletCustomers: async (_db, outlet, profile) => { calls.push(['list', outlet, profile]); if (failure) throw failure; return { customers: [] }; },
     createOutletCustomer: async (_db, outlet, profile, _assigned, body) => { calls.push(['create', outlet, profile, body]); if (failure) throw failure; return { documentId: 'saved' }; },

@@ -15,9 +15,15 @@
 .master-form-icon { display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px; border: 1px solid color-mix(in srgb, var(--blue) 14%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--blue) 9%, var(--card)); color: var(--blue); }
 .master-form-page .master-form-title h3 { margin: 0; color: var(--ink); font-size: 22px; line-height: 1.3; letter-spacing: -.025em; }
 .master-form-title p { margin: 6px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
-.master-form-page > form > .modal-header > .modal-close-btn { align-self: flex-start; justify-content: center; width: 34px; height: 34px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); }
-.master-form-page > form > .modal-header > .modal-close-btn:hover { background: var(--workspace); color: var(--ink); }
-.master-form-page > form > .modal-header > .modal-close-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.master-form-page > form > .modal-header .modal-close-btn { align-self: flex-start; justify-content: center; width: 34px; height: 34px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); }
+.master-form-page > form > .modal-header .modal-close-btn:hover { background: var(--workspace); color: var(--ink); }
+.master-form-page > form > .modal-header .modal-close-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.master-form-top-actions > form > .master-form-header { flex-wrap: wrap; }
+.master-form-header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-left: auto; }
+.master-form-header-actions > :is(.btn-secondary, .btn-primary-add) { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 11px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; }
+.master-form-header-actions > .btn-primary-add { box-shadow: 0 3px 8px color-mix(in srgb, var(--blue) 18%, transparent); }
+.master-form-header-actions > button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.master-form-header-actions > .modal-close-btn { align-self: center; }
 .master-form-page :is(.customer-form-fields, .employees-form-fields) { width: 100%; margin: 0 auto; padding: 30px 32px 36px; gap: 22px; }
 .master-form-page .customer-form-fields { max-width: 860px; }
 .master-form-page .employees-form-fields { max-width: 1100px; }

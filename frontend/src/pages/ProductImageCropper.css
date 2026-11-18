@@ -52,3 +52,11 @@
   .product-crop-zoom output { min-width: 46px; padding: 5px 4px; }
   .product-crop-rotate { padding: 4px; }
 }
+@media screen and (max-width: 600px) {
+  .product-crop-toolbar { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .product-crop-zoom-label, .product-crop-divider { display: none; }
+  .product-crop-zoom { grid-column: 1 / -1; justify-content: center; }
+  .product-crop-zoom button { width: 44px; height: 44px; }
+  .product-crop-rotate { min-width: 44px; min-height: 44px; }
+  .product-crop-ratio button, .product-crop-actions button { min-height: 44px; }
+}

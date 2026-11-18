@@ -78,7 +78,7 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
     </div>;
   }
 
-  return <section className="devices-page devices-discovery-page">
+  return <section className="devices-page devices-discovery-page registered-devices-page">
     <div className="devices-heading"><div><span>OPERATIONS</span><PageHeading><Monitor size={24} /> Devices</PageHeading><p>View registered devices.</p></div>
       <button type="button" className="devices-refresh" disabled={loading} onClick={() => setReload(value => value + 1)}><RefreshCw size={16} />{loading ? 'Loading…' : 'Refresh'}</button></div>
     {loading ? <div data-inline-loading className="devices-state" role="status"><RefreshCw size={24} /><p>Loading devices…</p></div> : error ?
@@ -94,7 +94,7 @@ function DevicesContent({ outlet, token, onSessionExpired }: {
       </div>
       <p className="devices-result-count" role="status">{filtered.length} of {data.devices.length} devices</p>
       {!filtered.length ? <div className="devices-state"><h2>No matching devices</h2><p>Try a different search or clear the filters.</p><button type="button" className="devices-refresh" onClick={clearFilters}>Clear filters</button></div> :
-      <div className="devices-table-scroll" role="region" aria-label="Registered devices" tabIndex={0}><table className="mobile-record-table"><thead><tr><th>Outlet Name</th><th>Device ID</th><th>Status</th></tr></thead><tbody>{filtered.map(device => <tr key={device.documentId}>
+      <div className="devices-table-scroll" role="region" aria-label="Registered devices" tabIndex={0}><table className="mobile-record-table"><thead><tr><th scope="col">Outlet Name</th><th scope="col">Device ID</th><th scope="col">Status</th></tr></thead><tbody>{filtered.map(device => <tr key={device.documentId}>
         <td data-label="Outlet" className="mobile-record-name">{device.outletName || '—'}</td><td data-label="Device ID" className="device-id mobile-record-wide"><span>{device.deviceId}</span>
           <div className="devices-id-actions">
           <button type="button" className="devices-refresh devices-copy" disabled={copyFeedback[device.documentId] === 'copying'} onClick={() => { void copyId(device); }} aria-label={`Copy ID for device ${device.deviceId}`}><Copy size={15} aria-hidden="true" />{copyFeedback[device.documentId] === 'copying' ? 'Copying…' : copyFeedback[device.documentId] === 'failed' ? 'Retry copy' : 'Copy ID'}</button>

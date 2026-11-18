@@ -72,6 +72,33 @@
 }
 .devices-discovery-page :is(button, input, select, .devices-table-scroll):focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
 
+/* Devices only: Suppliers also uses the discovery layout above. */
+.registered-devices-page { gap: 24px; }
+.registered-devices-page .devices-heading p { margin: 0; }
+.registered-devices-page .devices-heading > button { flex-shrink: 0; min-height: 44px; }
+.registered-devices-page .devices-filters { gap: 16px; padding: 18px 20px; }
+.registered-devices-page .devices-filters > label:first-child { flex-basis: 300px; }
+.registered-devices-page .devices-filters > label:nth-child(2) { flex: 0 1 180px; }
+.registered-devices-page .devices-search-input { box-sizing: border-box; height: 44px; }
+.registered-devices-page .devices-search-input input { min-height: 0; height: 100%; }
+.registered-devices-page .devices-filters :is(select, button) { box-sizing: border-box; height: 44px; }
+.registered-devices-page .devices-table-scroll th:first-child { width: 28%; }
+.registered-devices-page .devices-table-scroll td { padding: 20px 22px; vertical-align: middle; }
+.registered-devices-page .device-id > span { line-height: 1.7; }
+.registered-devices-page .devices-id-actions { gap: 10px; margin-top: 12px; }
+.registered-devices-page .devices-id-actions > button { box-sizing: border-box; min-width: 108px; min-height: 40px; padding: 8px 12px; line-height: 1.4; }
+.registered-devices-page .devices-state { min-height: 200px; gap: 12px; line-height: 1.6; }
+.registered-devices-page .devices-state :is(h2, p) { margin: 0; max-width: 48ch; overflow-wrap: anywhere; }
+.registered-devices-page .devices-state > svg { color: var(--muted); }
+@media screen and (max-width: 820px), screen and (max-width: 1024px) and (max-height: 600px) {
+  .registered-devices-page { gap: 20px; }
+  .registered-devices-page .devices-filters { padding: 16px; gap: 14px 12px; }
+  .registered-devices-page .devices-filters > label:nth-child(2) { width: 100%; }
+  .registered-devices-page .mobile-record-table > tbody { gap: 16px; }
+  .registered-devices-page .devices-id-actions > button { min-width: 0; min-height: 44px; }
+  .registered-devices-page .devices-state { min-height: 180px; padding: 24px 16px; }
+}
+
 .device-qr-dialog { --theme-text: #17191c; --theme-raised: #fff; --card: #fff; --ink: #17191c; --line: #e2e8f0; --muted: #64748b; position: fixed; inset: 0; width: min(var(--dialog-width), calc(100% - 2 * var(--dialog-gutter))); max-height: calc(100dvh - 2 * var(--dialog-gutter)); margin: auto; padding: var(--dialog-padding); overflow-y: auto; border: 1px solid var(--line); border-radius: var(--dialog-radius); background: #fff; color: var(--ink); color-scheme: light; box-shadow: var(--dialog-shadow); }
 .device-qr-dialog > header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .device-qr-dialog h2 { margin: 0; color: #17191c; font-size: var(--dialog-heading-size); }

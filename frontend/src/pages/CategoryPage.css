@@ -7,6 +7,9 @@
 }
 
 /* Page Header & Stats */
+@media screen {
+  .category-master-page > .category-header-row { position: sticky; top: var(--page-sticky-top, 68px); z-index: 16; background: var(--workspace, #f5f7f9); }
+}
 .category-header-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

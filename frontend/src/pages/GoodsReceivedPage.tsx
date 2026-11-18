@@ -129,12 +129,16 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel, i
   const mobileSearch = useMobileSearch();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [selectedOnly, setSelectedOnly] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const visibleProducts = mobileSearch ? searchRecords(products.filter(product => !category || product.category === category), search, product => ({ text: [product.name], identifiers: [product.code, product.barcode] })) : products.filter(product => (!category || product.category === category)
+  const filteredProducts = mobileSearch ? searchRecords(products.filter(product => !category || product.category === category), search, product => ({ text: [product.name], identifiers: [product.code, product.barcode] })) : products.filter(product => (!category || product.category === category)
     && [product.name, product.code, product.barcode].some(value => value.toLowerCase().includes(search.trim().toLowerCase())));
+  const visibleProducts = selectedOnly ? filteredProducts.filter(product => rows.some(row => row.productId === product.id)) : filteredProducts;
+  const hiddenSelectedCount = rows.filter(row => !visibleProducts.some(product => product.id === row.productId)).length;
+  const receiptTotal = rows.every(row => validQuantity(row.quantity) && validPrice(row.price)) ? money(rows.reduce((total, row) => total + Number(row.quantity) * Number(row.price), 0)) : '—';
   const validAmounts = rows.every(row => validPrice(row.cost) && validPrice(row.price) && Number.isFinite(Number(row.quantity) * Number(row.cost)));
   const toggleProduct = (product: Product) => {
     if (locked) return;
@@ -145,7 +149,7 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel, i
     setError(''); setNotice('');
   };
   const reset = () => {
-    setSupplier(''); setSearch(''); setCategory('');
+    setSupplier(''); setSearch(''); setCategory(''); setSelectedOnly(false);
     setRows([]); setError(''); setNotice('');
   };
   const review = () => {
@@ -199,7 +203,13 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel, i
     <section className="goods-unified-card" aria-label="Goods received entry">
       <div className="goods-search-row"><label className="goods-search-field">Search products<div><Search aria-hidden="true" /><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search by code, barcode or name" /></div></label></div>
       <div className="goods-products-heading"><div><h2>Products</h2><p>Select the products received, then enter quantities and prices.</p></div>
+        <div className="goods-selection-controls"><span role="status">{rows.length} {rows.length === 1 ? 'product' : 'products'} selected</span>
+          <button type="button" aria-pressed={selectedOnly} onClick={() => { if (!selectedOnly) { setSearch(''); setCategory(''); } setSelectedOnly(value => !value); }}>Selected only</button>
+        </div>
       </div>
+      {hiddenSelectedCount > 0 && <p className="goods-selection-note" role="status">{hiddenSelectedCount} selected {hiddenSelectedCount === 1 ? 'product is' : 'products are'} hidden by your filters. The total includes all selected products.
+        <button type="button" onClick={() => { setSearch(''); setCategory(''); setSelectedOnly(true); }}>Show all selected</button>
+      </p>}
       {stockError && <p role="alert" className="stock-error goods-entry-message">Stock refresh failed: {stockError} Previously loaded stock is still shown.</p>}
       <nav className="goods-category-tabs" aria-label="Product categories">{['', ...new Set(products.map(product => product.category))].map(value => <button type="button" key={value} aria-pressed={category === value} onClick={() => setCategory(value)}>{value || 'All'}</button>)}</nav>
       <label className="goods-mobile-category">Category<select aria-label="Filter received products by category" value={category} onChange={event => setCategory(event.target.value)}><option value="">All categories</option>{[...new Set(products.map(product => product.category))].map(value => <option key={value} value={value}>{value || 'Uncategorised'}</option>)}</select></label>
@@ -217,21 +227,31 @@ export function GoodsReceivedPage({ outlet, token, onSessionExpired, onCancel, i
             <td data-label="Line total" className="goods-line-total goods-edit-field">{row && validQuantity(row.quantity) && validPrice(row.price) && Number.isFinite(Number(row.quantity) * Number(row.price)) ? money(Number(row.quantity) * Number(row.price)) : '—'}</td>
           </tr>;
         })}
-        {!visibleProducts.length && <tr><td colSpan={8}><div className="stock-empty"><Package aria-hidden="true" /><strong>{products.length ? 'No products match your search' : 'No stockable products yet'}</strong><span>{products.length ? 'Try another name, barcode, code or category.' : 'Mark products as Stockable in Products to get started.'}</span></div></td></tr>}
+        {!visibleProducts.length && <tr><td colSpan={8}><div className="stock-empty"><Package aria-hidden="true" /><strong>{selectedOnly && !rows.length ? 'No products selected yet' : products.length ? 'No products match your filters' : 'No stockable products yet'}</strong><span>{selectedOnly && !rows.length ? 'Turn off Selected only to choose products for this receipt.' : products.length ? 'Try another name, barcode, code or category.' : 'Mark products as Stockable in Products to get started.'}</span></div></td></tr>}
         </tbody>
       </table></div>
       {error && <p role="alert" className="stock-error goods-entry-message">{error}</p>}
       {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
       <footer className="goods-entry-footer goods-actions">
-        <strong className="goods-receipt-total" aria-live="polite">Total: {rows.every(row => validQuantity(row.quantity) && validPrice(row.price)) ? money(rows.reduce((total, row) => total + Number(row.quantity) * Number(row.price), 0)) : '—'}</strong>
+        <div className="goods-receipt-total" aria-live="polite"><strong>Total: {receiptTotal}</strong><small>{rows.length} selected {rows.length === 1 ? 'product' : 'products'} · includes all selections</small></div>
         <button type="button" className="devices-refresh" onClick={onCancel}>Cancel</button>
         <button type="button" className="stock-primary" onClick={review}>Save</button>
       </footer>
     </section>
     </fieldset>
     {historyOpen && <GoodsReceiptHistory key={`${outlet.id}:${token}`} outletId={outlet.id} token={token} onSessionExpired={onSessionExpired} onClose={() => setHistoryOpen(false)} />}
-    {confirming && <ActionConfirmation action="add" item="goods receipt" busy={saving} cancelDisabled={uncertain} error={error}
+    {confirming && <ActionConfirmation className="goods-receipt-confirmation" action="add" item="goods receipt" busy={saving} cancelDisabled={uncertain} error={error}
       onCancel={() => { if (!locked) setConfirming(false); }} onConfirm={() => void save()} confirmLabel={uncertain ? 'Retry confirmation' : 'Add'}>
+      <section className="goods-review" aria-label="Receipt summary">
+        <dl className="goods-review-summary"><div><dt>Supplier</dt><dd>{suppliers.find(entry => entry.id === supplier)?.name ?? 'No supplier'}</dd></div><div><dt>Selected products</dt><dd>{rows.length}</dd></div><div><dt>Total (quantity × price)</dt><dd>{receiptTotal}</dd></div></dl>
+        <p className="goods-review-help">Review all selected products, including any hidden by search or category filters.</p>
+        <ul className="goods-review-items">{rows.map(row => {
+          const product = products.find(entry => entry.id === row.productId);
+          return <li key={row.productId}><strong>{product?.name ?? row.productId}</strong><span className="goods-review-code">Code: {product?.code || '—'}</span>
+            <dl><div><dt>Received quantity</dt><dd>{formatQuantity(Number(row.quantity))} {product?.unit ?? ''}</dd></div><div><dt>Cost price</dt><dd>{money(Number(row.cost))}</dd></div><div><dt>Price</dt><dd>{money(Number(row.price))}</dd></div><div><dt>Line total</dt><dd>{money(Number(row.quantity) * Number(row.price))}</dd></div></dl>
+          </li>;
+        })}</ul>
+      </section>
       {uncertain && <p role="status">Save unconfirmed. Retry to check the outcome.</p>}
     </ActionConfirmation>}
   </section>;

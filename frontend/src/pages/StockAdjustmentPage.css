@@ -76,3 +76,23 @@
 @media screen and (max-width: 600px), screen and (max-width: 1024px) and (max-height: 500px) {
   .stock-movement-page > .devices-heading > .stock-mode-back { display: none; }
 }
+/* Phone entry cards; tablet, desktop and print retain the original table. */
+@media screen and (max-width: 600px) {
+  .stock-movement-page .stock-entry-table { padding: 14px 16px; overflow: visible; }
+  .stock-movement-page .stock-entry-table table { display: block; width: 100%; min-width: 0; }
+  .stock-movement-page .stock-entry-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .stock-movement-page .stock-entry-table tbody { display: grid; gap: 12px; }
+  .stock-movement-page .stock-entry-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+  .stock-movement-page .stock-entry-table td { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; order: 1; min-width: 0; width: auto; padding: 0; border: 0; text-align: left; overflow-wrap: anywhere; }
+  .stock-movement-page .stock-entry-table td[data-inventory-label]::before { content: attr(data-inventory-label); color: var(--muted); font-size: 11px; line-height: 1.4; }
+  .stock-movement-page .stock-entry-table td[data-inventory-name] { grid-column: 1 / -1; order: 0; }
+  .stock-movement-page .stock-entry-table td[data-inventory-name]::before { display: none; }
+  .stock-movement-page .stock-product-name { font-size: 16px; line-height: 1.5; }
+  .stock-movement-page .stock-entry-table td[data-inventory-wide] { grid-column: 1 / -1; width: auto; align-items: stretch; }
+  .stock-movement-page .stock-entry-table td input { width: 100%; min-width: 0; max-width: 100%; min-height: 44px; font-size: 16px; }
+  .stock-movement-page .stock-entry-table td input[type=number] { width: 100%; min-width: 0; max-width: 100%; }
+  .stock-movement-page .stock-entry-table td small { max-width: none; margin-top: 0; }
+  .stock-movement-page .stock-entry-table td[data-inventory-remove] > button { width: 100%; min-height: 44px; white-space: nowrap; }
+  .stock-movement-page .stock-entry-table td[data-inventory-remove] > button::after { content: 'Remove'; }
+  .stock-movement-page .stock-entry-table tr:has(td[colspan]) { display: block; padding: 0; border: 0; }
+}

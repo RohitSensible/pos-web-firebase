@@ -57,6 +57,10 @@ void (async () => {
   await until(() => document.querySelector('[aria-label="Product categories"]'), 'outlet loaded');
   if (location.hash === '#preview') { document.getElementById('test-results')!.textContent = JSON.stringify({ passed: ['Goods Received layout'] }); return; }
   assert(posts.length === 0 && reads === 1, 'Opening reads data without writes');
+  assert(document.querySelector('.goods-selection-controls [role="status"]')?.textContent === '0 products selected', 'Selection count starts at zero');
+  button('Selected only').click(); await pause();
+  assert(button('Selected only').getAttribute('aria-pressed') === 'true' && document.querySelector('.stock-empty strong')?.textContent === 'No products selected yet', 'Empty selected-only view explains how to choose products');
+  button('Selected only').click(); await pause();
   assert(document.querySelector('[aria-label="Current stock for Rice"]')?.textContent === '3', 'Existing product stock is displayed before any received quantity is entered');
   assert(!document.body.textContent?.includes('Receipt entry only') && !document.body.textContent?.includes('Goods Received Number') && !document.body.textContent?.includes('Search suppliers') && !document.body.textContent?.includes('Only the receipt record will be saved'), 'Requested notices and fields are removed');
   assert(!document.querySelector('.goods-receipt-panel, .goods-catalog-panel, details'), 'Split panels and catalog toggles removed');
@@ -77,6 +81,23 @@ void (async () => {
   document.querySelector<HTMLButtonElement>('[aria-label="Select product Rice"]')!.click(); await pause();
   const qty = () => document.querySelector<HTMLInputElement>('[aria-label="Received quantity for Rice"]')!;
   assert(qty() && !qty().disabled, 'Selected product is editable directly in the unified list');
+  await setValue(qty(), '2');
+  button('Beverages').click(); await pause(); await setValue(labelled('Search products'), '');
+  assert(document.querySelector('.goods-selection-note')?.textContent?.includes('1 selected product is hidden') && document.querySelector('.goods-receipt-total')?.textContent?.includes('46.00'), 'Hidden selections remain counted and included in total');
+  document.querySelector<HTMLButtonElement>('[aria-label="Select product Tea"]')!.click(); await pause();
+  assert(document.querySelector('.goods-selection-controls [role="status"]')?.textContent === '2 products selected', 'Count includes selections across categories');
+  button('Save').click(); await pause();
+  const summary = document.querySelector('[aria-label="Receipt summary"]')!;
+  assert(summary?.textContent?.includes('Existing Supplier') && summary.querySelectorAll('li').length === 2 && summary.textContent?.includes('Rice') && summary.textContent?.includes('Tea') && summary.textContent?.includes('56.00'), 'Confirmation reviews supplier, all selected products and total despite active filters');
+  assert(summary.textContent?.includes('Kilogram') && summary.textContent?.includes('Cost price') && summary.textContent?.includes('Line total') && posts.length === 0, 'Review includes quantities, units and prices without submitting');
+  assert(summary.querySelector('.goods-review-items')!.scrollWidth <= summary.querySelector('.goods-review-items')!.clientWidth + 1, 'Review items fit the viewport');
+  document.querySelector<HTMLButtonElement>('.delete-confirmation-cancel')!.click(); await pause();
+  button('Show all selected').click(); await pause();
+  assert(button('Selected only').getAttribute('aria-pressed') === 'true' && qty().value === '2' && labelled('Search products').value === '', 'Show all selected clears filters without changing draft quantities');
+  document.querySelector<HTMLButtonElement>('[aria-label="Select product Tea"]')!.click(); await pause();
+  assert(!document.querySelector('[aria-label="Select product Tea"]') && document.querySelector('.goods-selection-controls [role="status"]')?.textContent === '1 product selected', 'Deselecting a product removes it from selected-only view');
+  button('Selected only').click(); await pause();
+  assert(!!document.querySelector('[aria-label="Select product Tea"]') && qty().value === '2', 'Returning to all products retains the draft');
   button('All').click(); await pause();
   await setValue(labelled('Search products'), '');
   assert(document.querySelector<HTMLInputElement>('[aria-label="Include Rice"]')!.checked, 'Selection survives filtering');
@@ -105,10 +126,12 @@ void (async () => {
   assert(receipts[0].fields.goodsReceivedNo === '2611051' && receipts[0].fields.goodsReceivedNo !== receipts[0].documentId, 'The same actual bill number survives the uncertain response and reload');
   assert(reads === 2 && !document.body.textContent?.includes('Saved receipts'), 'Receipt data refreshes without displaying saved receipts');
   assert(labelled('Supplier (optional)').value === '', 'Draft clears only after confirmed save');
+  assert(document.querySelector('.goods-selection-controls [role="status"]')?.textContent === '0 products selected' && button('Selected only').getAttribute('aria-pressed') === 'false', 'Confirmed save resets selection UI');
   assert(products[0].fields.currentStock === 71 && document.querySelector('[aria-label="Current stock for Rice"]')?.textContent === '71' && storageWrites === 0, 'Confirmed receipt refresh displays persisted stock 13 + 58 = 71 without browser storage');
   button('Done').click(); await pause(); document.querySelector<HTMLButtonElement>('[aria-label="Select product Rice"]')!.click(); await pause();
   button('Save').click(); await until(() => document.querySelector('dialog[open]'), 'review without a supplier');
   assert(document.querySelector('.action-popup-question')?.textContent === 'Are you sure you want to add goods receipt?', 'Receipt uses the standard confirmation question');
+  assert(document.querySelector('[aria-label="Receipt summary"]')?.textContent?.includes('No supplier'), 'Optional supplier is represented accurately in receipt review');
   document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click();
   await until(() => saved === 2 && !document.body.textContent?.includes('Loading outlet') && !!document.querySelector('.action-success[open]'), 'saved without supplier'); button('Done').click(); await pause();
   assert(posts.at(-1).supplier === null, 'Receipt without supplier sends null instead of fabricating a supplier');

@@ -30,7 +30,29 @@
 .transfer-preview-pin input { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; }
 .transfer-preview-pin form > div { display: flex; justify-content: flex-end; gap: 10px; }
 .transfer-preview-pin [role=alert] { color: var(--red); }
-.transfer-preview-selection { display: grid; gap: 20px; min-width: 0; border: 0; padding: 0; }
+.transfer-preview-selection { display: flex; flex-direction: column; gap: 12px; min-width: 0; border: 0; padding: 0; }
+@media screen {
+  .transfer-preview-selection { height: calc(100dvh - var(--page-sticky-top, 68px) - 24px); min-height: 360px; }
+  .transfer-product-controls { position: sticky; top: var(--page-sticky-top, 68px); z-index: 12; flex: none; }
+  .transfer-preview .transfer-products-table { flex: 1 1 auto; min-height: 80px; overflow: auto; }
+  .transfer-products-table th { position: sticky; top: 0; z-index: 1; background: var(--workspace); }
+}
+.transfer-preview .transfer-product-controls { gap: 10px; padding: 14px 16px; }
+.transfer-selection-heading, .transfer-selection-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.transfer-filter-fields { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(150px, 1fr) auto; align-items: end; gap: 12px; }
+.transfer-preview .transfer-filter-fields .transfer-search-field { max-width: none; }
+.transfer-preview .transfer-selected-only { min-height: 42px; }
+.transfer-filter-count { flex: 1; color: var(--muted); font-size: 12px; }
+.transfer-selection-actions button { margin-left: auto; }
+.transfer-preview .transfer-products-table table { min-width: 820px; }
+.transfer-preview .transfer-products-table :is(th, td) { padding: 10px 14px; }
+.transfer-products-table :is(th, td):first-child { width: 54px; text-align: center; }
+.transfer-products-table :is(th, td):nth-child(2), .transfer-products-table :is(th, td):nth-child(5), .transfer-products-table :is(th, td):last-child { font-variant-numeric: tabular-nums; }
+.transfer-products-table :is(th, td):last-child { text-align: right; }
+.transfer-products-table td:nth-child(3) { min-width: 180px; }
+.transfer-products-table .transfer-row-selected { background: color-mix(in srgb, var(--blue) 7%, var(--card)); }
+.transfer-preview .transfer-products-empty { flex: 1; min-height: 100px; }
+.transfer-preview-selection > .transfer-action-bar { flex: none; }
 .transfer-confirmation { width: min(680px, calc(100% - 32px)); }
 .transfer-confirmation-body { display: grid; gap: 20px; }
 .transfer-confirmation-body > div { display: flex; justify-content: flex-end; gap: 10px; }
@@ -78,7 +100,9 @@
 
 /* Route header: Source Outlet card → flow indicator → destination table. Royal Blue accent. */
 .transfer-route { --route-accent: #4F46E5; display: grid; grid-template-columns: minmax(220px, 300px) auto minmax(0, 1fr); align-items: stretch; gap: 16px; }
-.transfer-route-card { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); }
+.transfer-route-card { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); }
+.transfer-route-chosen { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.transfer-destination-details { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: var(--muted); }
 .transfer-route-label { color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .transfer-route-card h2 { margin: 0; color: var(--ink); font-size: 17px; font-weight: 600; }
 .transfer-route-outlet { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -124,4 +148,19 @@
   .transfer-outlet-table td:nth-child(2) { grid-column: 1; grid-row: 2; font-size: 13px; }
   .transfer-outlet-table td:nth-child(3) { grid-column: 2; grid-row: 1; text-align: right; }
   .transfer-outlet-table td:last-child { grid-column: 2; grid-row: 2; width: auto; }
+}
+@media (max-width: 680px) {
+  .transfer-filter-fields { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .transfer-filter-fields .transfer-search-field { grid-column: 1 / -1; }
+  .transfer-filter-count { flex-basis: 100%; order: 1; }
+  .transfer-selection-actions { gap: 4px 8px; }
+  .transfer-preview .transfer-product-controls { padding: 12px; gap: 8px; }
+  .transfer-preview-selection > .transfer-action-bar { gap: 8px; padding: 12px; }
+  .transfer-preview-selection > .transfer-action-bar .transfer-action-button { min-height: 44px; padding: 10px 16px; }
+}
+/* Short landscape screens need document space for the filters and table. */
+@media screen and (max-height: 600px) {
+  .transfer-preview-selection { height: auto; min-height: 0; }
+  .transfer-product-controls { position: static; }
+  .transfer-preview .transfer-products-table { flex: none; max-height: 50dvh; min-height: 120px; }
 }

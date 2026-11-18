@@ -8,7 +8,8 @@ import { ProductCreationError, requireProductOutlet } from './productCreation.js
 const contact = z.string().trim().max(30).refine(value => !value || /^\+?(?=.*\d)[\d ()-]+$/.test(value), 'Enter a valid mobile number.');
 const date = z.union([z.literal(''), z.iso.date()]);
 const customerSchema = z.object({
-  requestId: z.uuid(), name: z.string().trim().max(200), contact, altContact: contact,
+  requestId: z.uuid(), name: z.string().trim().min(1, 'Customer name is required').max(200),
+  contact: contact.refine(value => value.length > 0, 'Mobile number is required'), altContact: contact,
   email: z.union([z.literal(''), z.string().trim().email('Enter a valid email address.').max(320)]),
   gstNo: z.string().trim().max(100), address: z.string().trim().max(2000),
   creditLimit: z.number().finite(), dayLimit: z.number().int().nonnegative(), balance: z.number().finite(),
@@ -95,6 +96,10 @@ export async function updateOutletCustomer(db: Firestore, outletId: string, docu
     const record = await transaction.get(reference);
     if (!record.exists) throw new ProductCreationError(404, 'This customer no longer exists.');
     const stored = record.data()!;
+    const requiredFields = customerSchema.pick({ name: true, contact: true }).safeParse({
+      name: parsed.data.name ?? stored.name, contact: parsed.data.contact ?? stored.contact,
+    });
+    if (!requiredFields.success) throw new ProductCreationError(422, requiredFields.error.issues[0]?.message || 'Check the customer details.');
     if (parsed.data.contact && contactKey(parsed.data.contact) !== contactKey(stored.contact)) {
       const customers = await transaction.get(outlet.collection('CUSTOMER'));
       if (customers.docs.some(doc => doc.id !== documentId && contactKey(doc.data().contact) === contactKey(parsed.data.contact))) {

@@ -158,12 +158,14 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
   };
 
   if (draft) return (
-    <section className="category-modal master-form-page premises-form" aria-labelledby="premise-title">
+    <section className="category-modal master-form-page master-form-top-actions premises-form" aria-labelledby="premise-title">
       <form onSubmit={save}>{confirmation}
         <div className="modal-header master-form-header">
           <div className="master-form-title"><span className="master-form-icon"><Store size={24} /></span>
             <div><PageHeading as="h3" id="premise-title">{editing ? 'Edit Premises' : 'Premise Details'}</PageHeading><p>{editing ? 'Edit' : 'Create'} premises.</p></div></div>
-          <button type="button" className="modal-close-btn" aria-label="Close premises form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button>
+          <div className="master-form-header-actions"><button type="button" className="btn-secondary" disabled={saving} onClick={() => setDraft(null)}>Cancel</button>
+            <button type="submit" className="btn-primary-add" disabled={saving || !data || (!editing && !data.userAccounts.length)}>{saving ? 'Saving…' : editing ? 'Update' : 'Create Premises'}</button>
+            <button type="button" className="modal-close-btn" aria-label="Close premises form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button></div>
         </div>
         <fieldset className="premises-fields" disabled={saving}>
           <div className="form-field premises-wide"><label htmlFor="premise-name">Premise Name</label><input id="premise-name" autoFocus required maxLength={200} value={draft.name} onChange={event => change('name', event.target.value)} /></div>
@@ -188,8 +190,6 @@ export function PremisesPage({ outlet, token, onSessionExpired, onClose }: {
           {data && !data.userAccounts.length && !editing && <p className="category-form-error premises-wide">No active user accounts are assigned to this outlet.</p>}
         </fieldset>
         {saveError && <p className="category-form-error premises-save-error" role="alert">{saveError}</p>}
-        <div className="modal-footer"><button type="button" className="btn-secondary" disabled={saving} onClick={() => setDraft(null)}>Cancel</button>
-          <button type="submit" className="btn-primary-add" disabled={saving || !data || (!editing && !data.userAccounts.length)}>{saving ? 'Saving…' : editing ? 'Update' : 'Create Premises'}</button></div>
       </form>
     </section>
   );

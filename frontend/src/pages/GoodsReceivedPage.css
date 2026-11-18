@@ -8,6 +8,25 @@
 .goods-received-page .goods-products-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px 24px 16px; }
 .goods-received-page .goods-products-heading h2 { margin: 0; font-size: 17px; font-weight: 650; }
 .goods-received-page .goods-products-heading p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.goods-received-page .goods-selection-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; }
+.goods-received-page .goods-selection-controls button { min-height: 44px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; cursor: pointer; }
+.goods-received-page .goods-selection-controls button[aria-pressed=true] { background: var(--blue); border-color: var(--blue); color: white; }
+.goods-received-page .goods-selection-note { margin: 0 24px 16px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.goods-received-page .goods-selection-note button { display: inline-block; min-height: 44px; margin-left: 8px; padding: 4px 0; border: 0; background: transparent; color: var(--blue); font: inherit; text-decoration: underline; cursor: pointer; }
+.goods-received-page :is(.goods-selection-controls, .goods-selection-note) button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.goods-received-page .goods-receipt-total small { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.goods-receipt-confirmation { --dialog-width: 640px; }
+.goods-review { min-width: 0; }
+.goods-review dl { margin: 0; display: grid; gap: 12px; }
+.goods-review-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.goods-review-summary > div:first-child { grid-column: 1 / -1; }
+.goods-review dt, .goods-review-code, .goods-review-help { color: var(--dialog-muted); font-size: 12px; }
+.goods-review dd { margin: 3px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.goods-review-help { margin: 16px 0 12px; }
+.goods-review-items { display: grid; gap: 12px; max-height: 36dvh; overflow-y: auto; margin: 0; padding: 3px; list-style: none; }
+.goods-review-items li { padding: 12px; border: 1px solid var(--dialog-border); border-radius: 8px; }
+.goods-review-code { display: block; margin: 3px 0 12px; }
+.goods-review-items dl { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .goods-received-page .goods-category-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 0 24px 20px; }
 .goods-received-page .goods-category-tabs button { flex-shrink: 0; padding: 9px 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); color: var(--muted); font-size: 12px; font-weight: 500; cursor: pointer; }
 .goods-received-page .goods-category-tabs button[aria-pressed=true] { background: var(--blue); border-color: var(--blue); color: white; }
@@ -61,6 +80,7 @@
   .goods-received-page .goods-entry-footer { padding: 16px; }
   .goods-received-page .goods-entry-footer button { flex: 1; }
   .goods-received-page .goods-entry-message { padding-inline: 16px; }
+  .goods-received-page .goods-selection-note { margin-inline: 16px; }
   .goods-received-page .goods-preview-note { margin-inline: 16px; }
   .goods-supplier-dialog { padding: 20px; }
   .goods-supplier-form-grid { grid-template-columns: 1fr; gap: 16px; }

@@ -57,7 +57,7 @@ function SuppliersContent({ outlet, token, onSessionExpired }: SuppliersPageProp
 
   return <section className="devices-page devices-discovery-page suppliers-page">
     <header className="devices-heading"><div><span>MASTERS</span><PageHeading><UsersRound />Suppliers</PageHeading><p>Manage supplier details.</p></div>
-      <MobileAddButton label="Add Supplier" className="devices-refresh" disabled={loading || !!error || !documentId} onClick={() => { setNotice(''); setAdding(true); }} />
+      <MobileAddButton label="Add Supplier" className="stock-primary" disabled={loading || !!error || !documentId} onClick={() => { setNotice(''); setAdding(true); }} />
     </header>
     {notice && <SuccessPopup message={notice} onDismiss={() => setNotice('')} />}
     {loading ? <div className="devices-state" data-inline-loading="">Loading suppliers…</div> : error ?

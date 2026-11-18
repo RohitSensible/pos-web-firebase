@@ -318,6 +318,47 @@ function Application() {
   const setActiveNavigation = (screen: { id: string; label: string }) => navigate(screen.id);
   const { openGroup, toggleGroup } = useSidebarSections(activeNavigation.id);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [phoneDrawer, setPhoneDrawer] = useState(() => window.matchMedia('(max-width: 600px)').matches);
+  const navigationDrawer = useRef<HTMLElement>(null);
+  const navigationTrigger = useRef<HTMLButtonElement>(null);
+  const NavigationSectionHeading = phoneDrawer ? 'button' : 'div';
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 600px)');
+    const update = () => setPhoneDrawer(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    if (!phoneDrawer || !sidebarOpen || !navigationDrawer.current) return;
+    const drawer = navigationDrawer.current;
+    const opener = navigationTrigger.current;
+    const available = () => drawer.isConnected && drawer.getClientRects().length > 0 && !drawer.closest('[inert]');
+    const focusStart = () => { if (available()) drawer.querySelector<HTMLButtonElement>('.sidebar-close')?.focus(); };
+    const keydown = (event: KeyboardEvent) => {
+      // Native confirmations opened from navigation keep their own modal behavior.
+      if (!available() || document.querySelector('dialog[open]')) return;
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopPropagation(); setSidebarOpen(false);
+      } else if (event.key === 'Tab') {
+        const controls = [...drawer.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex="0"]')]
+          .filter(element => element.getClientRects().length > 0);
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    const containFocus = (event: FocusEvent) => {
+      if (!drawer.contains(event.target as Node) && !document.querySelector('dialog[open]')) focusStart();
+    };
+    focusStart();
+    document.addEventListener('keydown', keydown, true);
+    document.addEventListener('focusin', containFocus);
+    return () => {
+      document.removeEventListener('keydown', keydown, true);
+      document.removeEventListener('focusin', containFocus);
+      if (window.matchMedia('(max-width: 600px)').matches && opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, [phoneDrawer, sidebarOpen]);
   const [clock, setClock] = useState('16:45:21');
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem('pos_theme') === 'dark'; }
@@ -571,8 +612,9 @@ function Application() {
       onChangeOutlet={externalInvalidated ? leaveInvalidatedSession : handleChangeOutlet} onSignOut={handleLogout} />}
     <div className="retail-dashboard-shell" inert={accessPaused} aria-hidden={accessPaused || undefined} style={accessPaused ? { visibility: 'hidden', display: 'none' } : undefined}>
       <PrintPageSettings outletName={selectedOutlet.name} />
-      {sidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" onClick={() => setSidebarOpen(false)} />}
-      <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`} aria-label="Primary navigation">
+      {sidebarOpen && <button type="button" className="sidebar-scrim" aria-label="Close navigation" tabIndex={phoneDrawer ? -1 : undefined} onClick={() => setSidebarOpen(false)} />}
+      <aside ref={navigationDrawer} id={phoneDrawer ? 'phone-navigation' : undefined} className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`} aria-label="Primary navigation"
+        inert={phoneDrawer && !sidebarOpen} role={phoneDrawer && sidebarOpen ? 'dialog' : undefined} aria-modal={phoneDrawer && sidebarOpen ? true : undefined}>
         <button type="button" className="sidebar-close" aria-label="Close navigation" onClick={() => setSidebarOpen(false)}><X /></button>
         <div className="business-profile">
           <div className="business-outlet-heading"><small>Current Outlet</small>
@@ -589,8 +631,11 @@ function Application() {
               className={`nav-group ${group.label === 'Masters' ? 'masters-group' : ''} ${group.label === 'Reports' ? 'reports-group' : ''}`}
               key={group.label}
             >
-              <div
+              <NavigationSectionHeading
+                type={phoneDrawer ? 'button' : undefined}
                 className="nav-group-title"
+                aria-expanded={phoneDrawer ? openGroup === group.label : undefined}
+                aria-controls={phoneDrawer ? `phone-nav-${group.label.toLowerCase()}` : undefined}
                 style={{ cursor: 'pointer', userSelect: 'none' }}
                 onClick={() => toggleGroup(group.label)}
               >
@@ -601,9 +646,9 @@ function Application() {
                     transition: 'transform 0.2s ease',
                   }}
                 />
-              </div>
+              </NavigationSectionHeading>
               {openGroup === group.label && (
-                <div className="nav-group-items">
+                <div className="nav-group-items" id={phoneDrawer ? `phone-nav-${group.label.toLowerCase()}` : undefined}>
                   {group.items.filter(item => !disabledNavigationItems.has(`${group.label}:${item.label}`)).map((item) => (
                     <button
                       key={item.label}
@@ -633,10 +678,10 @@ function Application() {
         </div>
       </aside>
 
-      <div className="dashboard-stage">
+      <div className="dashboard-stage" inert={phoneDrawer && sidebarOpen}>
         <header className="retail-header">
           <div className="header-brand">
-            <button type="button" className="mobile-menu" aria-label="Open navigation" onClick={() => setSidebarOpen(true)}><Menu /></button>
+            <button ref={navigationTrigger} type="button" className="mobile-menu" aria-label="Open navigation" aria-expanded={phoneDrawer ? sidebarOpen : undefined} aria-controls={phoneDrawer ? 'phone-navigation' : undefined} onClick={() => setSidebarOpen(true)}><Menu /></button>
             <span className="header-logo-crop">
               <img src="/logo1.png" alt="Sensible Connect — Built for Business" />
             </span>

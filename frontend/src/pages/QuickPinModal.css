@@ -25,5 +25,5 @@
 @media (max-width: 420px) {
   .quick-pin-modal { padding: calc(var(--dialog-padding) + var(--dialog-space-md)) var(--dialog-space-xl) var(--dialog-padding); }
   .quick-pin-boxes { gap: var(--dialog-space-sm); }
-  .quick-pin-box { flex-basis: 54px; }
+  .quick-pin-box { flex-basis: 54px; min-width: 0; }
 }

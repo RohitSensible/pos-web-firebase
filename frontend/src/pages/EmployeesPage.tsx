@@ -164,8 +164,8 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
     String(employee.searchCode ?? ''), employee.shortName, userDisplayName(employee)]
     .some(value => value.toLowerCase().includes(query))) ?? [];
 
-  if (draft) return <section className="category-modal employee-form-page master-form-page" aria-labelledby="employee-form-title"><form onSubmit={save}>{confirmation}
-        <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UserRoundCog size={24} /></span><div><PageHeading as="h3" id="employee-form-title">{draft.documentId ? 'Edit' : 'Add'} {kind}</PageHeading><p>Personal and work details</p></div></div><button type="button" className="modal-close-btn" aria-label="Close employee form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div>
+  if (draft) return <section className="category-modal employee-form-page master-form-page master-form-top-actions" aria-labelledby="employee-form-title"><form onSubmit={save}>{confirmation}
+        <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UserRoundCog size={24} /></span><div><PageHeading as="h3" id="employee-form-title">{draft.documentId ? 'Edit' : 'Add'} {kind}</PageHeading><p>Personal and work details</p></div></div><div className="master-form-header-actions"><button type="button" className="btn-secondary" disabled={saving} onClick={closeDraft}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}>{saving ? <RefreshCw size={16} /> : <Save size={16} />}{saving ? 'Saving…' : 'Save'}</button><button type="button" className="modal-close-btn" aria-label="Close employee form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div></div>
         <fieldset className="employees-form-fields" disabled={saving}>
           <div className="master-form-section-heading"><span>01</span><h4>Personal information</h4></div>
           <div className="form-field"><label htmlFor="employee-name">Employee Name*</label><input id="employee-name" placeholder="Full name" value={draft.name} required maxLength={200} autoFocus onChange={event => { const value = event.target.value; setSaveError(''); setDraft(current => current ? { ...current, name: value, shortName: shortNameEdited.current ? current.shortName : Array.from(value.trim())[0] ?? '' } : current); }} /></div>
@@ -180,7 +180,6 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
           <div className="form-field"><label htmlFor="employee-user">Assign To User Account</label><select id="employee-user" value={draft.userId} onChange={event => change('userId', event.target.value)}><option value="">Not assigned</option>{data?.userAccounts.map(user => <option key={user.userId} value={user.userId}>{user.name || 'User account'}</option>)}</select></div>
         </fieldset>
         {saveError && <p className="employees-save-error" role="alert">{saveError}</p>}
-        <div className="modal-footer"><button type="button" className="btn-secondary" disabled={saving} onClick={closeDraft}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}>{saving ? <RefreshCw size={16} /> : <Save size={16} />}{saving ? 'Saving…' : 'Save'}</button></div>
       </form></section>;
 
   return <section className="employees-page category-page-shell">

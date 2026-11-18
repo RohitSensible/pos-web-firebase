@@ -4,6 +4,9 @@
     "tsBuildInfoFile": "../node_modules/.tmp/tsconfig.dashboard-tests.tsbuildinfo"
   },
   "include": [
+    "mobilePhase3.browser.tsx",
+    "goodsReceived.browser.tsx",
+    "stickyHeaders.browser.tsx",
     "dashboardShiftHeader.browser.tsx",
     "dashboardMobile.browser.tsx"
   ]

@@ -112,3 +112,12 @@
   .add-product-modal:not(.edit-product-modal) .product-premises-pricing-fields > .form-field:has(input[aria-label="AC Price" i]) { order: 2; }
   .add-product-modal:not(.edit-product-modal) .product-premises-pricing-fields > .form-field:has(input[aria-label="TABLE 1 Price" i]) { order: 3; }
 }
+
+@media screen and (max-width: 600px) {
+  .add-product-modal:not(.edit-product-modal) .product-flag-fields { flex-wrap: wrap; }
+  @media (max-width: 360px) {
+    .add-product-modal:not(.edit-product-modal) > form > .modal-body,
+    .add-product-modal:not(.edit-product-modal) .product-pricing-fields,
+    .add-product-modal:not(.edit-product-modal) .product-premises-pricing-fields { grid-template-columns: minmax(0, 1fr); grid-auto-flow: row; }
+  }
+}

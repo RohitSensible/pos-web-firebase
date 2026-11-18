@@ -368,6 +368,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
       {deleteAllDone && <SuccessPopup message="All products and categories deleted successfully" onDismiss={() => setDeleteAllDone(false)} />}
       {deleteTarget && <DeleteConfirmation kind="product" name={deleteTarget.name} busy={deleting} error={noticeIsError ? notice : ''}
         onCancel={() => { if (!deleteBusy.current) setDeleteTarget(null); }} onConfirm={() => void deleteProduct(deleteTarget.id)} />}
+      <div className="products-sticky-navigation">
       <div className="products-header">
         <div>
           <PageHeading><Package size={25} />Products</PageHeading>
@@ -453,6 +454,7 @@ function ProductsPageContent({ outlet, token, onSessionExpired }: ProductsPagePr
           <button type="button" className="products-scan-add" aria-label="Scan barcode to add product" disabled={busyLoading || !!error} onClick={() => setScanToAddOpen(true)}><ScanBarcode size={18} aria-hidden="true" />Scan to add</button>
         </article>
         {!phoneHeader && categoryFilter}
+      </div>
       </div>
       {loading || error || visibleProducts.length === 0 ? (
         <div className="products-empty" data-inline-loading={loading || (progress && !error) ? '' : undefined} role={error ? 'alert' : 'status'}>

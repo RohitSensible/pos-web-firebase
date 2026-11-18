@@ -12,13 +12,19 @@ async function until(check: () => unknown, message: string) { for (let i = 0; i 
 interface Customer { documentId: string; name: string; contact: string; altContact: string; email: string; gstNo: string; address: string; creditLimit: number; dayLimit: number; balance: number; birthdayDate: string; anniversaryDate: string; allowedCredit: boolean }
 let records: Customer[] = [{ documentId: 'existing', name: 'Database Customer', contact: '9876543210', altContact: '', email: 'database@example.com', gstNo: '', address: '', creditLimit: 100, dayLimit: 10, balance: 75.25, birthdayDate: '', anniversaryDate: '', allowedCredit: true }];
 const submissions: Record<string, unknown>[] = [];
+const updates: Record<string, unknown>[] = [];
 let getStatus = 200, postStatus = 200;
 let releaseGet: (() => void) | undefined, releasePost: (() => void) | undefined;
 window.fetch = async (input, init) => {
   const path = String(input);
   if (path.includes('/dashboard?')) return Response.json({ data: { payments: {} } });
-  assert(path === '/api/outlets/shop/customers', 'Customer requests use the selected outlet');
+  assert(path === '/api/outlets/shop/customers' || (init?.method === 'PATCH' && path === '/api/outlets/shop/customers/existing'), 'Customer requests use the selected outlet');
   assert((init?.headers as Record<string, string>).Authorization === 'Bearer mock-token', 'Customer requests include session authentication');
+  if (init?.method === 'PATCH') {
+    const body = JSON.parse(String(init.body)); updates.push(body);
+    records = records.map(record => record.documentId === 'existing' ? { ...record, ...body } : record);
+    return Response.json({ success: true, data: records.find(record => record.documentId === 'existing') });
+  }
   if (init?.method === 'POST') {
     const body = JSON.parse(String(init.body)); submissions.push(body);
     await new Promise<void>(resolve => { releasePost = resolve; });
@@ -49,6 +55,11 @@ function edit(id: string, value: string, textarea = false) {
 }
 const add = () => document.querySelector<HTMLButtonElement>('.category-header-row .btn-primary-add')!;
 const save = () => document.querySelector<HTMLButtonElement>('.customer-form-page button[type=submit]')!;
+function checkFieldError(id: string) {
+  const input = field(id);
+  const message = document.getElementById(input.getAttribute('aria-describedby') ?? '');
+  assert(input.getAttribute('aria-invalid') === 'true' && !!message?.textContent && message.parentElement === input.parentElement, `${id} error is beside its field and accessibly associated`);
+}
 async function submitConfirmed() { save().click(); await until(() => document.querySelector('.action-confirm-button'), 'save confirmation'); document.querySelector<HTMLButtonElement>('.action-confirm-button')!.click(); await pause(); }
 async function openPage() {
   const cached = readMasterSnapshot('/api/outlets/shop/customers', 'mock-token');
@@ -77,7 +88,18 @@ void (async () => {
   assert(JSON.stringify(labels) === JSON.stringify(['Name', 'Mobile Number', 'Alternate Mobile Number', 'Email ID', 'GST Number', 'Address', 'Credit Limit', 'Day Limit', 'Old Balance', 'Birth Date', 'Anniversary Date', 'Credit Only']), 'All twelve fields appear in the requested order');
   const bounds = [...document.querySelectorAll('.customer-form-fields > .form-field')].map(node => node.getBoundingClientRect());
   assert(bounds.every((rect, index) => index === 0 || rect.top >= bounds[index - 1].bottom), 'Fields are arranged vertically');
-  assert(!field('name').value && !field('contact').value && !field('name').required && !field('contact').required, 'Initial text values are empty and optional contacts stay optional');
+  assert(!field('name').value && !field('contact').value && field('name').required && field('contact').required && !field('alt-contact').required, 'Name and primary mobile are required while alternate mobile stays optional');
+  for (const [name, contact, first] of [['', '', 'name'], ['   ', '123', 'name'], ['Valid', '', 'contact'], ['Valid', '   ', 'contact'], ['Valid', '+ ()-', 'contact'], ['Valid', 'letters', 'contact']]) {
+    edit('name', name); edit('contact', contact); await pause(); save().click(); await pause();
+    checkFieldError(first);
+    assert(document.activeElement === field(first) && submissions.length === 0 && !document.querySelector('.action-confirm-button'), 'Invalid required fields block confirmation and saving with first-invalid focus');
+    const expectedMessage = first === 'name' ? 'Customer name is required' : !contact.trim() ? 'Mobile number is required' : 'Enter a valid mobile number.';
+    assert(document.getElementById(`customer-${first}-error`)?.textContent === expectedMessage, 'Required or invalid mobile message is shown exactly beside the field');
+    form()!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await pause();
+    assert(submissions.length === 0 && !document.querySelector('.action-confirm-button'), 'Submit handler also rejects required fields when native checks are bypassed');
+  }
+  edit('name', ' Valid '); edit('contact', '+1 (2)-3'); await pause();
+  assert(!document.querySelector('.customer-field-error') && field('name').validity.valid && field('contact').validity.valid && field('alt-contact').value === '' && field('email').value === '', 'Corrected trimmed required values clear errors without requiring optional fields or new phone lengths');
   assert(field('credit-limit').value === '0' && field('day-limit').value === '0' && field('balance').value === '0', 'Numeric inputs use zero defaults');
   const light = getComputedStyle(document.querySelector('.customer-form-page')!).backgroundColor;
   document.querySelector<HTMLButtonElement>('.theme-button')!.click(); await pause();
@@ -99,8 +121,29 @@ void (async () => {
   field('credit-only').click(); await pause();
   edit('email', 'invalid'); await pause(); save().click(); await pause();
   assert(submissions.length === 0 && !field('email').validity.valid, 'Invalid emails are blocked before submission');
+  checkFieldError('email');
+  assert(document.activeElement === field('email'), 'Invalid email receives focus');
+  edit('contact', 'letters'); edit('alt-contact', 'letters'); await pause(); save().click(); await pause();
+  checkFieldError('contact'); checkFieldError('alt-contact'); checkFieldError('email');
+  assert(document.activeElement === field('contact'), 'With multiple invalid fields focus goes to the first in form order');
+  edit('contact', '9876543211'); await pause();
+  assert(!field('contact').hasAttribute('aria-invalid') && !document.getElementById('customer-contact-error') && field('email').getAttribute('aria-invalid') === 'true', 'Editing a field clears only its own inline error');
+  edit('alt-contact', '9876543212');
   edit('email', 'new@example.com'); edit('day-limit', '-1'); await pause(); save().click(); await pause();
   assert(submissions.length === 0 && !field('day-limit').validity.valid, 'Negative day limits are rejected');
+  checkFieldError('day-limit');
+  assert(document.activeElement === field('day-limit'), 'Negative day limit receives focus');
+  edit('day-limit', '1.5'); await pause(); save().click(); await pause();
+  checkFieldError('day-limit');
+  assert(field('day-limit').validity.stepMismatch && submissions.length === 0, 'Native whole-day constraint is preserved');
+  // Exercise the existing submit-handler fallback independently of native validation.
+  form()!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await pause();
+  checkFieldError('day-limit');
+  assert(document.activeElement === field('day-limit') && document.getElementById('customer-day-limit-error')?.textContent === 'Enter a non-negative whole day limit.' && submissions.length === 0 && !document.querySelector('.action-confirm-button'), 'Submit-handler validation focuses and describes the day field without confirming or saving');
+  edit('day-limit', '15'); edit('credit-limit', '-1.50'); edit('balance', '-25.75'); await pause();
+  assert(field('credit-limit').step === '0.01' && field('balance').step === '0.01' && !field('credit-limit').hasAttribute('min') && !field('balance').hasAttribute('min') && field('credit-limit').validity.valid && field('balance').validity.valid, 'Existing amount constraints and allowance for negative amounts remain unchanged');
+  edit('credit-limit', '1500.50'); edit('balance', '-25.75'); await pause();
+  assert(!document.querySelector('.customer-field-error') && field('balance').validity.valid, 'Corrections clear inline errors and negative balances remain allowed');
   edit('day-limit', '15'); await pause(); postStatus = 503; releasePost = undefined; await submitConfirmed(); await until(() => releasePost, 'save request');
   assert(field('name').matches(':disabled') && save().disabled, 'Form controls are disabled during saving');
   assert(!!form() && !document.querySelector('.customer-notice') && records.length === 1, 'No success or new row is shown before database confirmation');
@@ -109,15 +152,29 @@ void (async () => {
   assert(JSON.stringify(submitted) === JSON.stringify(expected), 'All twelve input values are submitted using the existing field names and numeric types');
   releasePost!(); await until(() => document.querySelector('.customer-save-error'), 'save error');
   assert(!!form() && field('contact').value === '9876543211', 'Failed saves keep the entered data and show an error');
+  assert(!document.querySelector('.customer-field-error') && !document.querySelector('.customer-form-fields [aria-invalid=true]'), 'Unstructured server save failures remain general errors without blaming a field');
   postStatus = 200; releasePost = undefined; await submitConfirmed(); await until(() => releasePost, 'retry');
   assert(submissions[1].requestId === submissions[0].requestId, 'Retry uses the same request ID to prevent duplicate customers');
   releasePost!(); await until(() => document.querySelector('.action-success[open]'), 'success');
   assert(!form() && records.length === 2 && document.querySelector('.customers-list')?.textContent?.includes('New Customer'), 'Confirmed save returns to the list with the new customer immediately visible');
   assert(records[0].balance === 75.25 && records[1].balance === -25.75 && records[1].anniversaryDate === anniversaryDate && records[1].birthdayDate === birthDate, 'Existing balances remain unchanged and both new dates stay distinct');
   document.querySelector<HTMLButtonElement>('.success-done')!.click(); await pause();
+  document.querySelector<HTMLButtonElement>('[aria-label="Edit customer Database Customer"]')!.click(); await until(form, 'edit customer');
+  edit('name', ' '); await pause(); save().click(); await pause(); checkFieldError('name');
+  assert(updates.length === 0, 'Editing cannot save a blank name');
+  edit('name', 'Edited Customer'); edit('contact', ' '); await pause(); save().click(); await pause(); checkFieldError('contact');
+  assert(updates.length === 0, 'Editing cannot save a blank mobile');
+  edit('contact', '9876543210'); await pause(); await submitConfirmed();
+  await until(() => document.querySelector('.action-success[open]'), 'updated customer');
+  assert(updates.length === 1 && JSON.stringify(updates[0]) === JSON.stringify({ name: 'Edited Customer' }), 'Valid editing retains partial PATCH payload format and unchanged fields');
+  document.querySelector<HTMLButtonElement>('.success-done')!.click(); await pause();
   await navigate('Dashboard'); await pause(); records = []; await openPage(); await until(() => document.querySelector('.customer-state h2'), 'empty state');
   assert(add().textContent?.includes('Add Customer') && document.querySelector('.customer-state')?.textContent?.includes('No customers found'), 'Empty lists clearly offer Add Customer');
-  add().click(); await until(form, 'empty add'); document.querySelector<HTMLButtonElement>('[aria-label="Close customer form"]')!.click(); await pause();
+  add().click(); await until(form, 'empty add');
+  edit('name', 'Optional Fields Customer'); edit('contact', '123'); await pause(); releasePost = undefined; await submitConfirmed(); await until(() => releasePost, 'save with empty optional fields');
+  assert(['altContact', 'email', 'gstNo', 'address', 'birthdayDate', 'anniversaryDate'].every(key => submissions[2][key] === ''), 'Valid required fields can be saved with every optional text field empty');
+  releasePost!(); await until(() => document.querySelector('.action-success[open]'), 'optional fields saved'); document.querySelector<HTMLButtonElement>('.success-done')!.click(); await pause();
+  add().click(); await until(form, 'fresh add'); document.querySelector<HTMLButtonElement>('[aria-label="Close customer form"]')!.click(); await pause();
   assert(!form(), 'Cancel returns to the customer list');
   await navigate('Dashboard'); await pause(); getStatus = 503; await openPage();
   // A temporary server error is retried once automatically before it is reported.
@@ -126,7 +183,7 @@ void (async () => {
   assert(!document.querySelector('.customers-list') && add().disabled, 'Fetch failure shows an error without stale results');
   getStatus = 200; releaseGet = undefined; document.querySelector<HTMLButtonElement>('.customer-state button')!.click();
   await until(() => releaseGet, 'retry list'); releaseGet!(); await until(() => document.querySelector('.customer-state h2'), 'retry completed');
-  assert(submissions.length === 2, 'Fetching and retrying lists never submit customer creates');
+  assert(submissions.length === 3, 'Fetching and retrying lists never submit customer creates');
   if (location.hash.includes('preview')) { add().click(); await until(form, 'preview form'); } else root.unmount();
   document.getElementById('test-results')!.textContent = JSON.stringify({ passed: checks.length, failed: 0, checks });
 })().catch(error => { document.getElementById('test-results')!.textContent = JSON.stringify({ failed: 1, error: String(error), checks }); });

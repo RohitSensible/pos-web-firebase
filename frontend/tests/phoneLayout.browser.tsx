@@ -121,7 +121,9 @@ async function navigate(group: string, page: string, ready: string) {
   const add = document.querySelector<HTMLElement>('.mobile-add-trigger');
   if (phoneViewport && add) {
     const bounds = add.getBoundingClientRect();
-    assert(getComputedStyle(add).position === 'fixed' && bounds.width === 56 && bounds.right <= document.documentElement.clientWidth + 1 && bounds.bottom <= innerHeight - 10 && bounds.bottom >= innerHeight - 100 && getComputedStyle(add.querySelector('.mobile-add-label')!).display === 'none', `${page} uses a floating plus with an accessible name`);
+    if (add.closest('.service-points-page')) {
+      assert(getComputedStyle(add).position === 'static' && bounds.right <= document.documentElement.clientWidth + 1 && getComputedStyle(add.querySelector('.mobile-add-label')!).display !== 'none', 'Service Points keeps its labelled Add action in the page header');
+    } else assert(getComputedStyle(add).position === 'fixed' && bounds.width === 56 && bounds.right <= document.documentElement.clientWidth + 1 && bounds.bottom <= innerHeight - 10 && bounds.bottom >= innerHeight - 100 && getComputedStyle(add.querySelector('.mobile-add-label')!).display === 'none', `${page} uses a floating plus with an accessible name`);
   }
 }
 void (async () => {
@@ -204,9 +206,9 @@ void (async () => {
   await until(() => document.querySelector('.master-row'), 'customer records'); fits('.master-row', 'Customer card'); fits('.master-row-actions', 'Customer actions');
   document.querySelector<HTMLButtonElement>('.master-row-main')!.click(); await until(() => document.querySelector('.customer-form-page'), 'customer form'); fits('.customer-form-page', 'Customer editor');
   if (phoneViewport) {
-    const footer = document.querySelector<HTMLElement>('.customer-form-page .modal-footer')!;
-    assert(getComputedStyle(footer).position === 'sticky', 'Long master forms keep save actions attached to the bottom of the phone');
-    fits('.customer-form-page .modal-footer', 'Customer save actions');
+    const actions = document.querySelector<HTMLElement>('.customer-form-page .master-form-header-actions')!;
+    assert(!!actions.querySelector('button[type=submit]') && actions.textContent?.includes('Cancel'), 'Customer Save and Cancel are in the form header');
+    fits('.customer-form-page .master-form-header-actions', 'Customer save actions');
   }
   document.querySelector<HTMLButtonElement>('[aria-label="Close customer form"]')!.click(); await until(() => !document.querySelector('.customer-form-page'), 'close customer form');
   await navigate('Masters', 'Suppliers', '[aria-label="Suppliers"]');
