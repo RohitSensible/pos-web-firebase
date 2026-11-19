@@ -51,6 +51,46 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
   const openDraft = (next: Draft) => { baseline.current = next; setDraft(next); };
   const { confirmAction, confirmation } = useActionConfirmation(!!draft);
   const [saveError, setSaveError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  const invalidFieldToFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (invalidFieldToFocus.current) {
+      formRef.current?.querySelector<HTMLElement>(`#${invalidFieldToFocus.current}`)?.focus();
+      invalidFieldToFocus.current = null;
+    }
+  }, [fieldErrors]);
+  const showFieldErrors = (errors: Record<string, string>) => {
+    invalidFieldToFocus.current = Object.keys(errors)[0] ?? null;
+    setFieldErrors(errors);
+  };
+  const fieldErrorProps = (id: string) => ({
+    'aria-invalid': fieldErrors[id] ? true as const : undefined,
+    'aria-describedby': fieldErrors[id] ? `${id}-error` : undefined,
+  });
+  const fieldError = (id: string) => fieldErrors[id]
+    ? <p id={`${id}-error`} className="employee-field-error" role="alert">{fieldErrors[id]}</p> : null;
+  const onInvalid = (event: FormEvent<HTMLFormElement>) => {
+    const field = event.target as HTMLInputElement;
+    if (!field.id) return;
+    event.preventDefault();
+    invalidFieldToFocus.current = formRef.current?.querySelector<HTMLInputElement>('input:invalid, select:invalid, textarea:invalid')?.id ?? field.id;
+    setFieldErrors(current => ({ ...current, [field.id]: field.validationMessage }));
+  };
+  const clearFieldError = (id: string) => setFieldErrors(current => {
+    if (!current[id]) return current;
+    const next = { ...current }; delete next[id]; return next;
+  });
+  const onFieldInput = (event: FormEvent<HTMLFormElement>) => {
+    const field = event.target;
+    if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement)) return;
+    if (!field.validity.valid) return;
+    if (['employee-name', 'employee-mobile', 'employee-short-name'].includes(field.id) && !field.value.trim()) return;
+    if (field.id === 'employee-mobile' && !/^\+?(?=.*\d)[\d ()-]+$/.test(field.value.trim())) return;
+    if (field.id === 'employee-code' && (!Number.isSafeInteger(Number(field.value)) || Number(field.value) < 1)) return;
+    clearFieldError(field.id);
+  };
+
   const [notice, setNotice] = useTimedNotice(false);
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
@@ -99,12 +139,12 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
 
   const openAdd = () => {
     if (!data) return;
-    shortNameEdited.current = false; setSaveError(''); setNotice('');
+    shortNameEdited.current = false; setSaveError(''); setFieldErrors({}); setNotice('');
     openDraft({ requestId: createRequestId(), name: '', mobile: '', searchCode: String(data.nextSearchCode),
       shortName: '', balanceAmt: '0', dateOfJoining: '', userId: '' });
   };
   const openEdit = (employee: Employee) => {
-    shortNameEdited.current = true; setSaveError(''); setNotice('');
+    shortNameEdited.current = true; setSaveError(''); setFieldErrors({}); setNotice('');
     openDraft({ ...employee, requestId: createRequestId(), searchCode: String(employee.searchCode ?? ''), balanceAmt: employee.balanceAmt || '0' });
   };
   const change = (key: keyof Draft, value: string) => {
@@ -115,9 +155,15 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
     if (!draft || !data || busy.current) return;
     setSaveError('');
     const searchCode = Number(draft.searchCode);
-    if (!draft.name.trim() || !draft.mobile.trim() || !draft.shortName.trim()) { setSaveError('Name, mobile and short name are required.'); return; }
-    if (!Number.isSafeInteger(searchCode) || searchCode < 1) { setSaveError('Enter a positive whole search code.'); return; }
-    if (!/^\+?(?=.*\d)[\d ()-]+$/.test(draft.mobile.trim())) { setSaveError('Enter a valid mobile number.'); return; }
+    if (!draft.name.trim() || !draft.mobile.trim() || !draft.shortName.trim()) {
+      const errors: Record<string, string> = {};
+      if (!draft.name.trim()) errors['employee-name'] = 'Employee name is required.';
+      if (!draft.mobile.trim()) errors['employee-mobile'] = 'Mobile number is required.';
+      if (!draft.shortName.trim()) errors['employee-short-name'] = 'Short name is required.';
+      showFieldErrors(errors); return;
+    }
+    if (!Number.isSafeInteger(searchCode) || searchCode < 1) { showFieldErrors({ 'employee-code': 'Enter a positive whole search code.' }); return; }
+    if (!/^\+?(?=.*\d)[\d ()-]+$/.test(draft.mobile.trim())) { showFieldErrors({ 'employee-mobile': 'Enter a valid mobile number.' }); return; }
     const controller = requests.current;
     if (!controller || controller.signal.aborted) return;
     if (!await confirmAction(draft.documentId ? 'update' : 'add', draft.name.trim())) return;
@@ -139,7 +185,17 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
         nextSearchCode: Math.max(current.nextSearchCode, (saved.searchCode ?? 0) + 1),
       } : current);
       setDraft(null); setNotice(`${kind} ${draft.documentId ? 'updated' : 'added'} successfully.`);
-    } catch (failure) { if (!controller.signal.aborted) setSaveError((failure as Error).message); }
+    } catch (failure) {
+      if (!controller.signal.aborted) {
+        const message = (failure as Error).message;
+        const field = ({
+          'This search code is already in use. Choose another code or reload the list.': 'employee-code',
+          'An employee with this mobile number already exists. Select the existing employee.': 'employee-mobile',
+          'Select an active user account assigned to this outlet.': 'employee-user',
+        } as Record<string, string>)[message];
+        if (field) showFieldErrors({ [field]: message }); else setSaveError(message);
+      }
+    }
     finally { if (!controller.signal.aborted) { busy.current = false; setSaving(false); } }
   };
   // Removes only this outlet's employee masters; bills and user accounts are kept.
@@ -164,20 +220,20 @@ function EmployeesWorkspace({ outlet, token, onSessionExpired }: EmployeesPagePr
     String(employee.searchCode ?? ''), employee.shortName, userDisplayName(employee)]
     .some(value => value.toLowerCase().includes(query))) ?? [];
 
-  if (draft) return <section className="category-modal employee-form-page master-form-page master-form-top-actions" aria-labelledby="employee-form-title"><form onSubmit={save}>{confirmation}
+  if (draft) return <section className="category-modal employee-form-page master-form-page master-form-top-actions" aria-labelledby="employee-form-title"><form ref={formRef} onSubmit={save} onInvalid={onInvalid} onInputCapture={onFieldInput} onChangeCapture={onFieldInput}>{confirmation}
         <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon" aria-hidden="true"><UserRoundCog size={24} /></span><div><PageHeading as="h3" id="employee-form-title">{draft.documentId ? 'Edit' : 'Add'} {kind}</PageHeading><p>Personal and work details</p></div></div><div className="master-form-header-actions"><button type="button" className="btn-secondary" disabled={saving} onClick={closeDraft}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}>{saving ? <RefreshCw size={16} /> : <Save size={16} />}{saving ? 'Saving…' : 'Save'}</button><button type="button" className="modal-close-btn" aria-label="Close employee form" disabled={saving} onClick={closeDraft}><X size={18} /></button></div></div>
         <fieldset className="employees-form-fields" disabled={saving}>
           <div className="master-form-section-heading"><span>01</span><h4>Personal information</h4></div>
-          <div className="form-field"><label htmlFor="employee-name">Employee Name*</label><input id="employee-name" placeholder="Full name" value={draft.name} required maxLength={200} autoFocus onChange={event => { const value = event.target.value; setSaveError(''); setDraft(current => current ? { ...current, name: value, shortName: shortNameEdited.current ? current.shortName : Array.from(value.trim())[0] ?? '' } : current); }} /></div>
-          <div className="form-field"><label htmlFor="employee-mobile">Mobile*</label><input id="employee-mobile" placeholder="Enter mobile number" type="tel" value={draft.mobile} required maxLength={30} pattern="\+?[0-9 \(\)\-]+" onChange={event => change('mobile', event.target.value)} /></div>
+          <div className="form-field"><label htmlFor="employee-name">Employee Name*</label><input {...fieldErrorProps('employee-name')} id="employee-name" placeholder="Full name" value={draft.name} required maxLength={200} autoFocus onChange={event => { const value = event.target.value; setSaveError(''); if (!shortNameEdited.current && value.trim()) clearFieldError('employee-short-name'); setDraft(current => current ? { ...current, name: value, shortName: shortNameEdited.current ? current.shortName : Array.from(value.trim())[0] ?? '' } : current); }} />{fieldError('employee-name')}</div>
+          <div className="form-field"><label htmlFor="employee-mobile">Mobile*</label><input {...fieldErrorProps('employee-mobile')} id="employee-mobile" placeholder="Enter mobile number" type="tel" value={draft.mobile} required maxLength={30} pattern="\+?[0-9 \(\)\-]+" onChange={event => change('mobile', event.target.value)} />{fieldError('employee-mobile')}</div>
           <div className="master-form-section-heading"><span>02</span><h4>Work details</h4></div>
-          <div className="form-field"><label htmlFor="employee-code">Search code</label><input id="employee-code" type="number" min={1} step={1} required value={draft.searchCode} onChange={event => change('searchCode', event.target.value)} /></div>
-          <div className="form-field"><label htmlFor="employee-short-name">Short name</label><input id="employee-short-name" placeholder="Initials or short name" required maxLength={200} value={draft.shortName} onChange={event => { shortNameEdited.current = true; change('shortName', event.target.value); }} /></div>
+          <div className="form-field"><label htmlFor="employee-code">Search code</label><input {...fieldErrorProps('employee-code')} id="employee-code" type="number" min={1} step={1} required value={draft.searchCode} onChange={event => change('searchCode', event.target.value)} />{fieldError('employee-code')}</div>
+          <div className="form-field"><label htmlFor="employee-short-name">Short name</label><input {...fieldErrorProps('employee-short-name')} id="employee-short-name" placeholder="Initials or short name" required maxLength={200} value={draft.shortName} onChange={event => { shortNameEdited.current = true; change('shortName', event.target.value); }} />{fieldError('employee-short-name')}</div>
           <div className="master-form-section-heading"><span>03</span><h4>Balance & joining date</h4></div>
-          <div className="form-field"><label htmlFor="employee-balance">Balance</label><input id="employee-balance" type="number" step="0.01" required value={draft.balanceAmt} onChange={event => change('balanceAmt', event.target.value)} /></div>
+          <div className="form-field"><label htmlFor="employee-balance">Balance</label><input {...fieldErrorProps('employee-balance')} id="employee-balance" type="number" step="0.01" required value={draft.balanceAmt} onChange={event => change('balanceAmt', event.target.value)} />{fieldError('employee-balance')}</div>
           <div className="form-field"><label>Joining Date</label><ReportDateInput aria-label="Joining Date" value={draft.dateOfJoining} onChange={value => change('dateOfJoining', value)} disabled={saving} /></div>
           <div className="master-form-section-heading"><span>04</span><h4>Account assignment</h4></div>
-          <div className="form-field"><label htmlFor="employee-user">Assign To User Account</label><select id="employee-user" value={draft.userId} onChange={event => change('userId', event.target.value)}><option value="">Not assigned</option>{data?.userAccounts.map(user => <option key={user.userId} value={user.userId}>{user.name || 'User account'}</option>)}</select></div>
+          <div className="form-field"><label htmlFor="employee-user">Assign To User Account</label><select {...fieldErrorProps('employee-user')} id="employee-user" value={draft.userId} onChange={event => change('userId', event.target.value)}><option value="">Not assigned</option>{data?.userAccounts.map(user => <option key={user.userId} value={user.userId}>{user.name || 'User account'}</option>)}</select>{fieldError('employee-user')}</div>
         </fieldset>
         {saveError && <p className="employees-save-error" role="alert">{saveError}</p>}
       </form></section>;

@@ -31,3 +31,5 @@
   .employees-page .employees-search-controls .btn-secondary { min-height: 44px; }
   .employees-page .employees-search-field input { min-height: 44px; }
 }
+
+.employee-field-error { margin: 0; color: var(--red); font-size: 13px; }

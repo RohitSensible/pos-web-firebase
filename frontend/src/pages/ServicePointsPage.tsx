@@ -39,6 +39,44 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
   const [deleteError, setDeleteError] = useState(''), [deleteBusy, setDeleteBusy] = useState(false);
   const original = useRef<Draft | null>(null);
   const [saveError, setSaveError] = useState(''), [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  const invalidFieldToFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (invalidFieldToFocus.current) {
+      formRef.current?.querySelector<HTMLElement>(`#${invalidFieldToFocus.current}`)?.focus();
+      invalidFieldToFocus.current = null;
+    }
+  }, [fieldErrors]);
+  const showFieldErrors = (errors: Record<string, string>) => {
+    invalidFieldToFocus.current = Object.keys(errors)[0] ?? null;
+    setFieldErrors(errors);
+  };
+  const fieldErrorProps = (id: string) => ({
+    'aria-invalid': fieldErrors[id] ? true as const : undefined,
+    'aria-describedby': fieldErrors[id] ? `${id}-error` : undefined,
+  });
+  const fieldError = (id: string) => fieldErrors[id]
+    ? <p id={`${id}-error`} className="service-point-field-error" role="alert">{fieldErrors[id]}</p> : null;
+  const onInvalid = (event: FormEvent<HTMLFormElement>) => {
+    const field = event.target as HTMLInputElement;
+    if (!field.id) return;
+    event.preventDefault();
+    invalidFieldToFocus.current = formRef.current?.querySelector<HTMLInputElement>('input:invalid, select:invalid, textarea:invalid')?.id ?? field.id;
+    setFieldErrors(current => ({ ...current, [field.id]: field.validationMessage }));
+  };
+  const clearFieldError = (id: string) => setFieldErrors(current => {
+    if (!current[id]) return current;
+    const next = { ...current }; delete next[id]; return next;
+  });
+  const onFieldInput = (event: FormEvent<HTMLFormElement>) => {
+    const field = event.target;
+    if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement)) return;
+    if (!field.validity.valid) return;
+    if (field.id === 'service-point-name' && !field.value.trim()) return;
+    clearFieldError(field.id);
+  };
+
   const busy = useRef(false), request = useRef<AbortController | null>(null);
   useWorkspaceBack(!!draft, () => { if (!saving) setDraft(null); });
   const [menuOpen, setMenuOpen] = useState(false);
@@ -95,11 +133,11 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
     finally { if (!controller.signal.aborted) { busy.current = false; setDeleteBusy(false); } }
   };
   const openAdd = () => {
-    setNotice(''); setSaveError(''); setEditing(null); original.current = null;
+    setNotice(''); setSaveError(''); setFieldErrors({}); setEditing(null); original.current = null;
     setDraft({ requestId: createRequestId(), name: '', paperSize: 2, printerType: 0, header: '', subHeader: '', footer: '', printerIpAddress: '', port: '9100', usbPath: '' });
   };
   const openEdit = (row: ServicePoint) => {
-    setNotice(''); setSaveError(''); setEditing(row);
+    setNotice(''); setSaveError(''); setFieldErrors({}); setEditing(row);
     const initial = { ...row, requestId: '', port: String(row.port ?? 0), usbPath: row.usbPath ?? '' };
     original.current = initial; setDraft(initial);
   };
@@ -112,10 +150,10 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
     event.preventDefault();
     const controller = request.current;
     if (!draft || busy.current || !controller || controller.signal.aborted) return;
-    if (!draft.name.trim()) { setSaveError('Enter a service point name.'); return; }
+    if (!draft.name.trim()) { showFieldErrors({ 'service-point-name': 'Enter a service point name.' }); return; }
     const port = draft.printerType === 1 ? Number(draft.port) : 0;
     if (!Number.isInteger(port) || port < 0 || port > 65535 || (draft.printerType === 1 && !draft.port.trim())) {
-      setSaveError('Enter a printer port between 0 and 65535.'); return;
+      showFieldErrors({ 'service-point-port': 'Enter a printer port between 0 and 65535.' }); return;
     }
     if (!await confirmAction(editing ? 'update' : 'add', draft.name.trim())) return;
     busy.current = true; setSaving(true); setSaveError('');
@@ -134,25 +172,31 @@ function ServicePointsContent({ outlet, token, onSessionExpired }: Props) {
       setRows(current => [...(current ?? []).filter(row => row.documentId !== saved.documentId), saved].sort((a, b) => a.name.localeCompare(b.name)));
       setDraft(null); setEditing(null); original.current = null;
       setNotice(editing ? 'Service point updated successfully.' : 'Service point added successfully.');
-    } catch (failure) { if (!controller.signal.aborted) setSaveError((failure as Error).message); }
+    } catch (failure) {
+      if (!controller.signal.aborted) {
+        const message = (failure as Error).message;
+        if (message === 'A service point with this name already exists.') showFieldErrors({ 'service-point-name': message });
+        else setSaveError(message);
+      }
+    }
     finally { if (!controller.signal.aborted) { busy.current = false; setSaving(false); } }
   };
   if (draft) return <section className="category-modal service-point-form-page master-form-page master-form-top-actions" aria-labelledby="service-point-title">
-    <form onSubmit={save}>{confirmation}
+    <form ref={formRef} onSubmit={save} onInvalid={onInvalid} onInputCapture={onFieldInput} onChangeCapture={onFieldInput}>{confirmation}
       <div className="modal-header master-form-header"><div className="master-form-title"><span className="master-form-icon"><Printer size={24} /></span><div><PageHeading as="h3" id="service-point-title">{editing ? 'Edit Service Point' : 'Add Service Point'}</PageHeading><p>Service Point details</p></div></div>
         <div className="master-form-header-actions"><button type="button" className="btn-secondary" disabled={saving} onClick={() => setDraft(null)}>Cancel</button><button type="submit" className="btn-primary-add" disabled={saving}><Save size={16} />{saving ? 'Saving…' : editing ? 'Update' : 'Save'}</button><button type="button" className="modal-close-btn" aria-label="Close service point form" disabled={saving} onClick={() => setDraft(null)}><X size={18} /></button></div></div>
       <fieldset className="service-point-fields" disabled={saving}>
-        <div className="form-field"><label htmlFor="service-point-name">Name</label><input id="service-point-name" autoFocus required maxLength={200} value={draft.name} onChange={event => change('name', event.target.value)} /></div>
+        <div className="form-field"><label htmlFor="service-point-name">Name</label><input {...fieldErrorProps('service-point-name')} id="service-point-name" autoFocus required maxLength={200} value={draft.name} onChange={event => change('name', event.target.value)} />{fieldError('service-point-name')}</div>
         <fieldset className="service-point-options"><legend>Select printer paper size</legend>{[2, 3].map(size => <label key={size}><input type="radio" name="paperSize" value={size} checked={draft.paperSize === size} onChange={() => change('paperSize', size)} />{size} Inch</label>)}</fieldset>
         <fieldset className="service-point-options"><legend>Select printer type</legend>{printerTypes.map((name, index) => <label key={name}><input type="radio" name="printerType" value={index} checked={draft.printerType === index} onChange={() => change('printerType', index)} />{name}</label>)}</fieldset>
         {editing && (![2, 3].includes(draft.paperSize ?? -1) || ![0, 1, 2].includes(draft.printerType ?? -1)) && <p>Some saved printer settings are unavailable or unsupported. They will be preserved unless you select a new value.</p>}
         {draft.printerType === 1 && <div className="service-point-connection">
-          <div className="form-field"><label htmlFor="service-point-ip">Printer IP Address (optional)</label><input id="service-point-ip" maxLength={255} value={draft.printerIpAddress} onChange={event => change('printerIpAddress', event.target.value)} /></div>
-          <div className="form-field"><label htmlFor="service-point-port">Port</label><input id="service-point-port" type="number" min={0} max={65535} step={1} required value={draft.port} onChange={event => change('port', event.target.value)} /></div>
+          <div className="form-field"><label htmlFor="service-point-ip">Printer IP Address (optional)</label><input {...fieldErrorProps('service-point-ip')} id="service-point-ip" maxLength={255} value={draft.printerIpAddress} onChange={event => change('printerIpAddress', event.target.value)} />{fieldError('service-point-ip')}</div>
+          <div className="form-field"><label htmlFor="service-point-port">Port</label><input {...fieldErrorProps('service-point-port')} id="service-point-port" type="number" min={0} max={65535} step={1} required value={draft.port} onChange={event => change('port', event.target.value)} />{fieldError('service-point-port')}</div>
         </div>}
-        {draft.printerType === 2 && <div className="form-field"><label htmlFor="service-point-usb">USB Path (optional)</label><input id="service-point-usb" maxLength={1000} value={draft.usbPath} onChange={event => change('usbPath', event.target.value)} /></div>}
+        {draft.printerType === 2 && <div className="form-field"><label htmlFor="service-point-usb">USB Path (optional)</label><input {...fieldErrorProps('service-point-usb')} id="service-point-usb" maxLength={1000} value={draft.usbPath} onChange={event => change('usbPath', event.target.value)} />{fieldError('service-point-usb')}</div>}
         {(['header', 'subHeader', 'footer'] as const).map(key => <div className="form-field" key={key}><label htmlFor={`service-point-${key}`}>Service Point {key === 'subHeader' ? 'Sub Header' : key === 'header' ? 'Header' : 'Footer'}</label>
-          <textarea id={`service-point-${key}`} rows={2} maxLength={2000} value={draft[key]} onChange={event => change(key, event.target.value)} /></div>)}
+          <textarea {...fieldErrorProps(`service-point-${key}`)} id={`service-point-${key}`} rows={2} maxLength={2000} value={draft[key]} onChange={event => change(key, event.target.value)} />{fieldError(`service-point-${key}`)}</div>)}
       </fieldset>
       {saveError && <p className="service-point-error" role="alert">{saveError}</p>}
     </form>

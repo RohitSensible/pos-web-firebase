@@ -94,3 +94,15 @@
   .outlet-logo-card-heading p { font-size: 11px; }
   .outlet-logo-actions button { flex: 1; padding: 10px 12px; }
 }
+
+@media (max-width: 600px) {
+  .outlet-logo-processing button, .outlet-logo-processing a,
+  .outlet-logo-page .logo-retry, .outlet-logo-printer button,
+  .outlet-logo-actions button { min-width: 44px; min-height: 44px; }
+  .outlet-logo-processing button, .outlet-logo-processing a {
+    display: inline-flex; align-items: center; justify-content: center; padding: 10px 8px;
+  }
+}
+@media (max-width: 430px) {
+  .outlet-logo-preview.comparing { grid-template-columns: minmax(0, 1fr); justify-items: stretch; }
+}
